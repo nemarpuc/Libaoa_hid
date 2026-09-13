@@ -1,0 +1,324 @@
+# Changelog
+
+All notable changes to libaoahid are recorded here. This project follows
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Changed
+
+- **Breaking:** Consolidated the public profile surface from fourteen
+  `aoahid_profile_kind` values to eight (`Keyboard`, `Mouse`, `Toggle`,
+  `Gamepad`, `Touchscreen`, `Pen`, `Battery`, `Raw`). Every removed state
+  machine is preserved byte-for-byte under a merged factory:
+  - `aoahid_spec_create_barcode_wedge` merged into `aoahid_spec_create_keyboard`.
+  - `aoahid_spec_create_consumer`, `_system_control`, `_camera_keys`, and
+    `_telephony_keys` merged into `aoahid_spec_create_toggle`, which takes a
+    new `aoahid_toggle_options` with explicit `application_page`,
+    `application_usage`, and `field_page` fields so the caller states which
+    HUT page it wants instead of the library inferring it from which function
+    was called. The Camera Control (`field_page == 0x90`) Auto-focus/Shutter
+    restriction is preserved as a validator rule keyed on that page.
+  - `aoahid_spec_create_joystick` merged into `aoahid_spec_create_gamepad`;
+    select it with `aoahid_gamepad_options.application =
+    AOAHID_CONTROLLER_JOYSTICK`.
+  - `aoahid_spec_create_touchpad` merged into `aoahid_spec_create_touchscreen`;
+    select it by setting `touchpad_button_count` above zero.
+  - Removed the Touchscreen one-contact-MT and pure-single-touch descriptor
+    forms (`aoahid_touch_protocol`, and the `protocol`/`target_verified`
+    fields of `aoahid_touch_options`). Every Touchscreen/Touchpad Spec is now
+    the fixed-slot Multi-Touch form only.
+- **Breaking:** Consolidated the runtime (per-report) API to one call per
+  profile family, taking an explicit `down`/`0`-or-`1` argument instead of
+  separate press/release-shaped functions:
+  - `aoahid_keyboard_key_down`/`key_up`/`release_all` -> `aoahid_kbd(node,
+    usage, down)`. There is no release-all call; release every Usage the
+    caller pressed.
+  - `aoahid_consumer_press`/`release`/`tap` and the redundant
+    `aoahid_system_press`/`release`/`tap` (which only ever forwarded to the
+    Consumer functions) -> `aoahid_toggle(node, usage, down)`.
+  - `aoahid_gamepad_hat`/`aoahid_gamepad_dpad` -> `aoahid_dpad(node, up, down,
+    right, left)`, which derives the canonical Hat encoding or the four raw
+    D-pad bits depending on the Spec.
+  - `aoahid_touch_down`/`_move`/`_up` -> `aoahid_touch(node, contact_id, down,
+    x, y, extra)`, which auto-detects placement (a not-yet-active
+    `contact_id`) versus movement (an already-active one) from `down=1`.
+    Optional pressure/width/height/azimuth moved from `aoahid_touch_contact`
+    to a new, separately passed `aoahid_touch_extra` (pass `NULL` to omit).
+- The C++ header (`aoahid.hpp`) node-reference and factory-binding types were
+  renamed/merged to match: `consumer_node_ref` -> `toggle_node_ref`;
+  `barcode_wedge_node_ref`, `camera_keys_node_ref`, `telephony_keys_node_ref`,
+  `system_control_node_ref`, `joystick_node_ref`, and `touchpad_node_ref` were
+  removed in favor of their merged counterparts above.
+- The Python, Rust, and C# bindings were updated to match this ABI; no
+  language binding retains the removed symbols.
+
+### Fixed
+
+- **License compliance:** stopped publishing a bare `.so`/`.dll` as a
+  standalone GitHub Release asset. Those files link libusb dynamically, but
+  libusb's LGPL-2.1 text, copyright notice, and corresponding source lived only
+  in the neighboring complete archive, so a loose file redistributed on its own
+  carried a libusb-dependent binary with no license material in its own
+  distribution unit, and the packaging self-check that guards the complete
+  archives did not cover it. Each of the four targets now publishes a
+  `*-runtime.tar.gz`/`*-runtime.zip` bundle containing the libaoahid shared
+  library, the libusb runtime it loads, `LICENSE`, `NOTICE`,
+  `THIRD_PARTY_NOTICES.md`, `build-metadata.json`,
+  `third-party/libusb-copyright`, `third-party/source/libusb-1.0.30.tar.bz2`,
+  the pinned vcpkg material on Windows, and a `README.txt` stating the
+  MIT/LGPL split. Members are copied verbatim from the already validated shared
+  archive, so they inherit its architecture and glibc validation, and the
+  bundle is byte-for-byte reproducible. `collect_release.validate_runtime_bundle`
+  fails the release if any license file is missing, if the libusb runtime is
+  absent, if a bundled byte differs from the complete archive, or if an
+  unexpected member appears. The release asset total is unchanged at 23.
+  See `docs/SOURCE_CONFLICTS.md` C-15.
+- **License metadata:** raised the SPDX documents from package-level
+  declarations with `NOASSERTION` on every file to per-file licensing.
+  `generate_spdx.file_license` classifies each packaged file by installed
+  location: `MIT` for first-party output, `LGPL-2.1-or-later` for everything
+  installed from libusb, and MIT with Microsoft's copyright for the pinned
+  vcpkg material. The libaoahid package record concludes
+  `MIT AND LGPL-2.1-or-later` for the archive while still declaring `MIT` for
+  libaoahid itself. Both `generate_spdx.validate_document` and
+  `collect_release.validate_sidecar` reject a document whose file entries or
+  package summary disagree. See `docs/SOURCE_CONFLICTS.md` C-15a.
+- **License provenance:** added an `SPDX-License-Identifier: MIT` tag and
+  copyright line to every first-party source file, so a file copied out of this
+  repository stays identifiable without the root `LICENSE`. The new
+  `tools/check_license_headers.py` enforces this in CI and can repair the tree
+  with `--fix`.
+
+- Fixed CI failures surfaced after the profile-consolidation work above:
+  applied the project's `clang-format` style throughout, replaced the
+  POSIX-only `nanosleep` call in the `examples/c/verify/` programs with a
+  Windows/POSIX-portable `verify_sleep_ms` helper, silenced three
+  `bugprone-easily-swappable-parameters` clang-tidy findings on
+  `aoahid_kbd`/`aoahid_toggle`/`aoahid_touch`'s fixed public-ABI parameter
+  order, and corrected the C# binding's `aoahid_touch` P/Invoke declaration
+  to the `in TouchExtra` signature `tools/check_bindings.py` expects.
+- Fixed `udev/51-aoahid.rules` and its `docs/PORTING.md` description, which
+  only granted access for the unused Mode-B Google-Accessory VID/PID range;
+  they now grant access through udev's `uaccess` tag, which is what Mode A
+  (this library's only implemented mode) actually needs.
+- Filled in a leftover `YOUR_GITHUB_EMAIL` template placeholder in
+  `GITHUB_SETUP.md`'s first-push instructions.
+
+### Added
+
+- Reduced fixed work on the report-send path. First-report STALL retries are
+  the transport's only deferred work and arise solely from the registration
+  race, so the Context now keeps an atomic count of armed retries. When it is
+  zero - every ordinary send cycle - `poll` skips the device-registry lock, the
+  per-slot scan, and the `steady_clock` read that computing a shortened wait
+  would otherwise need. This is on the submit path and not only the poll loop,
+  because caller-poll mode polls with a zero timeout immediately after
+  accepting a report. The Context graveyard gained the same treatment: an
+  atomic size is read without the Context mutex, so a poll with nothing
+  awaiting reclamation takes no lock. Both counters are maintained across every
+  arm, due-submit, cancel, and teardown transition, and the deterministic and
+  ThreadSanitizer suites still pass. No latency figure is claimed; this is a
+  structural reduction in instructions and lock acquisitions, not a
+  measurement. See `docs/LATENCY.md`.
+- Made each `examples/c/profiles/` program show how to actually send its
+  profile. Every example already built a complete Spec and printed its
+  descriptor, but the call sequence that makes a phone react lived only in the
+  860-line `multi_profile.c`. Each example now also prints the full
+  context-create/discover/open/node-open sequence together with its own
+  profile-specific mutation calls, so a reader can see the whole path without
+  leaving the file.
+- Documented the Windows `adb`-holds-the-interface pitfall and added
+  `docs/QUICKSTART.md`, a practical real-device setup and troubleshooting
+  walkthrough distinct from the evidence-audit documents in `docs/`.
+- Added `examples/c/verify/`: four small, heavily commented programs meant to
+  be watched against a real phone rather than run unattended --
+  `verify_keyboard`, `verify_touch`, and `verify_mouse` each exercise one
+  profile, and `verify_all` alternates all three and then interleaves them
+  fast enough to look simultaneous, within the single-threaded call
+  serialization every `aoahid.h` function documents as required.
+- Release archives (`tools/release/package_release.py`) now bundle
+  `examples/` under `share/doc/libaoahid/examples/`; previously only the
+  header, library, and license files were packaged.
+- Disclosed in `README.md` that most of this repository's code, tests, and
+  documentation were written by an AI coding assistant, with architecture,
+  hardware verification, and review done by a human.
+
+_No other unreleased changes._
+
+## [0.1.0] - 2026-08-27
+
+### Changed
+
+- Completed the generated-profile state-automation audit and made its boundary
+  explicit. Keyboard and barcode-wedge Nodes route modifiers, pack key state,
+  apply HID Array ErrorRollOver to every Array cell after the declared
+  nonmodifier capacity is exceeded, and recover ordinary packing when the
+  pressed set returns within that capacity; bitmap form keeps independent bits
+  and has no Array rollover. Mouse Nodes maintain signed 64-bit accumulation
+  and range-bounded fragmentation for X, Y, Wheel, and AC Pan.
+- Consumer, System, Camera, and Telephony Nodes share one accepted-edge state
+  machine for the six supported key-like descriptor semantics (Selector, OOC
+  toggle, OOC maintained, MC, OSC, and RTC). The caller still declares the
+  exact Usage semantic and target evidence; the library adds no timer or repeat
+  behavior.
+- Added boolean D-pad derivation for canonical Gamepad/Joystick Hat state:
+  eight directions use wire values `0..7`, no direction uses deterministic
+  Null `15`, adjacent pairs form diagonals, and opposite pairs are rejected
+  without mutating state. Raw D-pad mode preserves four independent OOC bits;
+  raw-D-pad Gamepads and every Joystick remain conditional and hardware
+  unverified.
+- Limited Gamepad portable-candidate manifests to the Android 17 CDD shape:
+  Game Pad collection, canonical Hat, and a contiguous Button range beginning
+  at `1` with at least five fields so A/B/X/Y Usages `1`, `2`, `4`, and `5`
+  are present. No-D-pad Gamepads remain conditional. The CDD's contradictory
+  value-1 Hat prose and its clockwise rule are recorded in
+  `docs/SOURCE_CONFLICTS.md` A-05.
+- Ordered eraser-enabled pen Variable fields as Invert, Tip Switch, then In
+  Range, matching the audited legacy descriptor-order dependency and the
+  Android 17 ACK priority relation. Close-time neutralization also clears raw
+  D-pad bits instead of repeating a held direction.
+- Documented and regression-tested the remaining generated state machines:
+  touch Count/continuation/Tip=0 Up/100-microsecond Scan Time handling; pen Away
+  and tool-switch wire normalization; known-zero versus unknown-Null Battery
+  Strength; shared keyboard behavior for barcode wedges; and caller-defined
+  semantics for raw reports. Descriptor/product choices remain mandatory and
+  no hardware-verification status was promoted.
+- A zero value for `control_timeout_ms`, `send_timeout_ms`,
+  `descriptor_fragment_bytes`, `transfer_pool_slots`,
+  `maximum_report_bytes`, `close_drain_timeout_ms`,
+  `first_report_attempts`, or `first_report_backoff_us` now selects the
+  documented bounded project-policy fallback: 500 ms, 500 ms, 64 bytes, 8
+  slots, 1024 bytes, 1000 ms, 20 total attempts, and 1000 microseconds,
+  respectively. The timeout values are failure deadlines, not latency added to
+  successful transfers, and are not described as libusb recommendations.
+- A zero-initialized `aoahid_node_options` (`has_reserved_slots == 0` and
+  `reserved_slots == 0`) now explicitly means no per-Node pool reservation.
+  A positive reservation remains opt-in.
+- Product- and target-specific choices, including coordinate/usage ranges,
+  field widths, Report IDs, descriptor and EP0 policies, and exact-target HID
+  parser policies, remain mandatory and receive no fallback.
+
+### Removed
+
+- Removed the Accessory Mode (Mode B) runtime startup path. The library now
+  sends AOA HID requests only on the selected device's current EP0 and never
+  sends identification strings, deprecated audio request 58, or
+  `ACCESSORY_START`, and never waits for re-enumeration. Mode A remains
+  target-conditional rather than a blanket Android compatibility claim; see
+  `docs/SOURCE_CONFLICTS.md` T-07.
+
+### Compatibility
+
+- Retained the numeric `AOAHID_START_ACCESSORY_MODE` token, `aoahid_aoa_strings`,
+  and the former Mode-B members of `aoahid_device_options` solely as public ABI
+  tombstones. Passing the retained mode returns `AOAHID_ERR_UNSUPPORTED` before
+  USB I/O. Nonnull accessory strings or a nonzero deprecated-audio flag likewise
+  return `AOAHID_ERR_UNSUPPORTED`; `reenumeration_timeout_ms` is ignored whether
+  zero or nonzero. Their sizes and offsets are unchanged, so this removal does
+  not silently reinterpret an existing C, C++, Python, C#, or Rust structure.
+  This is a runtime capability removal, not a claim that Mode-B-only fields
+  vanished from the stable binary layout.
+- The tuning fallback change does not alter any public structure, field offset,
+  or function signature and does not mutate a caller-owned options structure;
+  the implementation normalizes a local copy. Explicit nonzero tuning values
+  keep their prior meaning. The affected zero values previously failed
+  validation, so no public unlimited-timeout behavior is being replaced.
+
+### Fixed
+
+- Made the installed static CMake target consistently
+  `aoahid::aoahid_static` in static-only and combined packages. Static-only
+  packages retain `aoahid::aoahid` as a compatibility/default alias, and the
+  Linux and Windows release smoke tests now request the explicit static target.
+- Made installed component availability require both the package's embedded
+  build contract and its matching target export. Windows release jobs also
+  use distinct shared/static build and staging trees and reject contaminated
+  installed component exports before running positive and negative consumers.
+  The release gate relies on the configure exit status and the installed
+  exports instead of re-parsing generator-specific `CMakeCache.txt` text. A
+  dedicated CTest injects a stale shared export into a static-only package and
+  verifies that the embedded contract still rejects it. That metadata-only
+  CTest does not start a nested native compiler, so it has the same behavior on
+  Windows x64 and Windows ARM64 runners.
+- Made strict documentation generation compatible with Ubuntu 22.04's
+  Doxygen 1.9.1 by avoiding scoped empty-call spellings that it interprets as
+  unresolved explicit links. A repository test protects every live Markdown
+  input from reintroducing that parser-specific failure.
+- Made the combined pkg-config CI checks derive their expected version from
+  the canonical project metadata instead of duplicating a patch-version
+  literal. A regression test rejects reintroducing such a fixed expectation.
+- Made the installed CMake config establish `aoahid_FOUND` explicitly before
+  validating requested components and derive available components from the
+  installed target files. This keeps shared-only Windows packages consumable
+  while preserving fail-closed rejection of unavailable components.
+- Created the configured Doxygen output directory before invoking Doxygen in
+  CI and Pages workflows, including Ubuntu 22.04's Doxygen 1.9.1 path.
+- Restored strict Doxygen output to the workflow-validated
+  `build/doxygen/html` path and kept documentation warnings fatal.
+- Made the musl jobs install their required Python interpreter and avoided a
+  GCC 14 `vector::insert(initializer_list)` false positive without disabling
+  warnings. The equivalent test data is now appended after one bounded
+  reservation.
+- Made the libFuzzer executable explicitly require C++20, matching the
+  production targets and headers it compiles.
+- Replaced the stale fixed HID-descriptor count with an exact generated-versus-
+  golden corpus count before parsing every descriptor with the pinned parser.
+- Made actual-lib Windows builds define `NOMINMAX` before libusb includes, so
+  the Windows SDK macros cannot corrupt `std::min` or
+  the `max` member of `std::numeric_limits<T>` expressions. The release workflow also
+  validates and passes the exact vcpkg libusb header and import library to
+  CMake instead of relying on ambient package discovery.
+- Made GNU ThreadSanitizer builds require GCC 12 or newer and pinned CI to GCC
+  12 because GCC 11 has the unresolved condition-variable false positive in
+  GCC bug 101978. No TSan warning class or project test is suppressed.
+- Restricted the Mach-O shared-library export list to `_aoahid_*` and taught
+  the export checker to exclude Darwin private-external and automatically
+  hidden symbols reported by `nm -g`.
+- Fixed the generated NuGet smoke program's missing success return, made
+  binding version checks derive from the validated tag version, and hardened
+  release publication against transient GitHub API failures before and after
+  draft publication.
+- Kept documentation generation mandatory while making GitHub Pages deployment
+  opt-in through `AOAHID_DEPLOY_PAGES`, so a repository with Pages disabled no
+  longer fails an otherwise valid documentation build.
+
+These build, test, and publication corrections do not change the public C ABI
+or promote any target from its hardware-unverified status.
+
+### Added
+
+- A stable C ABI and a thin C++ wrapper for explicit AOA HID construction,
+  registration, state updates, and report submission.
+- Keyboard and wedge; mouse; Consumer, System, camera, and telephony controls;
+  gamepad/joystick; touch; pen; Battery Strength; and raw HID specification
+  builders whose required choices are supplied by the caller.
+- Caller-poll and internal-event-thread transport modes over libusb 1.0.
+- Release workflow and package definitions for Ubuntu 22.04 glibc x86-64 and
+  AArch64, and Windows x64 and ARM64, each in shared and static variants.
+- SPDX 2.3 JSON SBOM, release-manifest, and SHA-256 checksum generation.
+- A deterministic tagged-commit source archive covered by the release manifest
+  and SHA-256 checksum set.
+- Canonical package metadata for `https://github.com/nemarpuc/Libaoa_hid`.
+- An Input-only runtime API. Generated descriptors may contain declarative
+  Constant Feature metadata, but Feature transport remains unsupported.
+- A Linux GNU/Clang `tsan` CMake preset and CI gate that instrument the full
+  deterministic suite, including caller-poll and internal-thread paths.
+- Deterministic checks for zero test-observed C++ allocations and no selected
+  library mutexes in a prewarmed caller-poll keyboard send cycle, plus repeated
+  completion-versus-close scheduling in internal-thread mode.
+- A low-wakeup internal event pump with a bounded 60-second idle wait,
+  retry-deadline shortening, explicit libusb interruption on teardown, and
+  deterministic idle/cancellation/stop-wake tests.
+
+### Verification status
+
+The configured release gates exercise unit tests, a deterministic fake USB
+transport, installed-package consumption, ABI export checks, and native
+architecture checks. `TARGET_MATRIX.md` records whether an exact run and its
+artifacts passed. Android device/profile behavior is **not hardware-verified**
+by these host-side CI jobs. The evidence-qualified audit records and
+target-specific limits govern these claims; this release makes no blanket
+Android compatibility claim. ThreadSanitizer builds are race diagnostics, not
+release-performance measurements, and a passing finite run is not a proof that
+all possible schedules are data-race-free.

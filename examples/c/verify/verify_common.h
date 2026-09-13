@@ -1,0 +1,130 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 libaoahid contributors
+/* Shared device-connection helper for examples/c/verify/. Each program here
+ * is meant to be run against a real phone and watched, not just compiled: it
+ * prints what to do, waits, then does one clearly described thing. See
+ * docs/QUICKSTART.md for the full walkthrough this directory implements.
+ *
+ * This header chooses no product policy either: every tuning field below is
+ * a plain, generous value picked for a first working connection, not a
+ * recommendation for a shipped product. See docs/API.md for what each field
+ * means and what a zero value would have selected instead. */
+#ifndef AOAHID_VERIFY_COMMON_H
+#define AOAHID_VERIFY_COMMON_H
+
+#if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
+/* Must be defined before any system header is included in this translation
+ * unit, or glibc's feature-test-macro selection will already be locked in
+ * and nanosleep() below will not be declared. */
+#define _POSIX_C_SOURCE 200809L
+#endif
+
+#include "aoahid.h"
+
+#include <stdio.h>
+
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#define _POSIX_C_SOURCE 200809L
+#include <time.h>
+#endif
+
+/* nanosleep is POSIX-only; MSVC/Windows has no equivalent libc symbol, so this
+ * dispatches to Sleep() there instead. Every verify_*.c program uses this
+ * instead of calling nanosleep directly. */
+static void verify_sleep_ms(int milliseconds) {
+#if defined(_WIN32)
+    Sleep((DWORD)milliseconds);
+#else
+    struct timespec ts;
+    ts.tv_sec = milliseconds / 1000;
+    ts.tv_nsec = (long)(milliseconds % 1000) * 1000000L;
+    nanosleep(&ts, NULL);
+#endif
+}
+
+/* Prints the field/reason from the calling thread's last error and returns 1,
+ * so every failure path in a verify program can just `return verify_fail(...)`. */
+static int verify_fail(const char* what, aoahid_result result) {
+    const aoahid_error_detail* detail = aoahid_last_error();
+    fprintf(stderr, "%s failed: %s (%s: %s)\n", what, aoahid_result_name(result),
+            detail != NULL && detail->field != NULL ? detail->field : "no field",
+            detail != NULL && detail->reason != NULL ? detail->reason : "no reason");
+    return 1;
+}
+
+/* Discovers the first USB device this host can see and opens it as an AOA
+ * Mode A device. On success the caller owns *out_context and *out_device and
+ * must close/destroy them; on failure both are left null and a message has
+ * already been printed. */
+static int verify_open_first_device(aoahid_context** out_context, aoahid_device** out_device) {
+    *out_context = NULL;
+    *out_device = NULL;
+
+    aoahid_context_options context_options = {0};
+    context_options.struct_size = (uint32_t)sizeof context_options;
+    context_options.event_mode = AOAHID_EVENT_CALLER_POLL;
+    context_options.log_level = AOAHID_LOG_DISABLED;
+    aoahid_result result = aoahid_context_create(&context_options, out_context);
+    if (result != AOAHID_OK)
+        return verify_fail("context create", result);
+
+    aoahid_discovery* discovery = NULL;
+    result = aoahid_discover(*out_context, 500U, &discovery);
+    if (result != AOAHID_OK) {
+        aoahid_context_destroy(*out_context);
+        *out_context = NULL;
+        return verify_fail("discover", result);
+    }
+    const size_t count = aoahid_discovery_count(discovery);
+    if (count == 0U) {
+        fprintf(stderr, "no USB device found. Is the phone plugged in with a data-capable cable, "
+                        "directly or through a data-capable hub port (not a charge-only one)? "
+                        "See docs/QUICKSTART.md.\n");
+        aoahid_discovery_destroy(discovery);
+        aoahid_context_destroy(*out_context);
+        *out_context = NULL;
+        return 1;
+    }
+    const aoahid_device_info* info = aoahid_discovery_get(discovery, 0U);
+    printf("using device: %s (%04x:%04x)\n",
+           info != NULL && info->product != NULL ? info->product : "(no name)",
+           info != NULL ? (unsigned)info->vendor_id : 0U,
+           info != NULL ? (unsigned)info->product_id : 0U);
+
+    aoahid_device_options device_options = {0};
+    device_options.struct_size = (uint32_t)sizeof device_options;
+    device_options.startup_mode = AOAHID_START_CURRENT_USB_MODE;
+    device_options.control_timeout_ms = 500U;
+    device_options.send_timeout_ms = 500U;
+    device_options.descriptor_fragment_bytes = 4096U;
+    device_options.transfer_pool_slots = 4U;
+    device_options.maximum_report_bytes = 1024U;
+    device_options.close_drain_timeout_ms = 1000U;
+    device_options.first_report_attempts = 20U;
+    device_options.first_report_backoff_us = 1000U;
+    device_options.aoa_descriptor_wire_policy_bytes = 4096U;
+    device_options.linux_descriptor_policy_bytes = 4096U;
+    device_options.linux_hid_fields_per_report_policy = 256U;
+    device_options.linux_hid_global_stack_depth_policy = 4U;
+    device_options.linux_hid_usages_policy = 12288U;
+    device_options.linux_hid_report_data_bits_policy = 65528U;
+    device_options.linux_hid_report_size_bits_policy = 256U;
+    device_options.target_ep0_data_policy_bytes = 4096U;
+    device_options.host_control_buffer_policy_bytes = 4096U;
+    device_options.interface_claim_policy = AOAHID_INTERFACE_CLAIM_NONE;
+    device_options.interface_number = -1;
+
+    result = aoahid_device_open(*out_context, info, &device_options, out_device);
+    aoahid_discovery_destroy(discovery);
+    if (result != AOAHID_OK) {
+        aoahid_context_destroy(*out_context);
+        *out_context = NULL;
+        return verify_fail("device open", result);
+    }
+    return 0;
+}
+
+#endif

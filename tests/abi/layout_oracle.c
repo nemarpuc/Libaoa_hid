@@ -1,0 +1,359 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 libaoahid contributors
+/* Emits compiler-observed C ABI sizes and offsets for foreign-binding tests;
+ * it does not validate protocol behavior. */
+#include "aoahid.h"
+
+#include <stddef.h>
+#include <stdio.h>
+
+#define AOAHID_SIZE(type) printf(#type ".size=%zu\n", sizeof(type))
+#define AOAHID_OFFSET(type, field) printf(#type "." #field "=%zu\n", offsetof(type, field))
+
+#define AOAHID_BEGIN(type) AOAHID_SIZE(type)
+#define AOAHID_FIELD(type, field) AOAHID_OFFSET(type, field)
+#define AOAHID_CONSTANT(name) printf(#name "=%d\n", (int)(name))
+
+int main(void) {
+    AOAHID_CONSTANT(AOAHID_VERSION_MAJOR);
+    AOAHID_CONSTANT(AOAHID_VERSION_MINOR);
+    AOAHID_CONSTANT(AOAHID_VERSION_PATCH);
+    AOAHID_CONSTANT(AOAHID_OK);
+    AOAHID_CONSTANT(AOAHID_ERR_PARAM);
+    AOAHID_CONSTANT(AOAHID_ERR_UNSET_FIELD);
+    AOAHID_CONSTANT(AOAHID_ERR_UNSUPPORTED);
+    AOAHID_CONSTANT(AOAHID_ERR_NOT_AOA);
+    AOAHID_CONSTANT(AOAHID_ERR_VERSION);
+    AOAHID_CONSTANT(AOAHID_ERR_ACCESS);
+    AOAHID_CONSTANT(AOAHID_ERR_BUSY);
+    AOAHID_CONSTANT(AOAHID_ERR_NO_DEVICE);
+    AOAHID_CONSTANT(AOAHID_ERR_STALL);
+    AOAHID_CONSTANT(AOAHID_ERR_TIMEOUT);
+    AOAHID_CONSTANT(AOAHID_ERR_SHORT_TRANSFER);
+    AOAHID_CONSTANT(AOAHID_ERR_DESCRIPTOR_REJECTED);
+    AOAHID_CONSTANT(AOAHID_ERR_IO);
+    AOAHID_CONSTANT(AOAHID_ERR_OVERFLOW);
+    AOAHID_CONSTANT(AOAHID_CLOSE_PENDING);
+    AOAHID_CONSTANT(AOAHID_ERR_INTERNAL);
+    AOAHID_CONSTANT(AOAHID_EVENT_CALLER_POLL);
+    AOAHID_CONSTANT(AOAHID_EVENT_INTERNAL_THREAD);
+    AOAHID_CONSTANT(AOAHID_START_CURRENT_USB_MODE);
+    AOAHID_CONSTANT(AOAHID_START_ACCESSORY_MODE);
+    AOAHID_CONSTANT(AOAHID_INTERFACE_CLAIM_NONE);
+    AOAHID_CONSTANT(AOAHID_INTERFACE_CLAIM_EXPLICIT);
+    AOAHID_CONSTANT(AOAHID_LOG_DISABLED);
+    AOAHID_CONSTANT(AOAHID_LOG_ERROR);
+    AOAHID_CONSTANT(AOAHID_LOG_INFO);
+    AOAHID_CONSTANT(AOAHID_LOG_TRACE);
+    AOAHID_CONSTANT(AOAHID_PROFILE_KEYBOARD);
+    AOAHID_CONSTANT(AOAHID_PROFILE_MOUSE);
+    AOAHID_CONSTANT(AOAHID_PROFILE_TOGGLE);
+    AOAHID_CONSTANT(AOAHID_PROFILE_GAMEPAD);
+    AOAHID_CONSTANT(AOAHID_PROFILE_TOUCHSCREEN);
+    AOAHID_CONSTANT(AOAHID_PROFILE_PEN);
+    AOAHID_CONSTANT(AOAHID_PROFILE_BATTERY);
+    AOAHID_CONSTANT(AOAHID_PROFILE_RAW);
+    AOAHID_CONSTANT(AOAHID_ANDROID_PORTABLE_CANDIDATE);
+    AOAHID_CONSTANT(AOAHID_ANDROID_CONDITIONAL);
+    AOAHID_CONSTANT(AOAHID_ANDROID_CUSTOM_SYSTEM_ONLY);
+    AOAHID_CONSTANT(AOAHID_ANDROID_UNSUPPORTED);
+    AOAHID_CONSTANT(AOAHID_ANDROID_UNKNOWN);
+    AOAHID_CONSTANT(AOAHID_KEYBOARD_ARRAY);
+    AOAHID_CONSTANT(AOAHID_KEYBOARD_BITMAP);
+    AOAHID_CONSTANT(AOAHID_PEN_DIRECT_SCREEN);
+    AOAHID_CONSTANT(AOAHID_PEN_INDIRECT_TABLET);
+    AOAHID_CONSTANT(AOAHID_AXIS_X);
+    AOAHID_CONSTANT(AOAHID_AXIS_Y);
+    AOAHID_CONSTANT(AOAHID_AXIS_Z);
+    AOAHID_CONSTANT(AOAHID_AXIS_RX);
+    AOAHID_CONSTANT(AOAHID_AXIS_RY);
+    AOAHID_CONSTANT(AOAHID_AXIS_RZ);
+    AOAHID_CONSTANT(AOAHID_AXIS_SLIDER);
+    AOAHID_CONSTANT(AOAHID_AXIS_SIMULATION_ACCELERATOR);
+    AOAHID_CONSTANT(AOAHID_AXIS_SIMULATION_BRAKE);
+    AOAHID_CONSTANT(AOAHID_AXIS_SIMULATION_STEERING);
+    AOAHID_CONSTANT(AOAHID_AXIS_DIAL);
+    AOAHID_CONSTANT(AOAHID_AXIS_WHEEL);
+    AOAHID_CONSTANT(AOAHID_AXIS_SIMULATION_RUDDER);
+    AOAHID_CONSTANT(AOAHID_AXIS_SIMULATION_THROTTLE);
+    AOAHID_CONSTANT(AOAHID_DPAD_NONE);
+    AOAHID_CONSTANT(AOAHID_DPAD_HAT);
+    AOAHID_CONSTANT(AOAHID_DPAD_BUTTONS);
+    AOAHID_CONSTANT(AOAHID_CONTROLLER_GAMEPAD);
+    AOAHID_CONSTANT(AOAHID_CONTROLLER_JOYSTICK);
+    AOAHID_CONSTANT(AOAHID_USAGE_SELECTOR_BITMAP);
+    AOAHID_CONSTANT(AOAHID_USAGE_ON_OFF_TOGGLE);
+    AOAHID_CONSTANT(AOAHID_USAGE_ON_OFF_MAINTAINED);
+    AOAHID_CONSTANT(AOAHID_USAGE_MOMENTARY);
+    AOAHID_CONSTANT(AOAHID_USAGE_ONE_SHOT);
+    AOAHID_CONSTANT(AOAHID_USAGE_RETRIGGER);
+    AOAHID_CONSTANT(AOAHID_USAGE_ON_OFF_PAIR);
+    AOAHID_CONSTANT(AOAHID_USAGE_LINEAR);
+    AOAHID_CONSTANT(AOAHID_USAGE_DYNAMIC_VALUE);
+    AOAHID_CONSTANT(AOAHID_USAGE_NAMED_ARRAY);
+
+    AOAHID_BEGIN(aoahid_error_detail);
+    AOAHID_FIELD(aoahid_error_detail, code);
+    AOAHID_FIELD(aoahid_error_detail, field);
+    AOAHID_FIELD(aoahid_error_detail, reason);
+    AOAHID_FIELD(aoahid_error_detail, libusb_status);
+    AOAHID_FIELD(aoahid_error_detail, aoa_request);
+    AOAHID_FIELD(aoahid_error_detail, hid_id);
+    AOAHID_FIELD(aoahid_error_detail, report_id);
+    AOAHID_FIELD(aoahid_error_detail, offset);
+    AOAHID_FIELD(aoahid_error_detail, length);
+
+    AOAHID_BEGIN(aoahid_context_options);
+    AOAHID_FIELD(aoahid_context_options, struct_size);
+    AOAHID_FIELD(aoahid_context_options, reserved);
+    AOAHID_FIELD(aoahid_context_options, event_mode);
+    AOAHID_FIELD(aoahid_context_options, log_level);
+    AOAHID_FIELD(aoahid_context_options, log_sink);
+    AOAHID_FIELD(aoahid_context_options, log_user);
+
+    AOAHID_BEGIN(aoahid_device_info);
+    AOAHID_FIELD(aoahid_device_info, bus_number);
+    AOAHID_FIELD(aoahid_device_info, device_address);
+    AOAHID_FIELD(aoahid_device_info, port_path);
+    AOAHID_FIELD(aoahid_device_info, port_path_length);
+    AOAHID_FIELD(aoahid_device_info, vendor_id);
+    AOAHID_FIELD(aoahid_device_info, product_id);
+    AOAHID_FIELD(aoahid_device_info, serial);
+    AOAHID_FIELD(aoahid_device_info, product);
+
+    AOAHID_BEGIN(aoahid_aoa_strings);
+    AOAHID_FIELD(aoahid_aoa_strings, manufacturer);
+    AOAHID_FIELD(aoahid_aoa_strings, model);
+    AOAHID_FIELD(aoahid_aoa_strings, description);
+    AOAHID_FIELD(aoahid_aoa_strings, version);
+    AOAHID_FIELD(aoahid_aoa_strings, uri);
+    AOAHID_FIELD(aoahid_aoa_strings, serial);
+
+    AOAHID_BEGIN(aoahid_device_options);
+    AOAHID_FIELD(aoahid_device_options, struct_size);
+    AOAHID_FIELD(aoahid_device_options, reserved);
+    AOAHID_FIELD(aoahid_device_options, startup_mode);
+    AOAHID_FIELD(aoahid_device_options, accept_future_protocol_versions);
+    AOAHID_FIELD(aoahid_device_options, control_timeout_ms);
+    AOAHID_FIELD(aoahid_device_options, send_timeout_ms);
+    AOAHID_FIELD(aoahid_device_options, reenumeration_timeout_ms);
+    AOAHID_FIELD(aoahid_device_options, descriptor_fragment_bytes);
+    AOAHID_FIELD(aoahid_device_options, transfer_pool_slots);
+    AOAHID_FIELD(aoahid_device_options, maximum_report_bytes);
+    AOAHID_FIELD(aoahid_device_options, close_drain_timeout_ms);
+    AOAHID_FIELD(aoahid_device_options, first_report_attempts);
+    AOAHID_FIELD(aoahid_device_options, first_report_backoff_us);
+    AOAHID_FIELD(aoahid_device_options, validate_reports);
+    AOAHID_FIELD(aoahid_device_options, aoa_descriptor_wire_policy_bytes);
+    AOAHID_FIELD(aoahid_device_options, linux_descriptor_policy_bytes);
+    AOAHID_FIELD(aoahid_device_options, linux_hid_fields_per_report_policy);
+    AOAHID_FIELD(aoahid_device_options, linux_hid_global_stack_depth_policy);
+    AOAHID_FIELD(aoahid_device_options, linux_hid_usages_policy);
+    AOAHID_FIELD(aoahid_device_options, linux_hid_report_data_bits_policy);
+    AOAHID_FIELD(aoahid_device_options, linux_hid_report_size_bits_policy);
+    AOAHID_FIELD(aoahid_device_options, target_ep0_data_policy_bytes);
+    AOAHID_FIELD(aoahid_device_options, host_control_buffer_policy_bytes);
+    AOAHID_FIELD(aoahid_device_options, interface_claim_policy);
+    AOAHID_FIELD(aoahid_device_options, interface_number);
+    AOAHID_FIELD(aoahid_device_options, accessory_strings);
+    AOAHID_FIELD(aoahid_device_options, enable_deprecated_audio_mode);
+
+    AOAHID_BEGIN(aoahid_node_options);
+    AOAHID_FIELD(aoahid_node_options, struct_size);
+    AOAHID_FIELD(aoahid_node_options, reserved);
+    AOAHID_FIELD(aoahid_node_options, has_reserved_slots);
+    AOAHID_FIELD(aoahid_node_options, reserved_slots);
+
+    AOAHID_BEGIN(aoahid_physical_properties);
+    AOAHID_FIELD(aoahid_physical_properties, enabled);
+    AOAHID_FIELD(aoahid_physical_properties, minimum);
+    AOAHID_FIELD(aoahid_physical_properties, maximum);
+    AOAHID_FIELD(aoahid_physical_properties, unit_exponent);
+    AOAHID_FIELD(aoahid_physical_properties, unit);
+
+    AOAHID_BEGIN(aoahid_integer_field);
+    AOAHID_FIELD(aoahid_integer_field, logical_minimum);
+    AOAHID_FIELD(aoahid_integer_field, logical_maximum);
+    AOAHID_FIELD(aoahid_integer_field, bit_width);
+    AOAHID_FIELD(aoahid_integer_field, physical);
+
+    AOAHID_BEGIN(aoahid_report_id_option);
+    AOAHID_FIELD(aoahid_report_id_option, enabled);
+    AOAHID_FIELD(aoahid_report_id_option, value);
+    AOAHID_FIELD(aoahid_report_id_option, reserved8);
+
+    AOAHID_BEGIN(aoahid_keyboard_options);
+    AOAHID_FIELD(aoahid_keyboard_options, struct_size);
+    AOAHID_FIELD(aoahid_keyboard_options, reserved);
+    AOAHID_FIELD(aoahid_keyboard_options, report_id);
+    AOAHID_FIELD(aoahid_keyboard_options, rollover);
+    AOAHID_FIELD(aoahid_keyboard_options, array_length);
+    AOAHID_FIELD(aoahid_keyboard_options, usage_minimum);
+    AOAHID_FIELD(aoahid_keyboard_options, usage_maximum);
+    AOAHID_FIELD(aoahid_keyboard_options, usage_bit_width);
+    AOAHID_FIELD(aoahid_keyboard_options, bitmap_bits);
+    AOAHID_FIELD(aoahid_keyboard_options, acknowledges_hid11_keyboard_array_conflict);
+
+    AOAHID_BEGIN(aoahid_mouse_options);
+    AOAHID_FIELD(aoahid_mouse_options, struct_size);
+    AOAHID_FIELD(aoahid_mouse_options, reserved);
+    AOAHID_FIELD(aoahid_mouse_options, report_id);
+    AOAHID_FIELD(aoahid_mouse_options, button_count);
+    AOAHID_FIELD(aoahid_mouse_options, x);
+    AOAHID_FIELD(aoahid_mouse_options, y);
+    AOAHID_FIELD(aoahid_mouse_options, enable_wheel);
+    AOAHID_FIELD(aoahid_mouse_options, wheel);
+    AOAHID_FIELD(aoahid_mouse_options, enable_pan);
+    AOAHID_FIELD(aoahid_mouse_options, pan);
+
+    AOAHID_BEGIN(aoahid_toggle_options);
+    AOAHID_FIELD(aoahid_toggle_options, struct_size);
+    AOAHID_FIELD(aoahid_toggle_options, reserved);
+    AOAHID_FIELD(aoahid_toggle_options, report_id);
+    AOAHID_FIELD(aoahid_toggle_options, application_page);
+    AOAHID_FIELD(aoahid_toggle_options, application_usage);
+    AOAHID_FIELD(aoahid_toggle_options, field_page);
+    AOAHID_FIELD(aoahid_toggle_options, reserved16);
+    AOAHID_FIELD(aoahid_toggle_options, allowed_usages);
+    AOAHID_FIELD(aoahid_toggle_options, allowed_usage_count);
+    AOAHID_FIELD(aoahid_toggle_options, usage_semantics);
+    AOAHID_FIELD(aoahid_toggle_options, expected_linux_event_types);
+    AOAHID_FIELD(aoahid_toggle_options, expected_linux_codes);
+
+    AOAHID_BEGIN(aoahid_gamepad_axis);
+    AOAHID_FIELD(aoahid_gamepad_axis, role);
+    AOAHID_FIELD(aoahid_gamepad_axis, usage_page);
+    AOAHID_FIELD(aoahid_gamepad_axis, usage);
+    AOAHID_FIELD(aoahid_gamepad_axis, value);
+    AOAHID_FIELD(aoahid_gamepad_axis, neutral_value);
+    AOAHID_FIELD(aoahid_gamepad_axis, expected_linux_code);
+    AOAHID_FIELD(aoahid_gamepad_axis, expected_android_axis);
+
+    AOAHID_BEGIN(aoahid_gamepad_options);
+    AOAHID_FIELD(aoahid_gamepad_options, struct_size);
+    AOAHID_FIELD(aoahid_gamepad_options, reserved);
+    AOAHID_FIELD(aoahid_gamepad_options, report_id);
+    AOAHID_FIELD(aoahid_gamepad_options, application);
+    AOAHID_FIELD(aoahid_gamepad_options, axes);
+    AOAHID_FIELD(aoahid_gamepad_options, axis_count);
+    AOAHID_FIELD(aoahid_gamepad_options, button_count);
+    AOAHID_FIELD(aoahid_gamepad_options, button_usage_minimum);
+    AOAHID_FIELD(aoahid_gamepad_options, dpad_representation);
+    AOAHID_FIELD(aoahid_gamepad_options, hat_logical_minimum);
+    AOAHID_FIELD(aoahid_gamepad_options, hat_logical_maximum);
+    AOAHID_FIELD(aoahid_gamepad_options, hat_bit_width);
+
+    AOAHID_BEGIN(aoahid_touch_options);
+    AOAHID_FIELD(aoahid_touch_options, struct_size);
+    AOAHID_FIELD(aoahid_touch_options, reserved);
+    AOAHID_FIELD(aoahid_touch_options, report_id);
+    AOAHID_FIELD(aoahid_touch_options, maximum_contacts);
+    AOAHID_FIELD(aoahid_touch_options, contacts_per_report);
+    AOAHID_FIELD(aoahid_touch_options, contact_identifier);
+    AOAHID_FIELD(aoahid_touch_options, x);
+    AOAHID_FIELD(aoahid_touch_options, y);
+    AOAHID_FIELD(aoahid_touch_options, contact_count);
+    AOAHID_FIELD(aoahid_touch_options, enable_pressure);
+    AOAHID_FIELD(aoahid_touch_options, pressure);
+    AOAHID_FIELD(aoahid_touch_options, enable_width);
+    AOAHID_FIELD(aoahid_touch_options, width);
+    AOAHID_FIELD(aoahid_touch_options, enable_height);
+    AOAHID_FIELD(aoahid_touch_options, height);
+    AOAHID_FIELD(aoahid_touch_options, enable_azimuth);
+    AOAHID_FIELD(aoahid_touch_options, azimuth);
+    AOAHID_FIELD(aoahid_touch_options, enable_scan_time);
+    AOAHID_FIELD(aoahid_touch_options, scan_time);
+    AOAHID_FIELD(aoahid_touch_options, scan_time_unit_100us);
+    AOAHID_FIELD(aoahid_touch_options, enable_contact_count_maximum_feature_declaration);
+    AOAHID_FIELD(aoahid_touch_options, enable_multi_packet_frames);
+    AOAHID_FIELD(aoahid_touch_options, touchpad_button_count);
+
+    AOAHID_BEGIN(aoahid_pen_options);
+    AOAHID_FIELD(aoahid_pen_options, struct_size);
+    AOAHID_FIELD(aoahid_pen_options, reserved);
+    AOAHID_FIELD(aoahid_pen_options, report_id);
+    AOAHID_FIELD(aoahid_pen_options, mode);
+    AOAHID_FIELD(aoahid_pen_options, x);
+    AOAHID_FIELD(aoahid_pen_options, y);
+    AOAHID_FIELD(aoahid_pen_options, enable_pressure);
+    AOAHID_FIELD(aoahid_pen_options, pressure);
+    AOAHID_FIELD(aoahid_pen_options, enable_tilt);
+    AOAHID_FIELD(aoahid_pen_options, tilt_x);
+    AOAHID_FIELD(aoahid_pen_options, tilt_y);
+    AOAHID_FIELD(aoahid_pen_options, enable_twist_target_specific);
+    AOAHID_FIELD(aoahid_pen_options, twist);
+    AOAHID_FIELD(aoahid_pen_options, barrel_usages);
+    AOAHID_FIELD(aoahid_pen_options, barrel_usage_count);
+    AOAHID_FIELD(aoahid_pen_options, enable_eraser);
+    AOAHID_FIELD(aoahid_pen_options, enable_hover);
+
+    AOAHID_BEGIN(aoahid_battery_options);
+    AOAHID_FIELD(aoahid_battery_options, struct_size);
+    AOAHID_FIELD(aoahid_battery_options, reserved);
+    AOAHID_FIELD(aoahid_battery_options, report_id);
+    AOAHID_FIELD(aoahid_battery_options, strength);
+    AOAHID_FIELD(aoahid_battery_options, enable_unknown_null_state);
+
+    AOAHID_BEGIN(aoahid_raw_report);
+    AOAHID_FIELD(aoahid_raw_report, report_id);
+    AOAHID_FIELD(aoahid_raw_report, has_report_id);
+    AOAHID_FIELD(aoahid_raw_report, reserved16);
+    AOAHID_FIELD(aoahid_raw_report, wire_length);
+
+    AOAHID_BEGIN(aoahid_raw_options);
+    AOAHID_FIELD(aoahid_raw_options, struct_size);
+    AOAHID_FIELD(aoahid_raw_options, reserved);
+    AOAHID_FIELD(aoahid_raw_options, descriptor);
+    AOAHID_FIELD(aoahid_raw_options, descriptor_length);
+    AOAHID_FIELD(aoahid_raw_options, reports);
+    AOAHID_FIELD(aoahid_raw_options, report_count);
+    AOAHID_FIELD(aoahid_raw_options, acknowledges_no_android_support);
+    AOAHID_FIELD(aoahid_raw_options, requires_output);
+    AOAHID_FIELD(aoahid_raw_options, requires_feature_response);
+
+    AOAHID_BEGIN(aoahid_report_capability);
+    AOAHID_FIELD(aoahid_report_capability, report_id);
+    AOAHID_FIELD(aoahid_report_capability, has_report_id);
+    AOAHID_FIELD(aoahid_report_capability, reserved16);
+    AOAHID_FIELD(aoahid_report_capability, wire_length);
+
+    AOAHID_BEGIN(aoahid_capability_manifest);
+    AOAHID_FIELD(aoahid_capability_manifest, struct_size);
+    AOAHID_FIELD(aoahid_capability_manifest, reserved);
+    AOAHID_FIELD(aoahid_capability_manifest, input_supported);
+    AOAHID_FIELD(aoahid_capability_manifest, output_supported);
+    AOAHID_FIELD(aoahid_capability_manifest, feature_transport_supported);
+    AOAHID_FIELD(aoahid_capability_manifest, android_status);
+    AOAHID_FIELD(aoahid_capability_manifest, profile_kind);
+    AOAHID_FIELD(aoahid_capability_manifest, reports);
+    AOAHID_FIELD(aoahid_capability_manifest, report_count);
+    AOAHID_FIELD(aoahid_capability_manifest, descriptor_bytes);
+
+    AOAHID_BEGIN(aoahid_touch_contact);
+    AOAHID_FIELD(aoahid_touch_contact, contact_id);
+    AOAHID_FIELD(aoahid_touch_contact, x);
+    AOAHID_FIELD(aoahid_touch_contact, y);
+    AOAHID_FIELD(aoahid_touch_contact, pressure);
+    AOAHID_FIELD(aoahid_touch_contact, width);
+    AOAHID_FIELD(aoahid_touch_contact, height);
+    AOAHID_FIELD(aoahid_touch_contact, azimuth);
+
+    AOAHID_BEGIN(aoahid_touch_extra);
+    AOAHID_FIELD(aoahid_touch_extra, pressure);
+    AOAHID_FIELD(aoahid_touch_extra, width);
+    AOAHID_FIELD(aoahid_touch_extra, height);
+    AOAHID_FIELD(aoahid_touch_extra, azimuth);
+
+    AOAHID_BEGIN(aoahid_pen_sample);
+    AOAHID_FIELD(aoahid_pen_sample, in_range);
+    AOAHID_FIELD(aoahid_pen_sample, tip);
+    AOAHID_FIELD(aoahid_pen_sample, eraser);
+    AOAHID_FIELD(aoahid_pen_sample, barrel_buttons);
+    AOAHID_FIELD(aoahid_pen_sample, x);
+    AOAHID_FIELD(aoahid_pen_sample, y);
+    AOAHID_FIELD(aoahid_pen_sample, pressure);
+    AOAHID_FIELD(aoahid_pen_sample, tilt_x);
+    AOAHID_FIELD(aoahid_pen_sample, tilt_y);
+    AOAHID_FIELD(aoahid_pen_sample, twist);
+    return 0;
+}
