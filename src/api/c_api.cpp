@@ -519,8 +519,11 @@ void make_neutral(aoahid_node* node) noexcept {
     bool had_non_neutral_state = false;
     if (auto* keyboard = std::get_if<aoa::detail::KeyboardState>(&node->state)) {
         had_non_neutral_state = keyboard->modifiers != 0U || keyboard->pressed_bitmap_count != 0U;
-        std::fill(keyboard->pressed_bitmap.begin(), keyboard->pressed_bitmap.end(),
-                  std::uint8_t{0});
+        // A count-based fill_n() (rather than an iterator-pair fill()) avoids a GCC 14
+        // -Wstringop-overflow false positive at -O3 seen only after this struct's layout
+        // changed; see docs/SOURCE_CONFLICTS.md C-26.
+        std::fill_n(keyboard->pressed_bitmap.data(), keyboard->pressed_bitmap.size(),
+                    std::uint8_t{0});
         keyboard->pressed_bitmap_count = 0U;
         keyboard->modifiers = 0U;
     } else if (auto* mouse = std::get_if<aoa::detail::MouseState>(&node->state)) {
