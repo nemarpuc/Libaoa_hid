@@ -20,8 +20,7 @@ class Presentation:
 
 
 ROWS = (
-    Presentation("keyboard-array", "Keyboard (HID 1.11 Array)", "portable candidate", "Target matrix still required"),
-    Presentation("keyboard-bitmap-report-id", "Keyboard selector bitmap", "conditional", "Explicit HID 1.11 Appendix C conflict acknowledgement"),
+    Presentation("keyboard", "Keyboard, full NKRO bitmap", "conditional", "One-bit Variable field per key; target matrix still required"),
     Presentation("mouse-wheel-pan", "Mouse / relative pointer", "portable candidate", "Target matrix still required"),
     Presentation("consumer-controls", "Toggle: Consumer Control fields", "conditional", "Sparse allow-list, explicit HUT semantics, and target event evidence"),
     Presentation("system-controls", "Toggle: System Control fields", "conditional", "Explicit HUT semantics; system handling and target mapping vary"),

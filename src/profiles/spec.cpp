@@ -533,79 +533,23 @@ static aoahid_result aoahid_spec_create_keyboard_impl(const aoahid_keyboard_opti
         set_error(AOAHID_ERR_PARAM, "keyboard.reserved", "reserved must be zero.");
         return AOAHID_ERR_PARAM;
     }
-    if (!validate_option_boolean(options->acknowledges_hid11_keyboard_array_conflict,
-                                 "keyboard.acknowledges_hid11_keyboard_array_conflict")) {
-        return AOAHID_ERR_PARAM;
-    }
     if (options->usage_minimum < 0x04U || options->usage_maximum < options->usage_minimum) {
         set_error(AOAHID_ERR_PARAM, "keyboard.usage_range",
                   "The declared non-modifier Usage range must be ordered and exclude the reserved "
                   "keyboard error selectors 0x00 through 0x03.");
         return AOAHID_ERR_PARAM;
     }
-    if (options->usage_bit_width == 0U || options->usage_bit_width > 16U) {
-        set_error(AOAHID_ERR_UNSET_FIELD, "keyboard.usage_bit_width",
-                  "The key-array element width must be explicitly set to 1 through 16 bits.");
-        return AOAHID_ERR_UNSET_FIELD;
-    }
-    const std::uint32_t usage_count =
-        static_cast<std::uint32_t>(options->usage_maximum - options->usage_minimum) + 1U;
-    if (options->rollover == AOAHID_KEYBOARD_ARRAY) {
-        if (options->usage_minimum != 0x04U) {
-            set_error(AOAHID_ERR_PARAM, "keyboard.usage_minimum",
-                      "Keyboard Array mode must begin at Usage 0x04 because selectors 0x00 "
-                      "through 0x03 have HID 1.11-defined meanings.");
-            return AOAHID_ERR_PARAM;
-        }
-        if (options->usage_maximum >= aoa::hid::usage::keyboard_left_control) {
-            set_error(AOAHID_ERR_PARAM, "keyboard.usage_range",
-                      "The zero-aligned key Array cannot include modifier Usages 0xE0 through "
-                      "0xE7, which are emitted as separate Variable bits.");
-            return AOAHID_ERR_PARAM;
-        }
-        if (options->array_length == 0U || options->array_length > 65535U ||
-            options->bitmap_bits != 0U ||
-            options->acknowledges_hid11_keyboard_array_conflict != 0U) {
-            set_error(AOAHID_ERR_PARAM, "keyboard.array_length",
-                      "Array mode requires a nonzero array_length and bitmap_bits equal to zero.");
-            return AOAHID_ERR_PARAM;
-        }
-        const std::uint32_t representable =
-            options->usage_bit_width == 16U ? 0xFFFFU : (1U << options->usage_bit_width) - 1U;
-        if (options->usage_maximum > representable) {
-            set_error(AOAHID_ERR_PARAM, "keyboard.usage_bit_width",
-                      "The array element width cannot represent the declared Usage maximum.");
-            return AOAHID_ERR_PARAM;
-        }
-    } else if (options->rollover == AOAHID_KEYBOARD_BITMAP) {
-        if (options->usage_minimum <= aoa::hid::usage::keyboard_right_gui &&
-            options->usage_maximum >= aoa::hid::usage::keyboard_left_control) {
-            set_error(
-                AOAHID_ERR_PARAM, "keyboard.usage_range",
-                "The non-modifier bitmap cannot duplicate modifier Usages 0xE0 through 0xE7.");
-            return AOAHID_ERR_PARAM;
-        }
-        if (options->array_length != 0U || options->bitmap_bits != usage_count ||
-            options->usage_bit_width != 1U ||
-            options->acknowledges_hid11_keyboard_array_conflict != 1U) {
-            set_error(AOAHID_ERR_PARAM, "keyboard.bitmap_bits",
-                      "Bitmap mode requires array_length zero, one-bit fields, and one bit per "
-                      "declared Usage.");
-            return AOAHID_ERR_PARAM;
-        }
-    } else {
-        set_error(AOAHID_ERR_UNSET_FIELD, "keyboard.rollover",
-                  "rollover must explicitly select array or bitmap form.");
-        return AOAHID_ERR_UNSET_FIELD;
+    if (options->usage_minimum <= aoa::hid::usage::keyboard_right_gui &&
+        options->usage_maximum >= aoa::hid::usage::keyboard_left_control) {
+        set_error(AOAHID_ERR_PARAM, "keyboard.usage_range",
+                  "The non-modifier bitmap cannot duplicate modifier Usages 0xE0 through 0xE7.");
+        return AOAHID_ERR_PARAM;
     }
 
     aoa::detail::KeyboardConfig config{};
     config.options = *options;
     return build_generated_spec(
-        GeneratedSpecIdentity{AOAHID_PROFILE_KEYBOARD, options->rollover == AOAHID_KEYBOARD_ARRAY
-                                                           ? AOAHID_ANDROID_PORTABLE_CANDIDATE
-                                                           : AOAHID_ANDROID_CONDITIONAL},
-        config,
+        GeneratedSpecIdentity{AOAHID_PROFILE_KEYBOARD, AOAHID_ANDROID_CONDITIONAL}, config,
         [=](DescriptorBuilder& builder, ReportLayout& layout) {
             if (!builder.begin_application(aoa::hid::usage::page_generic_desktop,
                                            aoa::hid::usage::keyboard) ||
@@ -613,23 +557,9 @@ static aoahid_result aoahid_spec_create_keyboard_impl(const aoahid_keyboard_opti
                                        options->report_id.value) ||
                 !builder.variable_range(
                     aoa::hid::usage::page_keyboard, aoa::hid::usage::keyboard_left_control,
-                    aoa::hid::usage::keyboard_right_gui, 1U, FieldSemantic::modifier)) {
-                return false;
-            }
-            if (options->rollover == AOAHID_KEYBOARD_ARRAY) {
-                // HID 1.11 Appendix B.1 and Appendix E.6 place one Constant
-                // reserved byte between the modifier byte and key Array.
-                if (!builder.constant_padding(8U) ||
-                    !builder.array(aoa::hid::usage::page_keyboard, 0U, options->usage_maximum, 0,
-                                   options->usage_maximum,
-                                   static_cast<std::uint8_t>(options->usage_bit_width),
-                                   static_cast<std::uint16_t>(options->array_length),
-                                   FieldSemantic::key_array)) {
-                    return false;
-                }
-            } else if (!builder.variable_range(aoa::hid::usage::page_keyboard,
-                                               options->usage_minimum, options->usage_maximum, 1U,
-                                               FieldSemantic::key_bitmap)) {
+                    aoa::hid::usage::keyboard_right_gui, 1U, FieldSemantic::modifier) ||
+                !builder.variable_range(aoa::hid::usage::page_keyboard, options->usage_minimum,
+                                        options->usage_maximum, 1U, FieldSemantic::key_bitmap)) {
                 return false;
             }
             pad_report(builder, layout);

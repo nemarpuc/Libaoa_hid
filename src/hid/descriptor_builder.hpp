@@ -36,9 +36,6 @@ class DescriptorBuilder final {
     bool variable_range(std::uint16_t usage_page, std::uint16_t usage_minimum,
                         std::uint16_t usage_maximum, std::uint8_t bit_width,
                         FieldSemantic semantic);
-    bool array(std::uint16_t usage_page, std::uint16_t usage_minimum, std::uint16_t usage_maximum,
-               std::int32_t logical_minimum, std::int32_t logical_maximum,
-               std::uint8_t element_bits, std::uint16_t count, FieldSemantic semantic);
     bool constant_padding(std::uint16_t bits);
     bool feature_static_value(std::uint16_t usage_page, std::uint16_t usage,
                               std::int32_t logical_minimum, std::int32_t logical_maximum,

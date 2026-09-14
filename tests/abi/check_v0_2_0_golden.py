@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 libaoahid contributors
-"""Compare the compiler-observed public C ABI with the v0.1.0 golden schema."""
+"""Compare the compiler-observed public C ABI with the v0.2.0 golden schema."""
 
 from __future__ import annotations
 
@@ -144,13 +144,8 @@ class KeyboardOptions(c.Structure):
         ("struct_size", U32),
         ("reserved", U32),
         ("report_id", ReportIdOption),
-        ("rollover", I32),
-        ("array_length", U32),
         ("usage_minimum", U16),
         ("usage_maximum", U16),
-        ("usage_bit_width", U32),
-        ("bitmap_bits", U32),
-        ("acknowledges_hid11_keyboard_array_conflict", U32),
     ]
 
 
@@ -388,7 +383,7 @@ GOLDEN_STRUCTS = {
 
 GOLDEN_CONSTANTS = {
     "AOAHID_VERSION_MAJOR": 0,
-    "AOAHID_VERSION_MINOR": 1,
+    "AOAHID_VERSION_MINOR": 2,
     "AOAHID_VERSION_PATCH": 0,
     "AOAHID_OK": 0,
     "AOAHID_ERR_PARAM": 1,
@@ -430,8 +425,6 @@ GOLDEN_CONSTANTS = {
     "AOAHID_ANDROID_CUSTOM_SYSTEM_ONLY": 3,
     "AOAHID_ANDROID_UNSUPPORTED": 4,
     "AOAHID_ANDROID_UNKNOWN": 5,
-    "AOAHID_KEYBOARD_ARRAY": 1,
-    "AOAHID_KEYBOARD_BITMAP": 2,
     "AOAHID_PEN_DIRECT_SCREEN": 1,
     "AOAHID_PEN_INDIRECT_TABLET": 2,
     "AOAHID_AXIS_X": 1,
@@ -487,7 +480,7 @@ def parse_observed(output: str) -> dict[str, int]:
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("usage: check_v0_1_0_golden.py LAYOUT_ORACLE", file=sys.stderr)
+        print("usage: check_v0_2_0_golden.py LAYOUT_ORACLE", file=sys.stderr)
         return 2
     executable = Path(sys.argv[1])
     completed = subprocess.run(
@@ -497,15 +490,15 @@ def main() -> int:
     expected = expected_values()
     failed = False
     for key in sorted(expected.keys() - observed.keys()):
-        print(f"v0.1.0 ABI oracle omitted {key}", file=sys.stderr)
+        print(f"v0.2.0 ABI oracle omitted {key}", file=sys.stderr)
         failed = True
     for key in sorted(observed.keys() - expected.keys()):
-        print(f"v0.1.0 ABI oracle added unknown entry {key}", file=sys.stderr)
+        print(f"v0.2.0 ABI oracle added unknown entry {key}", file=sys.stderr)
         failed = True
     for key in sorted(expected.keys() & observed.keys()):
         if observed[key] != expected[key]:
             print(
-                f"v0.1.0 ABI drift: {key}: observed {observed[key]}, "
+                f"v0.2.0 ABI drift: {key}: observed {observed[key]}, "
                 f"expected {expected[key]}",
                 file=sys.stderr,
             )
@@ -513,7 +506,7 @@ def main() -> int:
     if failed:
         return 1
     print(
-        f"v0.1.0 C ABI matches: {len(GOLDEN_STRUCTS)} structures, "
+        f"v0.2.0 C ABI matches: {len(GOLDEN_STRUCTS)} structures, "
         f"{len(GOLDEN_CONSTANTS)} constants"
     )
     return 0

@@ -506,15 +506,14 @@ Touchpad is a separate profile with the same contact engine and a different coll
 
 ### 8.3 Keyboard and keypad
 
-- **Slot management.** The caller presses and releases usages; the library maintains the key array or bitmap.
-- **Automatic roll-over overflow.** In a 6KRO layout, a seventh simultaneous key fills all six slots with `ErrorRollOver` (0x01) as the HID specification requires, and recovers automatically when the count drops back. Callers should not have to know this exists.
-- **Modifier separation.** Usages 0xE0-0xE7 are routed to the modifier byte automatically and never into the array.
+- **Slot management.** The caller presses and releases usages; the library maintains a one-bit Variable field per declared key.
+- **Full NKRO, no overflow.** Every declared nonmodifier Usage is its own bit, so any number of simultaneously pressed keys up to the declared range is reported at once. There is no Array, no slot count, and no `ErrorRollOver` (0x01) overflow encoding to inject or recover from.
+- **Modifier separation.** Usages 0xE0-0xE7 are routed to the modifier byte automatically and never into the bitmap.
 - **Release-all on close**, because a stuck modifier on Android is invisible and miserable to debug.
 - **No LED, no Output.** Not exposed, so it cannot be attempted *(guide §13.2)*.
 
-Configurable: rollover form (Array or caller-sized bitmap), Array length or
-bitmap range, declared Usage interval and bit width, and Report ID. Consumer
-Control is a separate Spec/Node.
+Configurable: declared Usage interval and Report ID. Consumer Control is a
+separate Spec/Node.
 
 The repository provides no text-to-Usage translator. Text interpretation
 depends on the target key layout, KCM, locale, and IME and is not inferred

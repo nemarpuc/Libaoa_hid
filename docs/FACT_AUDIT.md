@@ -333,35 +333,13 @@ The value must not exceed four. A 32-bit field additionally requires `o mod 8 ==
 
 **Resolution:** The strict descriptor validator enforces HID §8.4 even where the audited Linux parser accepts a wider Report Size. The structural pass applies the same span check to generated Input and generated declarative Feature fields; Constant Feature metadata is not exempt from the HID report rule.
 
-### A-07 - Keyboard rollover counts nonmodifier keys
+### A-07 - Keyboard is strictly a full-NKRO Variable bitmap
 
-**Input clarification:** "The seventh key causes ErrorRollOver" is incomplete.
+**[HUT 1.7 definition]** Keyboard/Keypad Usage `0x01` is `ErrorRollOver`, a value HUT §10 defines only for the Input (Array, Absolute) form USB HID 1.11 Appendix C describes for USB boot-compatible keyboards. HUT 1.7 §3.4.2.1 separately permits any Selector set, keyboards included, to be represented as `Array[1]`, `Array[n]`, or one Variable bit per selection. Modifier Usages `0xe0` through `0xe7` are always independent Variable bits regardless of the nonmodifier form.
 
-**[HUT 1.7 definition]** Keyboard/Keypad Usage `0x01` is `ErrorRollOver`. Modifier Usages are `0xe0` through `0xe7`.
+**Resolution:** This library implements only the Variable-bitmap form: every declared nonmodifier Usage from `usage_minimum` through `usage_maximum` gets its own one-bit Variable field, so every simultaneously pressed key already fits in the same report with no shared slot to overflow. There is no Array Report Count, no key-selector packing, and no `ErrorRollOver` value to emit or recover from — the profile is full N-Key Rollover (NKRO) by construction, not by an overflow-avoidance policy layered on an Array. Because the descriptor never claims the USB HID 1.11 Appendix C boot-keyboard Array form, there is no conflict between that Appendix and HUT §3.4.2.1 to resolve here.
 
-**[USB HID 1.11 requirement]** Appendix C specifies that when the number of simultaneously pressed nonmodifier keys exceeds the Array Report Count, every key-array field contains `ErrorRollOver`. For a six-entry array, the seventh **nonmodifier** key fills all six entries with `0x01`. Modifiers are independent Variable bits and do not consume an array entry.
-
-**[Specified Linux implementation observation]** `hid_input_field` discards an entire keyboard Array report that contains `ErrorRollOver`.
-
-**Source conflict:** HID 1.11 Appendix C says USB keyboard nonmodifier keys must use Input (Array, Absolute). HUT 1.7 §3.4.2.1 later says Selector sets can be represented as `Array[1]`, `Array[n]`, or a Variable-bit bitmap. The general HUT permission does not erase the keyboard-specific Appendix C sentence.
-
-**Resolution:** Strict keyboard mode uses an Array, implements the Appendix C overflow report, and emits the ordinary pressed-key set again after the number falls within capacity. Bitmap/NKRO is exposed as a separate HUT-defined, **conditional** descriptor form; it has no Array ErrorRollOver representation, is not claimed to satisfy Appendix C, and requires target evidence before compatibility claims.
-
-### A-07a - The strict keyboard Array includes the reserved Constant byte
-
-**Implementation discrepancy found during the final audit:** the supplied guide's
-§13 and report-layout table described `[modifier][reserved][keys]`, but the first
-implementation emitted the key Array immediately after the modifier byte.
-
-**[USB HID 1.11 requirement]** Appendix B.1 defines byte 1 of the eight-byte
-keyboard Input report as a Constant reserved byte and says unused fields return
-zero. Appendix E.6 emits `Report Count (1)`, `Report Size (8)`, `Input
-(Constant)` between the modifier byte and six key-array bytes.
-
-**Implemented resolution:** Array mode now emits exactly that eight-bit Constant
-field and the serializer always writes it as zero. The default six-entry report
-is eight bytes: modifier, reserved, then six selectors. Bitmap mode is the
-separately disclosed HUT form and does not claim the Appendix B report format.
+**[Specified Linux implementation observation]** and Android's input stack treat a one-bit Variable Keyboard/Keypad-page field the same way they treat any other Variable key field: each bit's `hidinput_configure_usage` mapping becomes one ordinary `EV_KEY` input event on press and release. No Array-specific discard or reassembly logic (such as the `hid_input_field` behavior that discards an Array report carrying `ErrorRollOver`) is reachable, because this profile never emits an Array Main item. Target behavior for a given Usage range remains **[Unverified on hardware]**.
 
 ### A-08 - Relative mouse motion
 

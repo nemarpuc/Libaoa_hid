@@ -20,7 +20,6 @@ const RESERVED_SLOTS_PER_NODE: u32 = 1;
 const FIRST_REPORT_ATTEMPTS: u32 = 20;
 const FIRST_REPORT_BACKOFF_US: u32 = 1000;
 const CLOSE_DRAIN_TIMEOUT_MS: u32 = 1000;
-const KEYBOARD_ARRAY_LENGTH: u32 = 6;
 const KEYBOARD_A_USAGE: u16 = 0x04; // HUT 1.7 section 10; see FACT_AUDIT.md.
 const KEYBOARD_APPLICATION_USAGE: u16 = 0x65; // HUT 1.7 section 10.
 const POINTER_BUTTON_COUNT: u32 = 3;
@@ -153,13 +152,8 @@ fn create_specs() -> Result<Specs, sys::aoahid_result> {
         struct_size: struct_size::<sys::aoahid_keyboard_options>(),
         reserved: 0,
         report_id: report_id_absent(),
-        rollover: sys::AOAHID_KEYBOARD_ARRAY,
-        array_length: KEYBOARD_ARRAY_LENGTH,
         usage_minimum: KEYBOARD_A_USAGE,
         usage_maximum: KEYBOARD_APPLICATION_USAGE,
-        usage_bit_width: RELATIVE_BITS,
-        bitmap_bits: 0,
-        acknowledges_hid11_keyboard_array_conflict: 0,
     };
     let mouse_options = sys::aoahid_mouse_options {
         struct_size: struct_size::<sys::aoahid_mouse_options>(),

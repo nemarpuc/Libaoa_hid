@@ -58,8 +58,6 @@ int main(void) {
     AOAHID_CONSTANT(AOAHID_ANDROID_CUSTOM_SYSTEM_ONLY);
     AOAHID_CONSTANT(AOAHID_ANDROID_UNSUPPORTED);
     AOAHID_CONSTANT(AOAHID_ANDROID_UNKNOWN);
-    AOAHID_CONSTANT(AOAHID_KEYBOARD_ARRAY);
-    AOAHID_CONSTANT(AOAHID_KEYBOARD_BITMAP);
     AOAHID_CONSTANT(AOAHID_PEN_DIRECT_SCREEN);
     AOAHID_CONSTANT(AOAHID_PEN_INDIRECT_TABLET);
     AOAHID_CONSTANT(AOAHID_AXIS_X);
@@ -186,13 +184,8 @@ int main(void) {
     AOAHID_FIELD(aoahid_keyboard_options, struct_size);
     AOAHID_FIELD(aoahid_keyboard_options, reserved);
     AOAHID_FIELD(aoahid_keyboard_options, report_id);
-    AOAHID_FIELD(aoahid_keyboard_options, rollover);
-    AOAHID_FIELD(aoahid_keyboard_options, array_length);
     AOAHID_FIELD(aoahid_keyboard_options, usage_minimum);
     AOAHID_FIELD(aoahid_keyboard_options, usage_maximum);
-    AOAHID_FIELD(aoahid_keyboard_options, usage_bit_width);
-    AOAHID_FIELD(aoahid_keyboard_options, bitmap_bits);
-    AOAHID_FIELD(aoahid_keyboard_options, acknowledges_hid11_keyboard_array_conflict);
 
     AOAHID_BEGIN(aoahid_mouse_options);
     AOAHID_FIELD(aoahid_mouse_options, struct_size);

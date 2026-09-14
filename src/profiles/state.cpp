@@ -340,16 +340,6 @@ aoahid_result serialize_node(aoahid_node* node, std::uint8_t* report, const std:
         case FieldSemantic::modifier:
             value = keyboard == nullptr ? 0 : (keyboard->modifiers >> field.instance) & 1U;
             break;
-        case FieldSemantic::key_array:
-            if (keyboard != nullptr && keyboard_config != nullptr) {
-                const std::size_t non_modifier_count = keyboard->pressed.size();
-                if (non_modifier_count > keyboard_config->options.array_length) {
-                    value = aoa::hid::usage::keyboard_error_rollover;
-                } else if (field.instance < non_modifier_count) {
-                    value = keyboard->pressed[field.instance];
-                }
-            }
-            break;
         case FieldSemantic::key_bitmap:
             if (keyboard != nullptr && keyboard_config != nullptr) {
                 value = field.instance < keyboard->pressed_bitmap.size()
@@ -713,50 +703,34 @@ static aoahid_result aoahid_kbd_impl(aoahid_node* node, const std::uint16_t usag
                       "The preallocated keyboard state does not match the declared Usage range.");
             return AOAHID_ERR_INTERNAL;
         }
-        if (spec->options.rollover == AOAHID_KEYBOARD_BITMAP) {
-            if (index >= keyboard->pressed_bitmap.size()) {
-                set_error(AOAHID_ERR_INTERNAL, "kbd",
-                          "The preallocated bitmap does not match the declared Usage range.");
-                return AOAHID_ERR_INTERNAL;
-            }
-            changed = (keyboard->pressed_bitmap[index] != 0U) != press;
-            if (changed && keyboard->key_transitions[index] != 0U) {
-                return pending_transition("kbd");
-            }
-            if (changed) {
-                if (press) {
-                    if (keyboard->pressed_bitmap_count >= keyboard->pressed_bitmap.size()) {
-                        set_error(AOAHID_ERR_INTERNAL, "kbd",
-                                  "The bitmap key count is inconsistent with its storage.");
-                        return AOAHID_ERR_INTERNAL;
-                    }
-                    keyboard->pressed_bitmap[index] = 1U;
-                    ++keyboard->pressed_bitmap_count;
-                } else {
-                    if (keyboard->pressed_bitmap_count == 0U) {
-                        set_error(AOAHID_ERR_INTERNAL, "kbd",
-                                  "The bitmap key count is inconsistent with its storage.");
-                        return AOAHID_ERR_INTERNAL;
-                    }
-                    keyboard->pressed_bitmap[index] = 0U;
-                    --keyboard->pressed_bitmap_count;
+        if (index >= keyboard->pressed_bitmap.size()) {
+            set_error(AOAHID_ERR_INTERNAL, "kbd",
+                      "The preallocated bitmap does not match the declared Usage range.");
+            return AOAHID_ERR_INTERNAL;
+        }
+        changed = (keyboard->pressed_bitmap[index] != 0U) != press;
+        if (changed && keyboard->key_transitions[index] != 0U) {
+            return pending_transition("kbd");
+        }
+        if (changed) {
+            if (press) {
+                if (keyboard->pressed_bitmap_count >= keyboard->pressed_bitmap.size()) {
+                    set_error(AOAHID_ERR_INTERNAL, "kbd",
+                              "The bitmap key count is inconsistent with its storage.");
+                    return AOAHID_ERR_INTERNAL;
                 }
-                keyboard->key_transitions[index] = 1U;
-            }
-        } else {
-            const auto found = std::find(keyboard->pressed.begin(), keyboard->pressed.end(), usage);
-            changed = (found != keyboard->pressed.end()) != press;
-            if (changed && keyboard->key_transitions[index] != 0U) {
-                return pending_transition("kbd");
-            }
-            if (changed) {
-                if (press) {
-                    keyboard->pressed.push_back(usage);
-                } else {
-                    keyboard->pressed.erase(found);
+                keyboard->pressed_bitmap[index] = 1U;
+                ++keyboard->pressed_bitmap_count;
+            } else {
+                if (keyboard->pressed_bitmap_count == 0U) {
+                    set_error(AOAHID_ERR_INTERNAL, "kbd",
+                              "The bitmap key count is inconsistent with its storage.");
+                    return AOAHID_ERR_INTERNAL;
                 }
-                keyboard->key_transitions[index] = 1U;
+                keyboard->pressed_bitmap[index] = 0U;
+                --keyboard->pressed_bitmap_count;
             }
+            keyboard->key_transitions[index] = 1U;
         }
     }
     node->dirty = node->dirty || changed;

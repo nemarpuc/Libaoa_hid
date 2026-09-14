@@ -82,7 +82,6 @@ constexpr std::uint16_t contact_count_maximum = 0x55U;
 constexpr std::uint16_t scan_time = 0x56U;
 constexpr std::uint16_t secondary_barrel_switch = 0x5AU;
 
-constexpr std::uint16_t keyboard_error_rollover = 0x01U;
 constexpr std::uint16_t keyboard_left_control = 0xE0U;
 constexpr std::uint16_t keyboard_right_gui = 0xE7U;
 

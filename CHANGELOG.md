@@ -5,6 +5,8 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-14
+
 ### Changed
 
 - **Breaking:** Consolidated the public profile surface from fourteen
@@ -52,6 +54,18 @@ All notable changes to libaoahid are recorded here. This project follows
   removed in favor of their merged counterparts above.
 - The Python, Rust, and C# bindings were updated to match this ABI; no
   language binding retains the removed symbols.
+- **Breaking:** Removed the legacy 6KRO Array form from the Keyboard profile.
+  `aoahid_keyboard_options` no longer has `rollover`, `array_length`,
+  `usage_bit_width`, `bitmap_bits`, or
+  `acknowledges_hid11_keyboard_array_conflict`; only `usage_minimum` and
+  `usage_maximum` remain. The Keyboard profile is now exclusively a full
+  N-Key Rollover (NKRO) one-bit Variable bitmap: every declared nonmodifier
+  Usage gets its own bit, so any number of simultaneously pressed keys up to
+  the declared range is reported at once, with no Array slot count and no
+  `ErrorRollOver (0x01)` overflow encoding to inject or recover from. The
+  `AOAHID_KEYBOARD_ARRAY`/`AOAHID_KEYBOARD_BITMAP` enum and the
+  `aoahid_keyboard_rollover` type were removed from the C ABI and every
+  language binding.
 
 ### Fixed
 
@@ -144,7 +158,18 @@ All notable changes to libaoahid are recorded here. This project follows
   documentation were written by an AI coding assistant, with architecture,
   hardware verification, and review done by a human.
 
-_No other unreleased changes._
+### Verification status
+
+This release removes a public struct's fields and a public enum, and changes
+the Keyboard profile's on-wire descriptor shape; it is a breaking-ABI change
+within the pre-1.0 line. The bitmap/NKRO Keyboard form carries the same
+`conditional` `android_status` it already had before this release; the
+removed Array form was `portable candidate`, so a caller that depended on the
+Array form's stronger classification, rather than only its ABI symbols, must
+re-evaluate that dependency. No profile in this release has completed the
+four-level physical-device gate (`getevent`, `dumpsys input`, application API,
+and kernel device); Android device/profile behavior remains
+**not hardware-verified** by these host-side CI jobs. See `TARGET_MATRIX.md`.
 
 ## [0.1.0] - 2026-08-27
 

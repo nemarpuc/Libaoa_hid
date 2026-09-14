@@ -36,7 +36,6 @@ public enum StartupMode : int
 }
 public enum ClaimPolicy : int { None = 1, Explicit = 2 }
 public enum LogLevel : int { Disabled = 1, Error = 2, Info = 3, Trace = 4 }
-public enum KeyboardRollover : int { Array = 1, Bitmap = 2 }
 public enum PenMode : int { DirectScreen = 1, IndirectTablet = 2 }
 public enum DpadRepresentation : int { None = 1, Hat = 2, Buttons = 3 }
 public enum ControllerApplication : int { Gamepad = 1, Joystick = 2 }
@@ -198,13 +197,8 @@ public struct KeyboardOptions
     public uint StructSize;
     public uint Reserved;
     public ReportId ReportId;
-    public KeyboardRollover Rollover;
-    public uint ArrayLength;
     public ushort UsageMinimum;
     public ushort UsageMaximum;
-    public uint UsageBitWidth;
-    public uint BitmapBits;
-    public uint AcknowledgesHid11KeyboardArrayConflict;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -416,7 +410,7 @@ public static class Native
     private const string Library = "aoahid";
     private const CallingConvention Call = CallingConvention.Cdecl;
     public const uint AOAHID_VERSION_MAJOR = 0;
-    public const uint AOAHID_VERSION_MINOR = 1;
+    public const uint AOAHID_VERSION_MINOR = 2;
     public const uint AOAHID_VERSION_PATCH = 0;
 
     public static readonly IReadOnlyDictionary<string, int> AbiConstants =
@@ -462,8 +456,6 @@ public static class Native
             ["AOAHID_ANDROID_CUSTOM_SYSTEM_ONLY"] = 3,
             ["AOAHID_ANDROID_UNSUPPORTED"] = 4,
             ["AOAHID_ANDROID_UNKNOWN"] = 5,
-            ["AOAHID_KEYBOARD_ARRAY"] = 1,
-            ["AOAHID_KEYBOARD_BITMAP"] = 2,
             ["AOAHID_PEN_DIRECT_SCREEN"] = 1,
             ["AOAHID_PEN_INDIRECT_TABLET"] = 2,
             ["AOAHID_AXIS_X"] = 1,

@@ -21,7 +21,7 @@ The matrix begins from "not run" on purpose. A successful compile is not an Andr
 
 | Target | Revision/version | Evidence level | What was established | What was not established |
 |---|---|---|---|---|
-| USB HID | HID 1.11, 2001-05-27 | `Source-reviewed` | Item encoding, signedness, short/extended Usage ranges, Report IDs, reports, field span, Null State, keyboard Array rollover | Acceptance by any target parser |
+| USB HID | HID 1.11, 2001-05-27 | `Source-reviewed` | Item encoding, signedness, short/extended Usage ranges, Report IDs, reports, field span, Null State | Acceptance by any target parser |
 | HID Usage Tables | HUT 1.7, 2026-01-26 | `Source-reviewed` | Audited Usage IDs, Usage types, and semantics listed in `FACT_AUDIT.md` | Linux or Android support for a Usage |
 | Linux HID core/input/multitouch | Commit `35556bed836f8dc07ac55f69c8d17dce3e7f0e25`, 2020-09-01 | `Source-reviewed` | Behavior of the exact symbols listed in `FACT_AUDIT.md` | Behavior of a different kernel or an OEM-modified tree |
 | Android 17 ACK controller/pen-priority cross-check | `android17-6.18` commit `f67745b7d96806e622db56f4be97af16d6e99850` | `Source-reviewed` | `hid_hat_to_axis`, Generic Desktop Hat/raw-D-pad configuration and dispatch, and the explicit Eraser/Invert/Tip/Pressure/In-Range priority path in `hid-input.c` and `hid-core.c` | Multitouch, battery, pen behavior beyond that ordering, OEM changes, runtime acceptance, or behavior of a later revision |
@@ -51,7 +51,7 @@ The filenames above identify the required artifact kind, not proof that an artif
 ### CI portability targets
 
 These configurations are intended to compile and test portability. They are not
-0.1.0 GitHub Release artifacts under the current C-17 publication scope.
+0.2.0 GitHub Release artifacts under the current C-17 publication scope.
 
 | Host target | Architecture / C runtime | Current status | Evidence |
 |---|---|---|---|
@@ -98,8 +98,7 @@ target; no later-version row inherits evidence from an earlier one.
 
 | Profile | Descriptor/static tests | Audited Linux source path | Physical kernel parse | Android classification | Event stream | Application API | Release wording allowed now |
 |---|---|---|---|---|---|---|---|
-| Keyboard, Array (also reached via the former Barcode/MSR wedge factory) | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Implemented; hardware unverified" |
-| Keyboard, bitmap/NKRO | Not recorded | HUT form source-reviewed; HID Appendix C conflict recorded | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional HUT form; hardware unverified" |
+| Keyboard, full-NKRO bitmap (also reached via the former Barcode/MSR wedge factory) | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; hardware unverified" |
 | Mouse | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Implemented; hardware unverified" |
 | Toggle: Consumer control | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; target mapping unverified" |
 | Toggle: System control | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; target mapping unverified" |
@@ -151,7 +150,7 @@ Record from an identified test-application commit:
 
 | Profile | Cases required before `Hardware-verified` |
 |---|---|
-| Keyboard | Modifier chords; all-up; `array_length` nonmodifiers; the next nonmodifier makes every Array entry ErrorRollOver (the seventh only for a six-entry Array); recovery; repeat; layout and IME differences |
+| Keyboard | Modifier chords; all-up; a nonmodifier count well beyond six held simultaneously (full-NKRO, no Array slot limit to hit); repeat; layout and IME differences |
 | Mouse | Positive and negative X/Y; split delta; all buttons; release; wheel; AC Pan; high-rate stream; pointer capture |
 | Toggle: Consumer/System/Camera/Telephony | Every allowed Usage; `down=1` and `down=0`; a guaranteed-observed single click (`down=1`, wait for completion, `down=0`) assertion and zero re-arm where exposed; foreground/background; screen off; system, media, camera, and call-policy interception |
 | Gamepad, canonical Hat | Game Pad collection; contiguous Button range beginning at `1` with at least `5` entries and explicit A/B/X/Y checks; every button and axis; explicit neutral; minimum/maximum; all eight Hat directions including value `1` as Up-right; no-direction Null value `15`; Logical `0..7`; Physical `0..315`; Unit Degrees `0x14`; opposite-direction rejection; simultaneous controls |

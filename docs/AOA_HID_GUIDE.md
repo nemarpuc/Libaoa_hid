@@ -416,11 +416,11 @@ Ratings: **High** = practical as standard stock-Android input; **Partial** = sup
 - TLC: Generic Desktop / Keyboard (`01/06`)
 - Key fields: Keyboard/Keypad Page (`07`)
 - Modifiers: Usages E0-E7 as eight one-bit Variable fields
-- Ordinary keys: a 6KRO array resembling the USB Boot report format, or an NKRO bitmap. AOA does not expose a HID interface Boot Protocol or `SET_PROTOCOL`; resemblance to the Boot report format does not mean AOA supports the Boot Protocol. Default to 6KRO for Android compatibility.
+- Ordinary keys: an NKRO Variable bitmap, one bit per declared Usage. AOA does not expose a HID interface Boot Protocol or `SET_PROTOCOL`, so there is no Boot-report-format compatibility reason to prefer a 6KRO Array; a bitmap reports any number of simultaneously pressed keys up to the declared range with no Array slot count and no `ErrorRollOver` overflow encoding.
 - Prepend an ID only when Report IDs are used.
 - Omit the LED Page Output report or explicitly declare in capabilities that AOA cannot receive it.
 
-A typical 6KRO Input report is `[modifiers][reserved][key1..key6]`. Always send a release report that returns the released Usage to zero. Characters are determined through Android's `.kl` to keycode to KCM/IME pipeline, not directly by the USB Usage.
+A typical NKRO Input report is `[modifiers][key bitmap...]`. Always send a release report that returns the released Usage to zero. Characters are determined through Android's `.kl` to keycode to KCM/IME pipeline, not directly by the USB Usage.
 
 ### 13.2 Android Behavior
 
@@ -432,7 +432,7 @@ A typical 6KRO Input report is `[modifiers][reserved][key1..key6]`. Always send 
 
 ### 13.3 Tests
 
-- Test modifier-only input, chords, rollover, full release, long-press repeat, and IME switching.
+- Test modifier-only input, chords, holding well beyond six keys simultaneously (NKRO, no Array slot limit), full release, long-press repeat, and IME switching.
 - Record both the `getevent` scan code and `KeyEvent.getKeyCode()`.
 - `hid-input.c` maps HID Usage to Linux code, and the target device's `.kl` maps Linux code to Android key or axis. Verify both stages and measure the final keycode before claiming support.
 
@@ -810,7 +810,7 @@ Every factory must generate the **descriptor and serializer/layout together**. C
 
 | Profile | Required options | Optional options | Default policy |
 |---|---|---|---|
-| Keyboard | Rollover form | NKRO, attached consumer report | 6KRO, no LEDs |
+| Keyboard | Usage interval | Attached consumer report | Full NKRO Variable bitmap, no LEDs |
 | Mouse | X/Y delta bit width | Buttons, wheel, pan | Three buttons, signed 8- or 16-bit deltas |
 | Consumer | Allowed Usage list | Report IDs | Only a subset verified through both `hid-input.c` to Linux key code and target `.kl` to Android keycode |
 | Gamepad | Axes and buttons | Hat; triggers with explicit Usage/code/Android-axis mapping | Generic Desktop Game Pad TLC and standard axes |
@@ -850,7 +850,7 @@ The following layouts are **library-profile defaults**, not universal USB HID wi
 
 | Profile | Default report, little-endian | Release or neutral state |
 |---|---|---|
-| Keyboard 6KRO | `[RID?][modifier:u8][reserved:u8][key usage:u8 ×6]` | modifier=0, every key=0 |
+| Keyboard, full NKRO bitmap | `[RID?][modifier:u8][key bitmap:u1 ×N]` | modifier=0, every key bit=0 |
 | Mouse | `[RID?][buttons:u8][dx:s16][dy:s16][wheel:s8][pan:s8]` | delta=0; buttons carry current state and releases are explicit |
 | Consumer | `[RID?][usage:u16]` | usage=0 |
 | Gamepad | `[RID?][button bits][hat+padding][configured axes]` | buttons=0, hat=Null, stick=center, trigger=0 |
@@ -1141,7 +1141,7 @@ The test application records:
 
 | Profile | Minimum acceptance coverage |
 |---|---|
-| Keyboard | Full key release, modifier chords, six-key rollover, repeat, and layout/IME differences |
+| Keyboard | Full key release, modifier chords, well beyond six simultaneous keys (full NKRO), repeat, and layout/IME differences |
 | Mouse | Positive/negative X/Y deltas, three buttons, wheel/pan, pointer capture, and high-rate input |
 | Consumer | Volume/media press-release, foreground/background, screen off, and system interception |
 | Gamepad | All buttons, neutral D-pad, stick center/edge, trigger range, hat Null, and simultaneous input |

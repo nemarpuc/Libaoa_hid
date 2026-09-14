@@ -28,7 +28,6 @@ pub type aoahid_interface_claim_policy = i32;
 pub type aoahid_log_level = i32;
 pub type aoahid_profile_kind = i32;
 pub type aoahid_android_status = i32;
-pub type aoahid_keyboard_rollover = i32;
 pub type aoahid_pen_mode = i32;
 pub type aoahid_axis_role = i32;
 pub type aoahid_dpad_representation = i32;
@@ -36,7 +35,7 @@ pub type aoahid_controller_application = i32;
 pub type aoahid_usage_semantic = i32;
 
 pub const AOAHID_VERSION_MAJOR: u32 = 0;
-pub const AOAHID_VERSION_MINOR: u32 = 1;
+pub const AOAHID_VERSION_MINOR: u32 = 2;
 pub const AOAHID_VERSION_PATCH: u32 = 0;
 pub const AOAHID_OK: i32 = 0;
 pub const AOAHID_ERR_PARAM: i32 = 1;
@@ -81,8 +80,6 @@ pub const AOAHID_ANDROID_CONDITIONAL: i32 = 2;
 pub const AOAHID_ANDROID_CUSTOM_SYSTEM_ONLY: i32 = 3;
 pub const AOAHID_ANDROID_UNSUPPORTED: i32 = 4;
 pub const AOAHID_ANDROID_UNKNOWN: i32 = 5;
-pub const AOAHID_KEYBOARD_ARRAY: i32 = 1;
-pub const AOAHID_KEYBOARD_BITMAP: i32 = 2;
 pub const AOAHID_PEN_DIRECT_SCREEN: i32 = 1;
 pub const AOAHID_PEN_INDIRECT_TABLET: i32 = 2;
 
@@ -202,13 +199,8 @@ c_struct!(aoahid_keyboard_options {
     struct_size: u32,
     reserved: u32,
     report_id: aoahid_report_id_option,
-    rollover: aoahid_keyboard_rollover,
-    array_length: u32,
     usage_minimum: u16,
     usage_maximum: u16,
-    usage_bit_width: u32,
-    bitmap_bits: u32,
-    acknowledges_hid11_keyboard_array_conflict: u32,
 });
 c_struct!(aoahid_mouse_options {
     struct_size: u32,

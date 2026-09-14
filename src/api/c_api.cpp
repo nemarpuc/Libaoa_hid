@@ -421,11 +421,7 @@ aoahid_result initialize_node_state(aoahid_node* node) {
             static_cast<std::size_t>(spec->options.usage_maximum - spec->options.usage_minimum) +
             1U;
         value.key_transitions.resize(key_count);
-        if (spec->options.rollover == AOAHID_KEYBOARD_BITMAP) {
-            value.pressed_bitmap.resize(key_count);
-        } else {
-            value.pressed.reserve(key_count);
-        }
+        value.pressed_bitmap.resize(key_count);
         node->state = std::move(value);
         break;
     }
@@ -483,8 +479,7 @@ bool has_non_neutral_state(const aoahid_node* node) noexcept {
         return false;
     }
     if (const auto* keyboard = std::get_if<aoa::detail::KeyboardState>(&node->state)) {
-        return keyboard->modifiers != 0U || !keyboard->pressed.empty() ||
-               keyboard->pressed_bitmap_count != 0U;
+        return keyboard->modifiers != 0U || keyboard->pressed_bitmap_count != 0U;
     }
     if (const auto* mouse = std::get_if<aoa::detail::MouseState>(&node->state)) {
         return std::any_of(mouse->buttons.begin(), mouse->buttons.end(),
@@ -523,9 +518,7 @@ bool has_non_neutral_state(const aoahid_node* node) noexcept {
 void make_neutral(aoahid_node* node) noexcept {
     bool had_non_neutral_state = false;
     if (auto* keyboard = std::get_if<aoa::detail::KeyboardState>(&node->state)) {
-        had_non_neutral_state = keyboard->modifiers != 0U || !keyboard->pressed.empty();
-        had_non_neutral_state = had_non_neutral_state || keyboard->pressed_bitmap_count != 0U;
-        keyboard->pressed.clear();
+        had_non_neutral_state = keyboard->modifiers != 0U || keyboard->pressed_bitmap_count != 0U;
         std::fill(keyboard->pressed_bitmap.begin(), keyboard->pressed_bitmap.end(),
                   std::uint8_t{0});
         keyboard->pressed_bitmap_count = 0U;
