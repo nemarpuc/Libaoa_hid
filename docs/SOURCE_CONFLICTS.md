@@ -1629,3 +1629,30 @@ parser. A repository regression test scans `CHANGELOG.md` and every top-level
 document consumed by Doxygen and rejects scoped empty-call spellings inside
 code spans. Strict warnings remain enabled; no warning class is suppressed.
 **[repository observation]** Retrieved 2026-08-27.
+
+### C-26 - GCC 14 `-Wstringop-overflow` false positive on a fill after a struct's layout changed
+
+**Prior state:** removing the Keyboard profile's Array press-order vector from
+`KeyboardState` and keeping only its bitmap buffer left one existing call
+unchanged, `std::fill(keyboard->pressed_bitmap.begin(),
+keyboard->pressed_bitmap.end(), std::uint8_t{0})` in `make_neutral`. The
+`-O3` musl AArch64 and x86-64 CI jobs, both building with GCC 14.2.0, then
+failed with `-Werror=stringop-overflow`: the inlined `std::fill` expanded to
+`__builtin_memset` with a reported bound between `2**63` and `SIZE_MAX`, an
+impossible object size for a `std::vector<std::uint8_t>`.
+
+**[specified CI implementation observation]** The identical call compiled
+warning-free before the struct's other members were removed, and it also
+compiled warning-free locally under GCC 16.2.1 at `-O3`; no GCC 14
+installation was available in this environment to interactively confirm the
+analyzer's internal path. This is consistent with the project's earlier GCC
+14 `vector::insert(initializer_list)` false positive (`CHANGELOG.md`
+`[0.1.0]`): an iterator-pair STL call over a `std::vector<std::uint8_t>`
+whose surrounding struct layout just changed is again what the analyzer
+mis-bounds, not a real out-of-bounds write.
+
+**Implemented resolution:** replaced the iterator-pair `std::fill(begin(),
+end(), value)` call with the count-based `std::fill_n(data(), size(),
+value)`, which does not ask the analyzer to derive a length from an iterator
+subtraction. No warning class is suppressed and no other call in this
+function's neighbors needed the same change. **[repository observation]**.
