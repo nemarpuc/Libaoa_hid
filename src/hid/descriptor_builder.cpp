@@ -269,33 +269,6 @@ bool DescriptorBuilder::variable_range(const std::uint16_t usage_page,
     return good_;
 }
 
-bool DescriptorBuilder::array(const std::uint16_t usage_page, const std::uint16_t usage_minimum,
-                              const std::uint16_t usage_maximum, const std::int32_t logical_minimum,
-                              const std::int32_t logical_maximum, const std::uint8_t element_bits,
-                              const std::uint16_t count, const FieldSemantic semantic) {
-    if (!prepare_data_main()) {
-        return false;
-    }
-    if (usage_maximum < usage_minimum) {
-        good_ = false;
-        return false;
-    }
-    good_ = good_ && count != 0U && writer_.usage_page(usage_page) &&
-            writer_.usage_minimum(usage_minimum) && writer_.usage_maximum(usage_maximum) &&
-            writer_.logical_minimum(logical_minimum) &&
-            writer_.logical_maximum(logical_maximum, logical_minimum) &&
-            writer_.report_size(element_bits) && writer_.report_count(count) && writer_.input(0U);
-    if (good_) {
-        const std::uint64_t usage_count =
-            static_cast<std::uint64_t>(usage_maximum) - usage_minimum + 1U;
-        record_main(false, usage_count, count, element_bits);
-    }
-    for (std::uint16_t index = 0; good_ && index < count; ++index) {
-        good_ = add_layout(semantic, index, element_bits, logical_minimum, logical_maximum);
-    }
-    return good_;
-}
-
 bool DescriptorBuilder::constant_padding(const std::uint16_t bits) {
     if (bits == 0U) {
         return true;

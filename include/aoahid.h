@@ -30,7 +30,7 @@ extern "C" {
 #endif
 
 #define AOAHID_VERSION_MAJOR 0
-#define AOAHID_VERSION_MINOR 1
+#define AOAHID_VERSION_MINOR 2
 #define AOAHID_VERSION_PATCH 0
 
 typedef struct aoahid_context aoahid_context;
@@ -122,9 +122,6 @@ enum {
     AOAHID_ANDROID_UNSUPPORTED = 4,
     AOAHID_ANDROID_UNKNOWN = 5
 };
-
-typedef int32_t aoahid_keyboard_rollover;
-enum { AOAHID_KEYBOARD_ARRAY = 1, AOAHID_KEYBOARD_BITMAP = 2 };
 
 typedef int32_t aoahid_pen_mode;
 enum { AOAHID_PEN_DIRECT_SCREEN = 1, AOAHID_PEN_INDIRECT_TABLET = 2 };
@@ -301,17 +298,15 @@ typedef struct aoahid_report_id_option {
     uint8_t reserved8[3];
 } aoahid_report_id_option;
 
+/* The Keyboard profile is exclusively full-NKRO: every declared Usage is a
+ * one-bit Variable field, so every simultaneously pressed key is reported at
+ * once with no Array slot count and no ErrorRollOver overflow encoding. */
 typedef struct aoahid_keyboard_options {
     uint32_t struct_size;
     uint32_t reserved;
     aoahid_report_id_option report_id;
-    aoahid_keyboard_rollover rollover;
-    uint32_t array_length;
     uint16_t usage_minimum;
     uint16_t usage_maximum;
-    uint32_t usage_bit_width;
-    uint32_t bitmap_bits;
-    uint32_t acknowledges_hid11_keyboard_array_conflict;
 } aoahid_keyboard_options;
 
 typedef struct aoahid_mouse_options {
@@ -762,7 +757,6 @@ AOAHID_API uint16_t AOAHID_CALL aoahid_device_protocol_version(const aoahid_devi
  * Synchronization: Has no Context domain and may run concurrently; out_spec and
  * the calling thread's diagnostic record are exclusive to the caller.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid pointers/ABI fields/ranges;
- * AOAHID_ERR_UNSET_FIELD for a missing rollover/width choice;
  * AOAHID_ERR_OVERFLOW for descriptor/layout size overflow; AOAHID_ERR_INTERNAL
  * for allocation, generation inconsistency, or unexpected exception. */
 AOAHID_API aoahid_result AOAHID_CALL

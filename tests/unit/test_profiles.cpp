@@ -90,17 +90,12 @@ aoahid_keyboard_options keyboard_options() {
     options.struct_size = static_cast<std::uint32_t>(sizeof(options));
     options.reserved = 0U;
     options.report_id = {0U, 0U, {0U, 0U, 0U}};
-    options.rollover = AOAHID_KEYBOARD_ARRAY;
-    options.array_length = 6U;
     options.usage_minimum = 0x04U;
     options.usage_maximum = 0x65U;
-    options.usage_bit_width = 8U;
-    options.bitmap_bits = 0U;
-    options.acknowledges_hid11_keyboard_array_conflict = 0U;
     return options;
 }
 
-void test_keyboard_rollover() {
+void test_keyboard_nkro_concurrent_keys() {
     aoahid_keyboard_options options = keyboard_options();
     aoahid_spec* spec = nullptr;
     AOAHID_CHECK(aoahid_spec_create_keyboard(&options, &spec) == AOAHID_OK);
@@ -109,45 +104,53 @@ void test_keyboard_rollover() {
     aoahid_node node{};
     node.spec = spec;
     aoa::detail::KeyboardState state_value{};
-    state_value.pressed.reserve(32U);
-    state_value.key_transitions.resize(
-        static_cast<std::size_t>(options.usage_maximum - options.usage_minimum) + 1U);
+    const std::size_t key_count =
+        static_cast<std::size_t>(options.usage_maximum - options.usage_minimum) + 1U;
+    state_value.pressed_bitmap.resize(key_count);
+    state_value.key_transitions.resize(key_count);
     node.state = std::move(state_value);
     AOAHID_CHECK(aoahid_kbd(&node, 0xE0U, 1U) == AOAHID_OK);
     node.dirty = false;
     AOAHID_CHECK(aoahid_kbd(&node, 0xE0U, 1U) == AOAHID_OK);
     AOAHID_CHECK(!node.dirty);
-    for (std::uint16_t usage = 0x04U; usage <= 0x0AU; ++usage)
+
+    // Twenty simultaneously held non-modifier keys: well beyond the legacy
+    // six-slot Array limit. Full NKRO gives every Usage its own bitmap bit,
+    // so there is no ErrorRollOver overflow to hit.
+    constexpr std::uint16_t k_held_keys = 20U;
+    for (std::uint16_t usage = 0x04U; usage < 0x04U + k_held_keys; ++usage)
         AOAHID_CHECK(aoahid_kbd(&node, usage, 1U) == AOAHID_OK);
+
     std::array<std::uint8_t, 64> report{};
     std::size_t length = 0U;
     AOAHID_CHECK(aoa::detail::serialize_node(&node, report.data(), report.size(), &length) ==
                  AOAHID_OK);
-    AOAHID_CHECK(length == 8U);
     AOAHID_CHECK(report[0] == 0x01U);
-    AOAHID_CHECK(report[1] == 0U);
-    for (std::size_t index = 2U; index < 8U; ++index)
-        AOAHID_CHECK(report[index] == 0x01U);
+    for (std::uint16_t usage = 0x04U; usage < 0x04U + k_held_keys; ++usage) {
+        const auto* key = field(spec, aoa::hid::FieldSemantic::key_bitmap,
+                                static_cast<std::uint16_t>(usage - options.usage_minimum));
+        AOAHID_CHECK(key != nullptr && extract(report.data(), *key) == 1U);
+    }
     aoa::detail::transfer_complete(&node, AOAHID_OK, 0);
+
     AOAHID_CHECK(aoahid_kbd(&node, 0x04U, 0U) == AOAHID_OK);
     report.fill(0U);
     AOAHID_CHECK(aoa::detail::serialize_node(&node, report.data(), report.size(), &length) ==
                  AOAHID_OK);
-    for (std::size_t index = 2U; index < 8U; ++index)
-        AOAHID_CHECK(report[index] == static_cast<std::uint8_t>(0x03U + index));
-    AOAHID_CHECK(has_sequence(spec->descriptor, {0x75U, 0x08U, 0x95U, 0x01U, 0x81U, 0x01U}));
+    const auto* released = field(spec, aoa::hid::FieldSemantic::key_bitmap, 0U);
+    AOAHID_CHECK(released != nullptr && extract(report.data(), *released) == 0U);
+    for (std::uint16_t usage = 0x05U; usage < 0x04U + k_held_keys; ++usage) {
+        const auto* key = field(spec, aoa::hid::FieldSemantic::key_bitmap,
+                                static_cast<std::uint16_t>(usage - options.usage_minimum));
+        AOAHID_CHECK(key != nullptr && extract(report.data(), *key) == 1U);
+    }
     AOAHID_CHECK(aoahid_kbd(&node, 0x66U, 0U) == AOAHID_ERR_PARAM);
     aoahid_spec_release(spec);
 }
 
 void test_keyboard_bitmap_and_lifecycle_transitions() {
     aoahid_keyboard_options options = keyboard_options();
-    options.rollover = AOAHID_KEYBOARD_BITMAP;
-    options.array_length = 0U;
     options.usage_maximum = 0x0BU;
-    options.usage_bit_width = 1U;
-    options.bitmap_bits = options.usage_maximum - options.usage_minimum + 1U;
-    options.acknowledges_hid11_keyboard_array_conflict = 1U;
     aoahid_spec* spec = nullptr;
     AOAHID_CHECK(aoahid_spec_create_keyboard(&options, &spec) == AOAHID_OK);
     if (spec == nullptr)
@@ -156,8 +159,10 @@ void test_keyboard_bitmap_and_lifecycle_transitions() {
     aoahid_node node{};
     node.spec = spec;
     aoa::detail::KeyboardState state_value{};
-    state_value.pressed_bitmap.resize(options.bitmap_bits);
-    state_value.key_transitions.resize(options.bitmap_bits);
+    const std::size_t key_count =
+        static_cast<std::size_t>(options.usage_maximum - options.usage_minimum) + 1U;
+    state_value.pressed_bitmap.resize(key_count);
+    state_value.key_transitions.resize(key_count);
     node.state = std::move(state_value);
 
     AOAHID_CHECK(aoahid_kbd(&node, 0x06U, 1U) == AOAHID_OK);
@@ -1197,9 +1202,10 @@ void test_send_time_report_validation() {
     aoahid_node node{};
     node.spec = spec;
     aoa::detail::KeyboardState state_value{};
-    state_value.pressed.reserve(32U);
-    state_value.key_transitions.resize(
-        static_cast<std::size_t>(options.usage_maximum - options.usage_minimum) + 1U);
+    const std::size_t key_count =
+        static_cast<std::size_t>(options.usage_maximum - options.usage_minimum) + 1U;
+    state_value.pressed_bitmap.resize(key_count);
+    state_value.key_transitions.resize(key_count);
     node.state = std::move(state_value);
     AOAHID_CHECK(aoahid_kbd(&node, 0x04U, 1U) == AOAHID_OK);
     std::array<std::uint8_t, 64U> report{};
@@ -1214,11 +1220,11 @@ void test_send_time_report_validation() {
     AOAHID_CHECK(aoa::detail::validate_serialized_report(spec, report.data(), length) ==
                  AOAHID_ERR_INTERNAL);
     report[0] = 5U;
-    const auto* key = field(spec, aoa::hid::FieldSemantic::key_array);
-    AOAHID_CHECK(key != nullptr);
-    if (key != nullptr) {
-        AOAHID_CHECK(key->bit_width == 8U && (key->bit_offset & 7U) == 0U);
-        report[key->bit_offset / 8U] = 0xFFU;
+    const auto* padding = field(spec, aoa::hid::FieldSemantic::constant_padding);
+    AOAHID_CHECK(padding != nullptr);
+    if (padding != nullptr) {
+        report[padding->bit_offset / 8U] = static_cast<std::uint8_t>(
+            report[padding->bit_offset / 8U] | (1U << (padding->bit_offset & 7U)));
         AOAHID_CHECK(aoa::detail::validate_serialized_report(spec, report.data(), length) ==
                      AOAHID_ERR_INTERNAL);
     }
@@ -1295,13 +1301,14 @@ void test_profiles() {
     invalid_keyboard.usage_minimum = 1U;
     AOAHID_CHECK(aoahid_spec_create_keyboard(&invalid_keyboard, &spec) == AOAHID_ERR_PARAM);
     invalid_keyboard = keyboard_options();
-    invalid_keyboard.usage_minimum = 5U;
+    invalid_keyboard.usage_maximum =
+        static_cast<std::uint16_t>(invalid_keyboard.usage_minimum - 1U);
     AOAHID_CHECK(aoahid_spec_create_keyboard(&invalid_keyboard, &spec) == AOAHID_ERR_PARAM);
     invalid_keyboard = keyboard_options();
     invalid_keyboard.usage_maximum = 0xE0U;
     AOAHID_CHECK(aoahid_spec_create_keyboard(&invalid_keyboard, &spec) == AOAHID_ERR_PARAM);
 
-    test_keyboard_rollover();
+    test_keyboard_nkro_concurrent_keys();
     test_keyboard_bitmap_and_lifecycle_transitions();
     test_mouse_delta_splitting_and_consumption();
     test_usage_control_semantics();

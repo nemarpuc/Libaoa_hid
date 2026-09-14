@@ -53,7 +53,6 @@ static const uint32_t k_reserved_slots_per_node = 1U;
 static const uint32_t k_first_report_attempts = 20U;
 static const uint32_t k_first_report_backoff_us = 1000U;
 static const uint32_t k_close_drain_timeout_ms = 1000U;
-static const uint32_t k_keyboard_array_length = 6U;
 static const uint16_t k_keyboard_a_usage = 0x04U;           /* HUT 1.7 section 10. */
 static const uint16_t k_keyboard_application_usage = 0x65U; /* HUT 1.7 section 10. */
 static const uint32_t k_pointer_button_count = 3U;
@@ -208,13 +207,8 @@ static aoahid_result create_specs(specs* result) {
     keyboard.struct_size = sizeof(keyboard);
     keyboard.reserved = 0U;
     keyboard.report_id = (aoahid_report_id_option){0U, 0U, {0U, 0U, 0U}};
-    keyboard.rollover = AOAHID_KEYBOARD_ARRAY;
-    keyboard.array_length = k_keyboard_array_length;
     keyboard.usage_minimum = k_keyboard_a_usage;
     keyboard.usage_maximum = k_keyboard_application_usage;
-    keyboard.usage_bit_width = k_relative_bits;
-    keyboard.bitmap_bits = 0U;
-    keyboard.acknowledges_hid11_keyboard_array_conflict = 0U;
 
     aoahid_mouse_options mouse = {0};
     mouse.struct_size = sizeof(mouse);

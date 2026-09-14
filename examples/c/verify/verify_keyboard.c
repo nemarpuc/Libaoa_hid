@@ -56,11 +56,8 @@ int main(void) {
 
     aoahid_keyboard_options options = {0};
     options.struct_size = (uint32_t)sizeof options;
-    options.rollover = AOAHID_KEYBOARD_ARRAY;
-    options.array_length = 6U;
     options.usage_minimum = 0x04U;
     options.usage_maximum = 0x65U;
-    options.usage_bit_width = 8U;
     aoahid_spec* spec = NULL;
     aoahid_result result = aoahid_spec_create_keyboard(&options, &spec);
     if (result != AOAHID_OK) {

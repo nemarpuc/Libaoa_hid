@@ -76,8 +76,6 @@ fn rust_constants() -> BTreeMap<String, usize> {
             AOAHID_ANDROID_CUSTOM_SYSTEM_ONLY,
             AOAHID_ANDROID_UNSUPPORTED,
             AOAHID_ANDROID_UNKNOWN,
-            AOAHID_KEYBOARD_ARRAY,
-            AOAHID_KEYBOARD_BITMAP,
             AOAHID_PEN_DIRECT_SCREEN,
             AOAHID_PEN_INDIRECT_TABLET,
             AOAHID_AXIS_X,
@@ -228,18 +226,7 @@ fn rust_layout() -> BTreeMap<String, usize> {
         values,
         aoahid_keyboard_options,
         "aoahid_keyboard_options",
-        [
-            struct_size,
-            reserved,
-            report_id,
-            rollover,
-            array_length,
-            usage_minimum,
-            usage_maximum,
-            usage_bit_width,
-            bitmap_bits,
-            acknowledges_hid11_keyboard_array_conflict
-        ]
+        [struct_size, reserved, report_id, usage_minimum, usage_maximum]
     );
     layout!(
         values,

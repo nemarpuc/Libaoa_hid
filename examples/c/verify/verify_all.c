@@ -260,11 +260,8 @@ int main(void) {
 
     aoahid_keyboard_options keyboard_options = {0};
     keyboard_options.struct_size = (uint32_t)sizeof keyboard_options;
-    keyboard_options.rollover = AOAHID_KEYBOARD_ARRAY;
-    keyboard_options.array_length = 6U;
     keyboard_options.usage_minimum = 0x04U;
     keyboard_options.usage_maximum = 0x65U;
-    keyboard_options.usage_bit_width = 8U;
 
     aoahid_mouse_options mouse_options = {0};
     mouse_options.struct_size = (uint32_t)sizeof mouse_options;

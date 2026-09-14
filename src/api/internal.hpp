@@ -102,8 +102,6 @@ struct ContactState {
 };
 
 struct KeyboardState {
-    /* Array form preserves press order; bitmap form uses direct membership. */
-    std::vector<std::uint16_t> pressed;
     std::vector<std::uint8_t> pressed_bitmap;
     std::vector<std::uint8_t> key_transitions;
     std::size_t pressed_bitmap_count{};

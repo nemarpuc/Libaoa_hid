@@ -19,7 +19,6 @@ namespace aoa::hid {
 
 enum class FieldSemantic : std::uint16_t {
     modifier,
-    key_array,
     key_bitmap,
     buttons,
     x,

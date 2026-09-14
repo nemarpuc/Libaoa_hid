@@ -18,7 +18,6 @@ internal static class Program
     private const uint FirstReportAttempts = 20;
     private const uint FirstReportBackoffUs = 1000;
     private const uint CloseDrainTimeoutMs = 1000;
-    private const uint KeyboardArrayLength = 6;
     private const ushort KeyboardAUsage = 0x04; // HUT 1.7 section 10; see FACT_AUDIT.md.
     private const ushort KeyboardApplicationUsage = 0x65; // HUT 1.7 section 10.
     private const uint PointerButtonCount = 3;
@@ -139,13 +138,8 @@ internal static class Program
             StructSize = checked((uint)Marshal.SizeOf<KeyboardOptions>()),
             Reserved = 0,
             ReportId = new ReportId(), // Explicitly selects a no-Report-ID descriptor.
-            Rollover = KeyboardRollover.Array,
-            ArrayLength = KeyboardArrayLength,
             UsageMinimum = KeyboardAUsage,
             UsageMaximum = KeyboardApplicationUsage,
-            UsageBitWidth = RelativeBits,
-            BitmapBits = 0,
-            AcknowledgesHid11KeyboardArrayConflict = 0,
         };
         var mouseOptions = new MouseOptions
         {

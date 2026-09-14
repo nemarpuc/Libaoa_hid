@@ -203,14 +203,11 @@ bool emit_descriptor(const std::filesystem::path& directory, const char* name,
     return true;
 }
 
-aoahid_keyboard_options keyboard_array_options() noexcept {
+aoahid_keyboard_options keyboard_options() noexcept {
     aoahid_keyboard_options options{};
     options.struct_size = static_cast<std::uint32_t>(sizeof(options));
-    options.rollover = AOAHID_KEYBOARD_ARRAY;
-    options.array_length = 6U;
     options.usage_minimum = 0x04U;
     options.usage_maximum = 0x65U;
-    options.usage_bit_width = 8U;
     return options;
 }
 
@@ -266,19 +263,9 @@ int main(const int argc, char** argv) {
     bool ok = true;
     aoahid_spec* spec = nullptr;
 
-    aoahid_keyboard_options keyboard = keyboard_array_options();
-    ok = emit_descriptor(output_directory, "keyboard-array",
-                         aoahid_spec_create_keyboard(&keyboard, &spec), spec) &&
-         ok;
-    spec = nullptr;
-    keyboard = keyboard_array_options();
+    aoahid_keyboard_options keyboard = keyboard_options();
     keyboard.report_id = {1U, 7U, {0U, 0U, 0U}};
-    keyboard.rollover = AOAHID_KEYBOARD_BITMAP;
-    keyboard.array_length = 0U;
-    keyboard.usage_bit_width = 1U;
-    keyboard.bitmap_bits = 98U;
-    keyboard.acknowledges_hid11_keyboard_array_conflict = 1U;
-    ok = emit_descriptor(output_directory, "keyboard-bitmap-report-id",
+    ok = emit_descriptor(output_directory, "keyboard",
                          aoahid_spec_create_keyboard(&keyboard, &spec), spec) &&
          ok;
     spec = nullptr;

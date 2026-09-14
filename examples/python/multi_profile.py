@@ -29,7 +29,6 @@ RESERVED_SLOTS_PER_NODE = 1
 FIRST_REPORT_ATTEMPTS = 20
 FIRST_REPORT_BACKOFF_US = 1000
 CLOSE_DRAIN_TIMEOUT_MS = 1000
-KEYBOARD_ARRAY_LENGTH = 6
 KEYBOARD_A_USAGE = 0x04  # HUT 1.7 section 10, recorded in FACT_AUDIT.md.
 KEYBOARD_APPLICATION_USAGE = 0x65  # HUT 1.7 section 10, recorded in FACT_AUDIT.md.
 POINTER_BUTTON_COUNT = 3
@@ -159,13 +158,8 @@ def create_specs(library: c.CDLL) -> Specs:
     keyboard_options.struct_size = c.sizeof(KeyboardOptions)  # noqa: F405
     keyboard_options.reserved = 0
     keyboard_options.report_id = report_id
-    keyboard_options.rollover = AOAHID_KEYBOARD_ARRAY  # noqa: F405
-    keyboard_options.array_length = KEYBOARD_ARRAY_LENGTH
     keyboard_options.usage_minimum = KEYBOARD_A_USAGE
     keyboard_options.usage_maximum = KEYBOARD_APPLICATION_USAGE
-    keyboard_options.usage_bit_width = RELATIVE_BITS
-    keyboard_options.bitmap_bits = 0
-    keyboard_options.acknowledges_hid11_keyboard_array_conflict = 0
 
     mouse_options = MouseOptions()  # noqa: F405
     mouse_options.struct_size = c.sizeof(MouseOptions)  # noqa: F405

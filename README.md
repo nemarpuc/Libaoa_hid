@@ -30,8 +30,7 @@ of hardware verification. See [TARGET_MATRIX.md](docs/TARGET_MATRIX.md).
 <!-- profile-table:start -->
 | Profile | Manifest status | Input | Output | Feature transport | Qualification |
 |---|---|---:|---:|---:|---|
-| Keyboard (HID 1.11 Array) | portable candidate | yes | no | no | Target matrix still required |
-| Keyboard selector bitmap | conditional | yes | no | no | Explicit HID 1.11 Appendix C conflict acknowledgement |
+| Keyboard, full NKRO bitmap | conditional | yes | no | no | One-bit Variable field per key; target matrix still required |
 | Mouse / relative pointer | portable candidate | yes | no | no | Target matrix still required |
 | Toggle: Consumer Control fields | conditional | yes | no | no | Sparse allow-list, explicit HUT semantics, and target event evidence |
 | Toggle: System Control fields | conditional | yes | no | no | Explicit HUT semantics; system handling and target mapping vary |
@@ -63,7 +62,7 @@ Node state; callers still choose the product and target contract. This is
 
 | Profile group | Derived by the library | Still explicit |
 |---|---|---|
-| Keyboard and barcode wedge | Modifier routing; key-array packing; every Array cell becomes ErrorRollOver after more than the declared number of nonmodifier keys; normal packing resumes after recovery. Bitmap mode maps each declared Usage to one bit and does not synthesize Array rollover. | Array/bitmap form, key Usage interval and width, Array length or bitmap size, Report ID, intended characters, layout, locale, and IME behavior. |
+| Keyboard and barcode wedge | Modifier routing; a full N-Key Rollover (NKRO) Variable bitmap maps each declared Usage to its own bit, so every simultaneously pressed key is reported at once with no Array slot count and no ErrorRollOver overflow encoding. | Key Usage interval, Report ID, intended characters, layout, locale, and IME behavior. |
 | Mouse | Independent signed 64-bit pending totals and in-range report fragments for X, Y, Wheel, and AC Pan; only a submitted fragment is consumed on terminal completion. | Axis ranges and widths, button count, Wheel/Pan presence, acceleration, and Report ID. |
 | Consumer, System, Camera, and Telephony | One exact allow-listed field is asserted; accepted press/release/tap edges provide the `1` then `0` lifecycle used by Selector, OOC toggle, OOC maintained, MC, OSC, and RTC descriptors. Camera remains the fixed audited OSC subset. | Each allowed Usage and semantic, expected target event, Report ID, and whether Android exposes or intercepts it. |
 | Gamepad and joystick | Boolean directions become the eight canonical Hat values plus no-direction Null `15`; adjacent pairs become diagonals and opposite pairs are rejected. Raw D-pad mode keeps four independent bits, and no-D-pad mode invents no direction. | Axis roles/ranges/widths/neutrals, buttons, D-pad representation, target mappings, and Report ID. Only a Game Pad with the canonical Hat and a contiguous Button range from `1` with at least five fields is a portable candidate; raw/no-D-pad forms and every Joystick remain conditional. |

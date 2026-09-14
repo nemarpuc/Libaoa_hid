@@ -42,8 +42,7 @@ contract. The audit below records both the automation and its boundary.
 
 | Generated profile | Mechanically derived state | Lifecycle protection | Deliberately caller-supplied product values | Evidence and current Android classification |
 |---|---|---|---|---|
-| Keyboard, HID Array (`aoahid_spec_create_keyboard`, also reached via the former Barcode/MSR wedge factory) | Modifier bits are separated from the nonmodifier Array; the Array is packed from the pressed set; more than `array_length` nonmodifiers fills every Array cell with ErrorRollOver; returning within the limit restores the ordinary selectors. | A press or release through `aoahid_kbd` cannot erase an opposite edge that has not reached its first accepted report. There is no release-all call; the caller releases each Usage it pressed. | Array length, Usage interval, field width, Report ID, and Array-versus-bitmap form. | Rollover is **[USB HID 1.11 requirement]** Appendix C and **[HUT 1.7 definition]**; packing, recovery, and the edge guard are **[Guide policy]**. Portable candidate, **[Unverified on hardware]**. |
-| Keyboard, bitmap/NKRO | Modifier routing, bitmap offset selection, and duplicate suppression are derived from the declared bitmap as each `aoahid_kbd` call arrives. Array ErrorRollOver is not synthesized. | The same accepted-report edge guard applies to every changed bit. | Bitmap range and size, plus explicit acknowledgement of the HID Appendix C conflict. | Variable Selector bitmap is **[HUT 1.7 definition]** §3.4.2.1; the classification remains conditional and **[Unverified on hardware]**. |
+| Keyboard, full-NKRO bitmap (`aoahid_spec_create_keyboard`, also reached via the former Barcode/MSR wedge factory) | Modifier routing and bitmap offset selection are derived from the declared range as each `aoahid_kbd` call arrives; every simultaneously pressed key is its own bit, so there is no slot count and no overflow encoding to synthesize. | A press or release through `aoahid_kbd` cannot erase an opposite edge that has not reached its first accepted report. There is no release-all call; the caller releases each Usage it pressed. | Usage interval and Report ID. | Variable Selector bitmap is **[HUT 1.7 definition]** §3.4.2.1; offset derivation and the edge guard are **[Guide policy]**. Conditional, **[Unverified on hardware]**. |
 | Mouse | Signed 64-bit pending totals are maintained independently for X, Y, Wheel, and AC Pan. Each report clamps every total to its declared field range; only the submitted fragment is consumed on terminal completion. | Button press/release edges are retained until their first accepted report; one report per node may be in flight. | Axis logical ranges and widths, button count, optional Wheel/Pan selection, Report ID, and pointer acceleration policy. | Relative-field meaning is **[USB HID 1.11 requirement]** and **[HUT 1.7 definition]**; accumulation, fragmentation, and completion consumption are **[Guide policy]**. Portable candidate, **[Unverified on hardware]**. |
 | Toggle: Consumer Control (`aoahid_spec_create_toggle`, Consumer Control page) | The allow-list index selects one exact one-bit field. `aoahid_toggle` with `down=1`/`down=0` produces the required asserted and zero reports without the caller assembling a bitmap. | A changed active Usage cannot be replaced or released before its first accepted report. | Allow-list, exact HUT semantic for every Usage, application/field page, Report ID, and expected target event evidence. | Field semantics are **[HUT 1.7 definition]**; sparse-field selection and the transition guard are **[Guide policy]**. Conditional and **[Unverified on hardware]**. |
 | Toggle: System Control (same factory, Generic Desktop / System Control page) | Same one-active-control state machine as the Consumer Control page. | Same accepted-report transition guard. | Allow-list, semantics, and target event evidence. | **[HUT 1.7 definition]** plus **[Guide policy]**; conditional and **[Unverified on hardware]**. |
@@ -111,27 +110,13 @@ limited to the explicit field-priority relation. All runtime behavior remains
 - Application collection: Generic Desktop / Keyboard (`0x01/0x06`). **[HUT 1.7 definition]**
 - Key data: Keyboard/Keypad Page `0x07`. **[HUT 1.7 definition]**
 - Modifiers: eight Variable bits for `0xe0` Left Control, `0xe1` Left Shift, `0xe2` Left Alt, `0xe3` Left GUI, `0xe4` Right Control, `0xe5` Right Shift, `0xe6` Right Alt, and `0xe7` Right GUI. **[HUT 1.7 definition]**
-- Nonmodifier keys use either an Array or a caller-sized Variable bitmap. The two forms have different overflow semantics.
-- Array form places one zero-valued Constant reserved byte between the modifier byte and key Array. **[USB HID 1.11 requirement]** Appendix B.1 and Appendix E.6; the complete default 6KRO Input report is eight bytes.
+- Nonmodifier keys are always a caller-sized Variable bitmap: one bit per declared Usage, from `usage_minimum` through `usage_maximum`. There is no Array form, no Array slot count, and no ErrorRollOver overflow encoding — every simultaneously pressed key gets its own bit, so the profile is full N-Key Rollover (NKRO) by construction.
+- Constant padding rounds the report up to the next whole byte after the modifier and bitmap fields. **[Guide policy]**
 - No LED Output report is declared. **[Guide policy]**
 
-### Array rollover state
+### Full-NKRO bitmap
 
-For an Array with Report Count `N`:
-
-| Pressed nonmodifier count | Array payload | Evidence |
-|---:|---|---|
-| `0..N` | The pressed Usage selectors followed by zero selectors | **[USB HID 1.11 requirement]** Appendix C and the profile's aligned zero selector |
-| `>N` | All `N` fields contain Keyboard `ErrorRollOver (0x01)` | **[USB HID 1.11 requirement]**, **[HUT 1.7 definition]** |
-| Returns to `0..N` | Ordinary selector payload resumes | **[Guide policy]** deterministic recovery |
-
-Modifier bits do not count toward `N`. Thus a six-entry array enters rollover on the seventh simultaneous **nonmodifier** key, not on the seventh key event of any kind.
-
-**[Specified Linux implementation observation]** The audited `hid_input_field` discards an Array report containing ErrorRollOver. The next non-rollover report is therefore required to re-establish the key set.
-
-### Bitmap/NKRO
-
-**[HUT 1.7 definition]** HUT §3.4.2.1 permits Selector Usages to be represented as Variable bits. **Source conflict:** HID 1.11 Appendix C specifically requires USB keyboard nonmodifier keys to use an Array. The caller supplies the exact Usage range and bitmap size, but bitmap/NKRO is classified as a conditional HUT form rather than strict Appendix C keyboard conformance. ErrorRollOver is an Array protocol and is not synthesized in bitmap mode. Target behavior for each bitmap range is **[Unverified on hardware]**.
+**[HUT 1.7 definition]** HUT §3.4.2.1 permits Selector Usages to be represented as Variable bits; the caller supplies the exact Usage range. Because every declared key is its own bit rather than a shared Array slot, no key overflow state exists and no ErrorRollOver value is ever emitted. Modern Linux and Android input subsystems treat each one-bit Variable key field as an ordinary `EV_KEY` event; target behavior for each Usage range remains **[Unverified on hardware]**.
 
 ### Serialization invariants
 

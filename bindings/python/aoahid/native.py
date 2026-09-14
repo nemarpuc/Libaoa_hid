@@ -16,7 +16,7 @@ from typing import Union
 
 # All public enum domains in aoahid.h are exactly int32_t.
 AOAHID_VERSION_MAJOR = 0
-AOAHID_VERSION_MINOR = 1
+AOAHID_VERSION_MINOR = 2
 AOAHID_VERSION_PATCH = 0
 AOAHID_OK = 0
 AOAHID_ERR_PARAM = 1
@@ -62,8 +62,6 @@ AOAHID_ANDROID_CONDITIONAL = 2
 AOAHID_ANDROID_CUSTOM_SYSTEM_ONLY = 3
 AOAHID_ANDROID_UNSUPPORTED = 4
 AOAHID_ANDROID_UNKNOWN = 5
-AOAHID_KEYBOARD_ARRAY = 1
-AOAHID_KEYBOARD_BITMAP = 2
 AOAHID_PEN_DIRECT_SCREEN = 1
 AOAHID_PEN_INDIRECT_TABLET = 2
 
@@ -252,13 +250,8 @@ class KeyboardOptions(c.Structure):
         ("struct_size", c.c_uint32),
         ("reserved", c.c_uint32),
         ("report_id", ReportId),
-        ("rollover", c.c_int32),
-        ("array_length", c.c_uint32),
         ("usage_minimum", c.c_uint16),
         ("usage_maximum", c.c_uint16),
-        ("usage_bit_width", c.c_uint32),
-        ("bitmap_bits", c.c_uint32),
-        ("acknowledges_hid11_keyboard_array_conflict", c.c_uint32),
     ]
 
 

@@ -1004,11 +1004,8 @@ void test_zero_tuning_fallbacks_and_zero_reservation() {
 
     aoahid_keyboard_options keyboard{};
     keyboard.struct_size = sizeof(keyboard);
-    keyboard.rollover = AOAHID_KEYBOARD_ARRAY;
-    keyboard.array_length = 6U;
     keyboard.usage_minimum = 0x04U;
     keyboard.usage_maximum = 0x65U;
-    keyboard.usage_bit_width = 8U;
     aoahid_spec* spec = nullptr;
     AOAHID_CHECK(aoahid_spec_create_keyboard(&keyboard, &spec) == AOAHID_OK);
     aoahid_node_options node_options{};
@@ -1052,20 +1049,17 @@ void test_descriptor_requirements_are_caller_policies() {
 
     aoahid_keyboard_options keyboard{};
     keyboard.struct_size = sizeof(keyboard);
-    keyboard.rollover = AOAHID_KEYBOARD_ARRAY;
-    keyboard.array_length = 6U;
     keyboard.usage_minimum = 0x04U;
     keyboard.usage_maximum = 0x65U;
-    keyboard.usage_bit_width = 8U;
     aoahid_spec* keyboard_spec = nullptr;
     AOAHID_CHECK(aoahid_spec_create_keyboard(&keyboard, &keyboard_spec) == AOAHID_OK);
     AOAHID_CHECK(keyboard_spec != nullptr);
     if (keyboard_spec != nullptr) {
         AOAHID_CHECK(keyboard_spec->requirements.maximum_fields_per_report == 2U);
         AOAHID_CHECK(keyboard_spec->requirements.maximum_global_stack_depth == 0U);
-        AOAHID_CHECK(keyboard_spec->requirements.maximum_report_size_bits == 8U);
-        AOAHID_CHECK(keyboard_spec->requirements.maximum_usages == 102U);
-        AOAHID_CHECK(keyboard_spec->requirements.maximum_report_data_bits == 64U);
+        AOAHID_CHECK(keyboard_spec->requirements.maximum_report_size_bits == 6U);
+        AOAHID_CHECK(keyboard_spec->requirements.maximum_usages == 98U);
+        AOAHID_CHECK(keyboard_spec->requirements.maximum_report_data_bits == 112U);
     }
 
     std::vector<std::uint8_t> raw_descriptor{
@@ -1208,7 +1202,7 @@ void test_descriptor_requirements_are_caller_policies() {
     if (keyboard_spec != nullptr) {
         reject_before_registration(keyboard_spec, 1U, 4U, 1000U, 65528U, 256U,
                                    "spec.requirements.maximum_fields_per_report");
-        reject_before_registration(keyboard_spec, 10U, 4U, 101U, 65528U, 256U,
+        reject_before_registration(keyboard_spec, 10U, 4U, 97U, 65528U, 256U,
                                    "spec.requirements.maximum_usages");
     }
     if (raw_spec != nullptr) {
@@ -1446,11 +1440,8 @@ void open_public_keyboard_session(aoahid_context** context, aoahid_device** devi
 
     aoahid_keyboard_options keyboard{};
     keyboard.struct_size = sizeof(keyboard);
-    keyboard.rollover = AOAHID_KEYBOARD_ARRAY;
-    keyboard.array_length = 6U;
     keyboard.usage_minimum = 0x04U;
     keyboard.usage_maximum = 0x65U;
-    keyboard.usage_bit_width = 8U;
     aoahid_spec* spec = nullptr;
     AOAHID_CHECK(aoahid_spec_create_keyboard(&keyboard, &spec) == AOAHID_OK);
     const aoahid_node_options node_options{sizeof(aoahid_node_options), 0U, 1U, 0U};
@@ -1581,8 +1572,8 @@ void test_submit_rejection_retains_state_and_close_releases() {
     auto payloads = control_payloads_for(57U);
     AOAHID_CHECK(payloads.size() == 1U);
     if (payloads.size() == 1U) {
-        AOAHID_CHECK(std::find(payloads[0].begin(), payloads[0].end(), std::uint8_t{0x04U}) !=
-                     payloads[0].end());
+        // Usage 0x04 is bitmap bit zero: the first byte after the modifier byte.
+        AOAHID_CHECK(payloads[0].size() > 1U && payloads[0][1] == 0x01U);
     }
 
     AOAHID_CHECK(aoahid_kbd(node, 0x04U, 0U) == AOAHID_OK);
@@ -1607,11 +1598,8 @@ void test_node_open_host_policy_failure_precedes_request54() {
 
     aoahid_keyboard_options keyboard{};
     keyboard.struct_size = sizeof(keyboard);
-    keyboard.rollover = AOAHID_KEYBOARD_ARRAY;
-    keyboard.array_length = 6U;
     keyboard.usage_minimum = 0x04U;
     keyboard.usage_maximum = 0x65U;
-    keyboard.usage_bit_width = 8U;
     aoahid_spec* spec = nullptr;
     AOAHID_CHECK(aoahid_spec_create_keyboard(&keyboard, &spec) == AOAHID_OK);
     const std::size_t registrations_before = controls_for(54U).size();
