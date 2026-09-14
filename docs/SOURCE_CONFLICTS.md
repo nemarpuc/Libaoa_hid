@@ -1630,29 +1630,37 @@ document consumed by Doxygen and rejects scoped empty-call spellings inside
 code spans. Strict warnings remain enabled; no warning class is suppressed.
 **[repository observation]** Retrieved 2026-08-27.
 
-### C-26 - GCC 14 `-Wstringop-overflow` false positive on a fill after a struct's layout changed
+### C-26 - GCC 14 `-Wstringop-overflow` false positive spans sibling arms of one large function
 
-**Prior state:** removing the Keyboard profile's Array press-order vector from
-`KeyboardState` and keeping only its bitmap buffer left one existing call
-unchanged, `std::fill(keyboard->pressed_bitmap.begin(),
-keyboard->pressed_bitmap.end(), std::uint8_t{0})` in `make_neutral`. The
-`-O3` musl AArch64 and x86-64 CI jobs, both building with GCC 14.2.0, then
-failed with `-Werror=stringop-overflow`: the inlined `std::fill` expanded to
-`__builtin_memset` with a reported bound between `2**63` and `SIZE_MAX`, an
-impossible object size for a `std::vector<std::uint8_t>`.
+**Prior state:** removing the Keyboard profile's Array press-order vector
+from `KeyboardState` left `make_neutral`'s overall shape otherwise
+unchanged: one function with an `if`/`else if` chain over
+`std::get_if<Alternative>(&node->state)`, one arm per `NodeState`
+alternative, each filling its own `std::vector<std::uint8_t>`. The `-O3`
+musl AArch64 and x86-64 CI jobs, both building with GCC 14.2.0, failed with
+`-Werror=stringop-overflow` on the **Mouse** arm's `std::fill(mouse->buttons
+.begin(), mouse->buttons.end(), std::uint8_t{0})`, reporting a bound between
+`2**63` and `SIZE_MAX` for the underlying `__builtin_memset` -- an
+impossible object size, and a call this change never touched.
 
-**[specified CI implementation observation]** The identical call compiled
-warning-free before the struct's other members were removed, and it also
-compiled warning-free locally under GCC 16.2.1 at `-O3`; no GCC 14
-installation was available in this environment to interactively confirm the
-analyzer's internal path. This is consistent with the project's earlier GCC
-14 `vector::insert(initializer_list)` false positive (`CHANGELOG.md`
-`[0.1.0]`): an iterator-pair STL call over a `std::vector<std::uint8_t>`
-whose surrounding struct layout just changed is again what the analyzer
-mis-bounds, not a real out-of-bounds write.
+**[specified CI implementation observation]** The identical Mouse-arm call
+compiled warning-free before the Keyboard arm's `KeyboardState` struct lost
+a member, and every arm still compiles warning-free locally under GCC 16.2.1
+at `-O3`; no GCC 14 installation was available in this environment to
+interactively confirm the analyzer's internal path. Reassigning the warning
+to a call in an unrelated sibling arm after only the Keyboard arm's struct
+changed indicates GCC 14 unified its `-Wstringop-overflow` value-range
+analysis across every arm of the one large function, rather than bounding
+each `std::vector<std::uint8_t>` fill from that arm's own local state. This
+is consistent with the project's earlier GCC 14
+`vector::insert(initializer_list)` false positive (`CHANGELOG.md`
+`[0.1.0]`): a real analyzer imprecision, not an out-of-bounds write.
 
-**Implemented resolution:** replaced the iterator-pair `std::fill(begin(),
-end(), value)` call with the count-based `std::fill_n(data(), size(),
-value)`, which does not ask the analyzer to derive a length from an iterator
-subtraction. No warning class is suppressed and no other call in this
-function's neighbors needed the same change. **[repository observation]**.
+**Implemented resolution:** split each `NodeState` alternative's
+neutralization into its own `[[gnu::noinline]]` helper function taking only
+that alternative's pointer, so no sibling arm's vector access remains in the
+same compiled function for the analyzer to unify ranges across.
+`make_neutral` itself is now a short dispatcher. This is a one-time
+Node-close-path operation, never the per-report send path, so the added
+call is immaterial to the send-path latency policy in `docs/LATENCY.md`. No
+warning class is suppressed. **[repository observation]**.
