@@ -521,8 +521,17 @@ bool has_non_neutral_state(const aoahid_node* node) noexcept {
 // vector access in its own non-inlined function also keeps GCC 14's
 // -Wstringop-overflow analysis from unifying value ranges across unrelated
 // sibling if/else-if arms of one large function, which produced a false
-// positive at -O3 on musl (docs/SOURCE_CONFLICTS.md C-26).
-[[gnu::noinline]] bool neutralize_keyboard(aoa::detail::KeyboardState* keyboard) noexcept {
+// positive at -O3 on musl (docs/SOURCE_CONFLICTS.md C-26). MSVC does not
+// recognize the gnu:: attribute namespace and, under /WX, turns its own
+// warning about that into a hard error, so this is spelled per compiler
+// rather than as a portable [[gnu::noinline]] attribute.
+#if defined(_MSC_VER) && !defined(__clang__)
+#define AOAHID_NOINLINE __declspec(noinline)
+#else
+#define AOAHID_NOINLINE __attribute__((noinline))
+#endif
+
+AOAHID_NOINLINE bool neutralize_keyboard(aoa::detail::KeyboardState* keyboard) noexcept {
     const bool had_non_neutral_state =
         keyboard->modifiers != 0U || keyboard->pressed_bitmap_count != 0U;
     std::fill(keyboard->pressed_bitmap.begin(), keyboard->pressed_bitmap.end(), std::uint8_t{0});
@@ -531,7 +540,7 @@ bool has_non_neutral_state(const aoahid_node* node) noexcept {
     return had_non_neutral_state;
 }
 
-[[gnu::noinline]] bool neutralize_mouse(aoa::detail::MouseState* mouse) noexcept {
+AOAHID_NOINLINE bool neutralize_mouse(aoa::detail::MouseState* mouse) noexcept {
     const bool had_non_neutral_state =
         std::any_of(mouse->buttons.begin(), mouse->buttons.end(),
                     [](const std::uint8_t value) { return value != 0U; });
@@ -540,8 +549,8 @@ bool has_non_neutral_state(const aoahid_node* node) noexcept {
     return had_non_neutral_state;
 }
 
-[[gnu::noinline]] bool neutralize_gamepad(aoa::detail::GamepadState* gamepad,
-                                          const aoa::detail::GamepadConfig* spec) noexcept {
+AOAHID_NOINLINE bool neutralize_gamepad(aoa::detail::GamepadState* gamepad,
+                                        const aoa::detail::GamepadConfig* spec) noexcept {
     bool had_non_neutral_state = false;
     for (std::size_t index = 0U; index < gamepad->axes.size(); ++index) {
         had_non_neutral_state =
@@ -557,7 +566,7 @@ bool has_non_neutral_state(const aoahid_node* node) noexcept {
     return had_non_neutral_state;
 }
 
-[[gnu::noinline]] bool neutralize_touch(aoa::detail::TouchState* touch) noexcept {
+AOAHID_NOINLINE bool neutralize_touch(aoa::detail::TouchState* touch) noexcept {
     bool had_non_neutral_state = false;
     for (auto& contact : touch->contacts) {
         had_non_neutral_state =
@@ -574,7 +583,7 @@ bool has_non_neutral_state(const aoahid_node* node) noexcept {
     return had_non_neutral_state;
 }
 
-[[gnu::noinline]] bool neutralize_pen(aoa::detail::PenState* pen) noexcept {
+AOAHID_NOINLINE bool neutralize_pen(aoa::detail::PenState* pen) noexcept {
     const bool had_non_neutral_state = pen->desired.in_range != 0U || pen->desired.tip != 0U ||
                                        pen->desired.barrel_buttons != 0U ||
                                        pen->emitted.in_range != 0U || pen->emitted.tip != 0U ||
@@ -586,6 +595,7 @@ bool has_non_neutral_state(const aoahid_node* node) noexcept {
     pen->tool_switch_departure = false;
     return had_non_neutral_state;
 }
+#undef AOAHID_NOINLINE
 
 void make_neutral(aoahid_node* node) noexcept {
     bool had_non_neutral_state = false;
