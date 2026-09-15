@@ -108,6 +108,25 @@ class touchscreen_node_ref final : public node_ref {
     friend aoahid_result bind(aoahid_node*, touchscreen_node_ref&) noexcept;
 };
 
+/* Always fixed-slot Multi-Touch under the Touch Pad Application Collection.
+ * button() is only meaningful when the Spec declared button_count above zero. */
+class touchpad_node_ref final : public node_ref {
+  public:
+    constexpr touchpad_node_ref() noexcept = default;
+    [[nodiscard]] aoahid_result touch(std::uint32_t contact_id, bool down, std::int32_t x,
+                                      std::int32_t y,
+                                      const aoahid_touch_extra* extra = nullptr) const noexcept {
+        return aoahid_touch(value_, contact_id, down ? 1U : 0U, x, y, extra);
+    }
+    [[nodiscard]] aoahid_result button(std::uint32_t index, bool pressed) const noexcept {
+        return aoahid_touchpad_button(value_, index, pressed ? 1U : 0U);
+    }
+
+  private:
+    explicit constexpr touchpad_node_ref(aoahid_node* value) noexcept : node_ref(value) {}
+    friend aoahid_result bind(aoahid_node*, touchpad_node_ref&) noexcept;
+};
+
 class pen_node_ref final : public node_ref {
   public:
     constexpr pen_node_ref() noexcept = default;
@@ -220,6 +239,18 @@ inline aoahid_result profile_kind(aoahid_node* value, aoahid_profile_kind& kind)
     if (kind != AOAHID_PROFILE_TOUCHSCREEN)
         return AOAHID_ERR_PARAM;
     output = touchscreen_node_ref{value};
+    return AOAHID_OK;
+}
+
+[[nodiscard]] inline aoahid_result bind(aoahid_node* value, touchpad_node_ref& output) noexcept {
+    output = touchpad_node_ref{};
+    aoahid_profile_kind kind{};
+    const aoahid_result result = detail::profile_kind(value, kind);
+    if (result != AOAHID_OK)
+        return result;
+    if (kind != AOAHID_PROFILE_TOUCHPAD)
+        return AOAHID_ERR_PARAM;
+    output = touchpad_node_ref{value};
     return AOAHID_OK;
 }
 

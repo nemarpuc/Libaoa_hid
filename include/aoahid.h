@@ -110,7 +110,9 @@ enum {
     AOAHID_PROFILE_TOUCHSCREEN = 5,
     AOAHID_PROFILE_PEN = 6,
     AOAHID_PROFILE_BATTERY = 7,
-    AOAHID_PROFILE_RAW = 8
+    AOAHID_PROFILE_RAW = 8,
+    /* Always the Digitizers / Touch Pad Application Collection Usage. */
+    AOAHID_PROFILE_TOUCHPAD = 9
 };
 
 typedef int32_t aoahid_android_status;
@@ -406,6 +408,36 @@ typedef struct aoahid_touch_options {
     uint32_t enable_contact_count_maximum_feature_declaration;
     uint32_t enable_multi_packet_frames;
 } aoahid_touch_options;
+
+/* Same fixed-slot Multi-Touch report shape as aoahid_touch_options, under the
+ * Digitizers / Touch Pad Application Collection Usage instead of Touch Screen,
+ * plus button_count physical click buttons. button_count may be zero for a
+ * buttonless clickpad; only then does aoahid_touchpad_button stay inert. */
+typedef struct aoahid_touchpad_options {
+    uint32_t struct_size;
+    uint32_t reserved;
+    aoahid_report_id_option report_id;
+    uint32_t maximum_contacts;
+    uint32_t contacts_per_report;
+    aoahid_integer_field contact_identifier;
+    aoahid_integer_field x;
+    aoahid_integer_field y;
+    aoahid_integer_field contact_count;
+    uint32_t enable_pressure;
+    aoahid_integer_field pressure;
+    uint32_t enable_width;
+    aoahid_integer_field width;
+    uint32_t enable_height;
+    aoahid_integer_field height;
+    uint32_t enable_azimuth;
+    aoahid_integer_field azimuth;
+    uint32_t enable_scan_time;
+    aoahid_integer_field scan_time;
+    uint32_t scan_time_unit_100us;
+    uint32_t enable_contact_count_maximum_feature_declaration;
+    uint32_t enable_multi_packet_frames;
+    uint32_t button_count;
+} aoahid_touchpad_options;
 
 typedef struct aoahid_pen_options {
     uint32_t struct_size;
@@ -814,6 +846,21 @@ aoahid_spec_create_gamepad(const aoahid_gamepad_options* options, aoahid_spec** 
 AOAHID_API aoahid_result AOAHID_CALL
 aoahid_spec_create_touchscreen(const aoahid_touch_options* options, aoahid_spec** out_spec);
 
+/* aoahid_spec_create_touchpad
+ * Ownership: Borrows and copies options. On success, out_spec receives one
+ * caller-owned immutable reference; it is null on every failure.
+ * Blocking: Performs validation and allocation but no I/O or waiting.
+ * Synchronization: Has no Context domain and may run concurrently; out_spec and
+ * caller-owned options must not be concurrently mutated.
+ * Always the Digitizers / Touch Pad Application Collection. button_count may
+ * be zero (buttonless clickpad).
+ * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid pointers/ABI fields, range,
+ * count, or flag; AOAHID_ERR_OVERFLOW for button, descriptor, or layout
+ * overflow; AOAHID_ERR_INTERNAL for allocation, generation inconsistency, or
+ * unexpected exception. */
+AOAHID_API aoahid_result AOAHID_CALL
+aoahid_spec_create_touchpad(const aoahid_touchpad_options* options, aoahid_spec** out_spec);
+
 /* aoahid_spec_create_pen
  * Ownership: Borrows options and barrel_usages for the call and copies them. On
  * success, out_spec receives one caller-owned immutable reference; it is null on
@@ -1118,6 +1165,18 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_dpad(aoahid_node* node, uint32_t up,
 AOAHID_API aoahid_result AOAHID_CALL aoahid_touch(aoahid_node* node, uint32_t contact_id,
                                                   uint32_t down, int32_t x, int32_t y,
                                                   const aoahid_touch_extra* extra);
+
+/* aoahid_touchpad_button
+ * Ownership: Borrows exactly a Touchpad Node; no ownership changes.
+ * Blocking: Does not block, allocate, log, or perform I/O.
+ * Synchronization: Belongs to the parent Context domain; serialize mutation and
+ * submission calls. It is rejected during an in-flight/multi-packet frame.
+ * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid Node/profile, one-based button,
+ * or pressed flag; AOAHID_ERR_BUSY for an in-flight frame;
+ * AOAHID_ERR_NO_DEVICE for sticky loss; AOAHID_ERR_INTERNAL for unexpected
+ * ABI-boundary failure. */
+AOAHID_API aoahid_result AOAHID_CALL aoahid_touchpad_button(aoahid_node* node, uint32_t button,
+                                                            uint32_t pressed);
 
 /* aoahid_pen_update
  * Ownership: Borrows a Pen Node and sample for the call; it copies the sample and
