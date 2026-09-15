@@ -211,8 +211,8 @@ aoahid_keyboard_options keyboard_options() noexcept {
     return options;
 }
 
-aoahid_touch_options fixed_touch_options() noexcept {
-    aoahid_touch_options options{};
+aoahid_touchscreen_options fixed_touchscreen_options() noexcept {
+    aoahid_touchscreen_options options{};
     options.struct_size = static_cast<std::uint32_t>(sizeof(options));
     options.maximum_contacts = 3U;
     options.contacts_per_report = 3U;
@@ -395,7 +395,7 @@ int main(const int argc, char** argv) {
          ok;
     spec = nullptr;
 
-    aoahid_touch_options touch = fixed_touch_options();
+    aoahid_touchscreen_options touch = fixed_touchscreen_options();
     ok = emit_descriptor(output_directory, "touchscreen-fixed-mt",
                          aoahid_spec_create_touchscreen(&touch, &spec), spec) &&
          ok;

@@ -173,31 +173,31 @@ def create_specs(library: c.CDLL) -> Specs:
     mouse_options.enable_pan = 0
     mouse_options.pan = integer_field(0, 0, 0)
 
-    touch_options = TouchOptions()  # noqa: F405
-    touch_options.struct_size = c.sizeof(TouchOptions)  # noqa: F405
-    touch_options.reserved = 0
-    touch_options.report_id = report_id
-    touch_options.maximum_contacts = 1
-    touch_options.contacts_per_report = 1
-    touch_options.contact_identifier = integer_field(
+    touchscreen_options = TouchscreenOptions()  # noqa: F405
+    touchscreen_options.struct_size = c.sizeof(TouchscreenOptions)  # noqa: F405
+    touchscreen_options.reserved = 0
+    touchscreen_options.report_id = report_id
+    touchscreen_options.maximum_contacts = 1
+    touchscreen_options.contacts_per_report = 1
+    touchscreen_options.contact_identifier = integer_field(
         0, TOUCH_CONTACT_ID_MAXIMUM, TOUCH_CONTACT_ID_BITS
     )
-    touch_options.x = integer_field(0, TOUCH_COORDINATE_MAXIMUM, TOUCH_COORDINATE_BITS)
-    touch_options.y = integer_field(0, TOUCH_COORDINATE_MAXIMUM, TOUCH_COORDINATE_BITS)
-    touch_options.contact_count = integer_field(0, 1, TOUCH_CONTACT_COUNT_BITS)
-    touch_options.enable_pressure = 0
-    touch_options.pressure = integer_field(0, 0, 0)
-    touch_options.enable_width = 0
-    touch_options.width = integer_field(0, 0, 0)
-    touch_options.enable_height = 0
-    touch_options.height = integer_field(0, 0, 0)
-    touch_options.enable_azimuth = 0
-    touch_options.azimuth = integer_field(0, 0, 0)
-    touch_options.enable_scan_time = 0
-    touch_options.scan_time = integer_field(0, 0, 0)
-    touch_options.scan_time_unit_100us = 0
-    touch_options.enable_contact_count_maximum_feature_declaration = 0
-    touch_options.enable_multi_packet_frames = 0
+    touchscreen_options.x = integer_field(0, TOUCH_COORDINATE_MAXIMUM, TOUCH_COORDINATE_BITS)
+    touchscreen_options.y = integer_field(0, TOUCH_COORDINATE_MAXIMUM, TOUCH_COORDINATE_BITS)
+    touchscreen_options.contact_count = integer_field(0, 1, TOUCH_CONTACT_COUNT_BITS)
+    touchscreen_options.enable_pressure = 0
+    touchscreen_options.pressure = integer_field(0, 0, 0)
+    touchscreen_options.enable_width = 0
+    touchscreen_options.width = integer_field(0, 0, 0)
+    touchscreen_options.enable_height = 0
+    touchscreen_options.height = integer_field(0, 0, 0)
+    touchscreen_options.enable_azimuth = 0
+    touchscreen_options.azimuth = integer_field(0, 0, 0)
+    touchscreen_options.enable_scan_time = 0
+    touchscreen_options.scan_time = integer_field(0, 0, 0)
+    touchscreen_options.scan_time_unit_100us = 0
+    touchscreen_options.enable_contact_count_maximum_feature_declaration = 0
+    touchscreen_options.enable_multi_packet_frames = 0
 
     keyboard = SpecP()  # noqa: F405
     mouse = SpecP()  # noqa: F405
@@ -205,7 +205,7 @@ def create_specs(library: c.CDLL) -> Specs:
     creations = (
         (library.aoahid_spec_create_keyboard(c.byref(keyboard_options), c.byref(keyboard)), "keyboard spec"),
         (library.aoahid_spec_create_mouse(c.byref(mouse_options), c.byref(mouse)), "mouse spec"),
-        (library.aoahid_spec_create_touchscreen(c.byref(touch_options), c.byref(touchscreen)), "touchscreen spec"),
+        (library.aoahid_spec_create_touchscreen(c.byref(touchscreen_options), c.byref(touchscreen)), "touchscreen spec"),
     )
     for status, operation in creations:
         if status != AOAHID_OK:  # noqa: F405

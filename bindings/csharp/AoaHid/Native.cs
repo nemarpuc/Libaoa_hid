@@ -262,7 +262,7 @@ public struct GamepadOptions
 }
 
 [StructLayout(LayoutKind.Sequential)]
-public struct TouchOptions
+public struct TouchscreenOptions
 {
     public uint StructSize;
     public uint Reserved;
@@ -436,7 +436,7 @@ public static class Native
     private const string Library = "aoahid";
     private const CallingConvention Call = CallingConvention.Cdecl;
     public const uint AOAHID_VERSION_MAJOR = 0;
-    public const uint AOAHID_VERSION_MINOR = 4;
+    public const uint AOAHID_VERSION_MINOR = 5;
     public const uint AOAHID_VERSION_PATCH = 0;
 
     public static readonly IReadOnlyDictionary<string, int> AbiConstants =
@@ -531,7 +531,7 @@ public static class Native
             ["aoahid_toggle_options"] = typeof(ToggleOptions),
             ["aoahid_gamepad_axis"] = typeof(GamepadAxis),
             ["aoahid_gamepad_options"] = typeof(GamepadOptions),
-            ["aoahid_touch_options"] = typeof(TouchOptions),
+            ["aoahid_touchscreen_options"] = typeof(TouchscreenOptions),
             ["aoahid_touchpad_options"] = typeof(TouchpadOptions),
             ["aoahid_pen_options"] = typeof(PenOptions),
             ["aoahid_battery_options"] = typeof(BatteryOptions),
@@ -584,7 +584,7 @@ public static class Native
     [DllImport(Library, EntryPoint = "aoahid_spec_create_gamepad", ExactSpelling = true, CallingConvention = Call)]
     public static extern Result SpecCreateGamepad(in GamepadOptions options, out nint spec);
     [DllImport(Library, EntryPoint = "aoahid_spec_create_touchscreen", ExactSpelling = true, CallingConvention = Call)]
-    public static extern Result SpecCreateTouchscreen(in TouchOptions options, out nint spec);
+    public static extern Result SpecCreateTouchscreen(in TouchscreenOptions options, out nint spec);
     [DllImport(Library, EntryPoint = "aoahid_spec_create_touchpad", ExactSpelling = true, CallingConvention = Call)]
     public static extern Result SpecCreateTouchpad(in TouchpadOptions options, out nint spec);
     [DllImport(Library, EntryPoint = "aoahid_spec_create_pen", ExactSpelling = true, CallingConvention = Call)]

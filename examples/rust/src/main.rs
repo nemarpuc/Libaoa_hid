@@ -167,8 +167,8 @@ fn create_specs() -> Result<Specs, sys::aoahid_result> {
         enable_pan: 0,
         pan: field(0, 0, 0),
     };
-    let touch_options = sys::aoahid_touch_options {
-        struct_size: struct_size::<sys::aoahid_touch_options>(),
+    let touchscreen_options = sys::aoahid_touchscreen_options {
+        struct_size: struct_size::<sys::aoahid_touchscreen_options>(),
         reserved: 0,
         report_id: report_id_absent(),
         maximum_contacts: 1,
@@ -203,7 +203,7 @@ fn create_specs() -> Result<Specs, sys::aoahid_result> {
     }
     if status == sys::AOAHID_OK {
         status =
-            unsafe { sys::aoahid_spec_create_touchscreen(&touch_options, &mut specs.touchscreen) };
+            unsafe { sys::aoahid_spec_create_touchscreen(&touchscreen_options, &mut specs.touchscreen) };
     }
     if status == sys::AOAHID_OK {
         Ok(specs)

@@ -17,7 +17,7 @@ int main(void) {
      * unitless on the wire; the target's input stack maps it onto the actual
      * screen extent, so this drags fully across the screen regardless of its
      * physical size. */
-    aoahid_touch_options options = {0};
+    aoahid_touchscreen_options options = {0};
     options.struct_size = (uint32_t)sizeof options;
     options.maximum_contacts = 1U;
     options.contacts_per_report = 1U;

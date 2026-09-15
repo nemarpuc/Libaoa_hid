@@ -297,8 +297,8 @@ fn rust_layout() -> BTreeMap<String, usize> {
     );
     layout!(
         values,
-        aoahid_touch_options,
-        "aoahid_touch_options",
+        aoahid_touchscreen_options,
+        "aoahid_touchscreen_options",
         [
             struct_size,
             reserved,

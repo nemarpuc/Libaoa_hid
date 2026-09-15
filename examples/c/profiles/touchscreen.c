@@ -12,7 +12,7 @@ static const char* const k_send_sequence[] = {
     "aoahid_node_submit(node)                   closes the frame", NULL};
 
 int main(void) {
-    aoahid_touch_options options = {0};
+    aoahid_touchscreen_options options = {0};
     const aoahid_integer_field coordinate = {0, 32767, 16U, {0, 0, 0, 0, 0}};
     const aoahid_integer_field byte_range = {0, 255, 8U, {0, 0, 0, 0, 0}};
     aoahid_spec* spec = NULL;

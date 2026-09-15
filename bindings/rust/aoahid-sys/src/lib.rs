@@ -34,7 +34,7 @@ pub type aoahid_dpad_representation = i32;
 pub type aoahid_usage_semantic = i32;
 
 pub const AOAHID_VERSION_MAJOR: u32 = 0;
-pub const AOAHID_VERSION_MINOR: u32 = 4;
+pub const AOAHID_VERSION_MINOR: u32 = 5;
 pub const AOAHID_VERSION_PATCH: u32 = 0;
 pub const AOAHID_OK: i32 = 0;
 pub const AOAHID_ERR_PARAM: i32 = 1;
@@ -232,7 +232,7 @@ c_struct!(aoahid_gamepad_options {
     dpad_representation: aoahid_dpad_representation,
     hat_logical_minimum: i32, hat_logical_maximum: i32, hat_bit_width: u32,
 });
-c_struct!(aoahid_touch_options {
+c_struct!(aoahid_touchscreen_options {
     struct_size: u32,
     reserved: u32,
     report_id: aoahid_report_id_option,
@@ -402,7 +402,7 @@ extern "C" {
         out_spec: *mut *mut aoahid_spec,
     ) -> aoahid_result;
     pub fn aoahid_spec_create_touchscreen(
-        options: *const aoahid_touch_options,
+        options: *const aoahid_touchscreen_options,
         out_spec: *mut *mut aoahid_spec,
     ) -> aoahid_result;
     pub fn aoahid_spec_create_touchpad(

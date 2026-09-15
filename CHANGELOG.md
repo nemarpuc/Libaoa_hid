@@ -5,6 +5,17 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-16
+
+### Changed
+
+- **Breaking:** Renamed `aoahid_touch_options` to `aoahid_touchscreen_options`
+  for naming consistency with `aoahid_touchpad_options` and
+  `aoahid_spec_create_touchscreen`. This is a pure rename; the struct layout,
+  field list, and every other Touchscreen behavior are unchanged.
+  `aoahid_touch_contact` and `aoahid_touch_extra` (used by `aoahid_touch()`,
+  which serves both Touchscreen and Touchpad Nodes) are unaffected.
+
 ## [0.4.0] - 2026-09-15
 
 ### Added

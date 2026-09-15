@@ -797,7 +797,7 @@ Result<Keyboard>    keyboard(const KeyboardOptions&);
 Result<Mouse>       mouse(const MouseOptions&);
 Result<Consumer>    consumer(const ConsumerOptions&);
 Result<Gamepad>     gamepad(const GamepadOptions&);
-Result<Touchscreen> touchscreen(const TouchOptions&);
+Result<Touchscreen> touchscreen(const TouchscreenOptions&);
 Result<Touchpad>    touchpad(const TouchpadOptions&);
 Result<Pen>         pen(const PenOptions&);
 

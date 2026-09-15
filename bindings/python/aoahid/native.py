@@ -16,7 +16,7 @@ from typing import Union
 
 # All public enum domains in aoahid.h are exactly int32_t.
 AOAHID_VERSION_MAJOR = 0
-AOAHID_VERSION_MINOR = 4
+AOAHID_VERSION_MINOR = 5
 AOAHID_VERSION_PATCH = 0
 AOAHID_OK = 0
 AOAHID_ERR_PARAM = 1
@@ -314,7 +314,7 @@ class GamepadOptions(c.Structure):
     ]
 
 
-class TouchOptions(c.Structure):
+class TouchscreenOptions(c.Structure):
     _fields_ = [
         ("struct_size", c.c_uint32),
         ("reserved", c.c_uint32),
@@ -499,7 +499,7 @@ ABI_STRUCTS = {
     "aoahid_toggle_options": ToggleOptions,
     "aoahid_gamepad_axis": GamepadAxis,
     "aoahid_gamepad_options": GamepadOptions,
-    "aoahid_touch_options": TouchOptions,
+    "aoahid_touchscreen_options": TouchscreenOptions,
     "aoahid_touchpad_options": TouchpadOptions,
     "aoahid_pen_options": PenOptions,
     "aoahid_battery_options": BatteryOptions,
@@ -544,7 +544,7 @@ def load(path: Union[os.PathLike, str]) -> c.CDLL:
         "aoahid_spec_create_mouse": MouseOptions,
         "aoahid_spec_create_toggle": ToggleOptions,
         "aoahid_spec_create_gamepad": GamepadOptions,
-        "aoahid_spec_create_touchscreen": TouchOptions,
+        "aoahid_spec_create_touchscreen": TouchscreenOptions,
         "aoahid_spec_create_touchpad": TouchpadOptions,
         "aoahid_spec_create_pen": PenOptions,
         "aoahid_spec_create_battery": BatteryOptions,
@@ -609,7 +609,7 @@ __all__ += [
     "ToggleOptions",
     "GamepadAxis",
     "GamepadOptions",
-    "TouchOptions",
+    "TouchscreenOptions",
     "TouchpadOptions",
     "PenOptions",
     "BatteryOptions",

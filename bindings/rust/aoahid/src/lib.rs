@@ -105,7 +105,7 @@ pointer_spec_type!(
 );
 safe_spec_type!(
     TouchscreenSpec,
-    sys::aoahid_touch_options,
+    sys::aoahid_touchscreen_options,
     sys::aoahid_spec_create_touchscreen
 );
 safe_spec_type!(

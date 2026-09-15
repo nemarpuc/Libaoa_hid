@@ -481,7 +481,7 @@ template <typename Function> void abi_void(const char* field, Function&& functio
     }
 }
 
-/* aoahid_touch_options and aoahid_touchpad_options share every field below
+/* aoahid_touchscreen_options and aoahid_touchpad_options share every field below
  * verbatim (same names, same order); only button_count, present solely on
  * aoahid_touchpad_options, is excluded and set separately by each caller. One
  * templated copy keeps the two option structs' shared shape edited in exactly
@@ -1126,7 +1126,7 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
         out_spec);
 }
 
-static aoahid_result aoahid_spec_create_touchscreen_impl(const aoahid_touch_options* options,
+static aoahid_result aoahid_spec_create_touchscreen_impl(const aoahid_touchscreen_options* options,
                                                          aoahid_spec** out_spec) {
     aoa::detail::clear_error();
     if (options == nullptr ||
@@ -1522,7 +1522,7 @@ aoahid_result AOAHID_CALL aoahid_spec_create_gamepad(const aoahid_gamepad_option
                             [&] { return aoahid_spec_create_gamepad_impl(options, out_spec); });
 }
 
-aoahid_result AOAHID_CALL aoahid_spec_create_touchscreen(const aoahid_touch_options* options,
+aoahid_result AOAHID_CALL aoahid_spec_create_touchscreen(const aoahid_touchscreen_options* options,
                                                          aoahid_spec** out_spec) {
     return abi_spec_factory(out_spec, "spec.create_touchscreen",
                             [&] { return aoahid_spec_create_touchscreen_impl(options, out_spec); });

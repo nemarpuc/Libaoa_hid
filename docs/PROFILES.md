@@ -8,7 +8,7 @@ None of these profiles has been validated on a physical Android target. "Portabl
 
 ## Profile consolidation (current revision)
 
-The public factory surface was consolidated from fourteen `aoahid_profile_kind` values to eight in 0.1.0. Every state machine and byte-for-byte descriptor behavior described below is unchanged; only which factory function/profile-kind constant reaches it changed. In 0.4.0, `AOAHID_PROFILE_TOUCHPAD` was reintroduced as a ninth, independent value — not, as in 0.1.0-0.2.0, folded into `aoahid_touch_options`; see the "Touchpad" section below:
+The public factory surface was consolidated from fourteen `aoahid_profile_kind` values to eight in 0.1.0. Every state machine and byte-for-byte descriptor behavior described below is unchanged; only which factory function/profile-kind constant reaches it changed. In 0.4.0, `AOAHID_PROFILE_TOUCHPAD` was reintroduced as a ninth, independent value — not, as in 0.1.0-0.2.0, folded into `aoahid_touchscreen_options`; see the "Touchpad" section below:
 
 | Removed factory / kind | Reached today through |
 |---|---|
@@ -18,8 +18,8 @@ The public factory surface was consolidated from fourteen `aoahid_profile_kind` 
 | `aoahid_spec_create_camera_keys` / `AOAHID_PROFILE_CAMERA_KEYS` | `aoahid_spec_create_toggle` with `field_page` set to Camera Control (`0x90`); the Auto-focus/Shutter-only restriction is still enforced whenever `field_page == 0x90` |
 | `aoahid_spec_create_telephony_keys` / `AOAHID_PROFILE_TELEPHONY_KEYS` | `aoahid_spec_create_toggle` with those three fields set to the Telephony Device page |
 | `aoahid_spec_create_joystick` / `AOAHID_PROFILE_JOYSTICK` | Removed in 0.3.0. `aoahid_gamepad_options` no longer has an `application` field; `aoahid_spec_create_gamepad` always emits the Game Pad Application Collection. |
-| `aoahid_spec_create_touchpad` / `AOAHID_PROFILE_TOUCHPAD` (0.1.0-0.2.0 form) | Removed in 0.3.0, when it was a `touchpad_button_count` field on `aoahid_touch_options`. Reintroduced in 0.4.0 as its own independent profile with its own `aoahid_touchpad_options` struct; see the "Touchpad" section below. |
-| Touchscreen one-contact MT / pure ST (`aoahid_touch_protocol`) | Removed. Every Touchscreen Spec is now the fixed-slot Multi-Touch form only; `aoahid_touch_options` no longer has `protocol` or `target_verified` fields |
+| `aoahid_spec_create_touchpad` / `AOAHID_PROFILE_TOUCHPAD` (0.1.0-0.2.0 form) | Removed in 0.3.0, when it was a `touchpad_button_count` field on `aoahid_touchscreen_options`. Reintroduced in 0.4.0 as its own independent profile with its own `aoahid_touchpad_options` struct; see the "Touchpad" section below. |
+| Touchscreen one-contact MT / pure ST (`aoahid_touch_protocol`) | Removed. Every Touchscreen Spec is now the fixed-slot Multi-Touch form only; `aoahid_touchscreen_options` no longer has `protocol` or `target_verified` fields |
 
 The runtime (per-report) API was also consolidated: `aoahid_keyboard_key_down`/`key_up`/`release_all` became `aoahid_kbd(node, usage, down)`; `aoahid_consumer_press`/`release`/`tap` and the redundant `aoahid_system_press`/`release`/`tap` became `aoahid_toggle(node, usage, down)`; `aoahid_gamepad_hat`/`aoahid_gamepad_dpad` became `aoahid_dpad(node, up, down, right, left)`; and `aoahid_touch_down`/`move`/`up` became `aoahid_touch(node, contact_id, down, x, y, extra)`, which auto-detects placement versus movement from whether `contact_id` is already active.
 
@@ -348,13 +348,13 @@ Inactive fixed slots are zero-filled. The logical Contact Count range still repr
 
 ### Descriptor forms
 
-`aoahid_spec_create_touchpad` is an independent factory from `aoahid_spec_create_touchscreen`, with its own `aoahid_touchpad_options` struct, but it shares descriptor generation, validation, and the contact/button state machine with Touchscreen through one internal `TouchFields` representation. Every contact field (`x`, `y`, `contact_identifier`, `contact_count`, optional `pressure`/`width`/`height`/`azimuth`/`scan_time`, `maximum_contacts`, `contacts_per_report`, and the multi-packet/Report ID options) has the same name, meaning, and validation rule as `aoahid_touch_options`; only the Application Collection Usage, `button_count`, and the runtime `android_status` differ.
+`aoahid_spec_create_touchpad` is an independent factory from `aoahid_spec_create_touchscreen`, with its own `aoahid_touchpad_options` struct, but it shares descriptor generation, validation, and the contact/button state machine with Touchscreen through one internal `TouchFields` representation. Every contact field (`x`, `y`, `contact_identifier`, `contact_count`, optional `pressure`/`width`/`height`/`azimuth`/`scan_time`, `maximum_contacts`, `contacts_per_report`, and the multi-packet/Report ID options) has the same name, meaning, and validation rule as `aoahid_touchscreen_options`; only the Application Collection Usage, `button_count`, and the runtime `android_status` differ.
 
 | Profile | Application Usage | Contact Usage | Classification status |
 |---|---|---|---|
 | Touchpad | Digitizers Touch Pad `0x0d/0x05` | Finger `0x22` | Conditional; **[Unverified on hardware]** (always conditional, never a portable candidate; see "Classification" below) |
 
-`aoahid_touchpad_options` adds one field beyond `aoahid_touch_options`: `button_count`, a `uint32_t` naming the Touchpad's physical click buttons. `button_count` may be `0` for a buttonless clickpad; a buttonless Touchpad is a fully valid Spec whose `aoahid_touchpad_button` calls are simply never in range (`button > touch->buttons.size()` always holds when `button_count == 0`).
+`aoahid_touchpad_options` adds one field beyond `aoahid_touchscreen_options`: `button_count`, a `uint32_t` naming the Touchpad's physical click buttons. `button_count` may be `0` for a buttonless clickpad; a buttonless Touchpad is a fully valid Spec whose `aoahid_touchpad_button` calls are simply never in range (`button > touch->buttons.size()` always holds when `button_count == 0`).
 
 ### Contact lifecycle
 

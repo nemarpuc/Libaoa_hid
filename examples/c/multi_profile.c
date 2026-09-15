@@ -222,7 +222,7 @@ static aoahid_result create_specs(specs* result) {
     mouse.enable_pan = 0U;
     mouse.pan = integer_field(0, 0, 0U);
 
-    aoahid_touch_options touch = {0};
+    aoahid_touchscreen_options touch = {0};
     touch.struct_size = sizeof(touch);
     touch.reserved = 0U;
     touch.report_id = (aoahid_report_id_option){0U, 0U, {0U, 0U, 0U}};

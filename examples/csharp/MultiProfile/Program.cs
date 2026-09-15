@@ -154,9 +154,9 @@ internal static class Program
             EnablePan = 0,
             Pan = Field(0, 0, 0),
         };
-        var touchOptions = new TouchOptions
+        var touchOptions = new TouchscreenOptions
         {
-            StructSize = checked((uint)Marshal.SizeOf<TouchOptions>()),
+            StructSize = checked((uint)Marshal.SizeOf<TouchscreenOptions>()),
             Reserved = 0,
             ReportId = new ReportId(),
             MaximumContacts = 1,
