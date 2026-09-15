@@ -8,7 +8,7 @@ None of these profiles has been validated on a physical Android target. "Portabl
 
 ## Profile consolidation (current revision)
 
-The public factory surface was consolidated from fourteen `aoahid_profile_kind` values to eight. Every state machine and byte-for-byte descriptor behavior described below is unchanged; only which factory function/profile-kind constant reaches it changed:
+The public factory surface was consolidated from fourteen `aoahid_profile_kind` values to eight in 0.1.0. Every state machine and byte-for-byte descriptor behavior described below is unchanged; only which factory function/profile-kind constant reaches it changed. In 0.4.0, `AOAHID_PROFILE_TOUCHPAD` was reintroduced as a ninth, independent value — not, as in 0.1.0-0.2.0, folded into `aoahid_touch_options`; see the "Touchpad" section below:
 
 | Removed factory / kind | Reached today through |
 |---|---|
@@ -18,7 +18,7 @@ The public factory surface was consolidated from fourteen `aoahid_profile_kind` 
 | `aoahid_spec_create_camera_keys` / `AOAHID_PROFILE_CAMERA_KEYS` | `aoahid_spec_create_toggle` with `field_page` set to Camera Control (`0x90`); the Auto-focus/Shutter-only restriction is still enforced whenever `field_page == 0x90` |
 | `aoahid_spec_create_telephony_keys` / `AOAHID_PROFILE_TELEPHONY_KEYS` | `aoahid_spec_create_toggle` with those three fields set to the Telephony Device page |
 | `aoahid_spec_create_joystick` / `AOAHID_PROFILE_JOYSTICK` | Removed in 0.3.0. `aoahid_gamepad_options` no longer has an `application` field; `aoahid_spec_create_gamepad` always emits the Game Pad Application Collection. |
-| `aoahid_spec_create_touchpad` / `AOAHID_PROFILE_TOUCHPAD` | Removed in 0.3.0. `aoahid_touch_options` no longer has a `touchpad_button_count` field; `aoahid_spec_create_touchscreen` always emits the Touch Screen Application Collection. |
+| `aoahid_spec_create_touchpad` / `AOAHID_PROFILE_TOUCHPAD` (0.1.0-0.2.0 form) | Removed in 0.3.0, when it was a `touchpad_button_count` field on `aoahid_touch_options`. Reintroduced in 0.4.0 as its own independent profile with its own `aoahid_touchpad_options` struct; see the "Touchpad" section below. |
 | Touchscreen one-contact MT / pure ST (`aoahid_touch_protocol`) | Removed. Every Touchscreen Spec is now the fixed-slot Multi-Touch form only; `aoahid_touch_options` no longer has `protocol` or `target_verified` fields |
 
 The runtime (per-report) API was also consolidated: `aoahid_keyboard_key_down`/`key_up`/`release_all` became `aoahid_kbd(node, usage, down)`; `aoahid_consumer_press`/`release`/`tap` and the redundant `aoahid_system_press`/`release`/`tap` became `aoahid_toggle(node, usage, down)`; `aoahid_gamepad_hat`/`aoahid_gamepad_dpad` became `aoahid_dpad(node, up, down, right, left)`; and `aoahid_touch_down`/`move`/`up` became `aoahid_touch(node, contact_id, down, x, y, extra)`, which auto-detects placement versus movement from whether `contact_id` is already active.
@@ -52,6 +52,7 @@ contract. The audit below records both the automation and its boundary.
 | Gamepad with raw D-pad fields | The four `aoahid_dpad` input booleans are copied to independent D-pad Up/Down/Right/Left OOC bits; simultaneous bits are not converted into an angle. Close clears all four bits along with buttons and explicit axis neutrals. | The four-bit state shares one accepted-report transition guard. | All gamepad axes and button product values. | Raw fields are **[HUT 1.7 definition]** §4.7; state derivation and close neutralization are **[Guide policy]**. Android combination behavior is not established, so the manifest is conditional and **[Unverified on hardware]**. |
 | Gamepad without a D-pad | No directional value is synthesized. Buttons retain their per-edge guards, axes accept only explicit in-range samples, and close uses each explicit axis neutral. | Button edges cannot be replaced before their first accepted report; one report per node may be in flight. | Whether omitting a D-pad is suitable, plus every axis, button, and target mapping. | Absence of the CDD Hat contract is **[Guide policy]** and leaves the manifest conditional and **[Unverified on hardware]**. |
 | Touchscreen, fixed MT (`aoahid_spec_create_touchscreen`; the only Multi-Touch form) | The frame is split at `contacts_per_report`; total Contact Count is emitted only in the first packet and continuation packets carry zero; inactive slots are zero-filled. `aoahid_touch` auto-detects a new contact_id as placement and an already-active one as movement. | Contact mutations and ID reuse are guarded across the complete multi-packet frame. | Maximum contacts, contacts per report, every field domain, and optional-field selection. | Packet interpretation is a **[Specified Linux implementation observation]**; deterministic packet construction is **[Guide policy]**. Portable candidate and **[Unverified on hardware]**. |
+| Touchpad (`aoahid_spec_create_touchpad`) | Uses the same fixed-MT contact/count/Up automation as Touchscreen, sharing the identical `TouchFields`-based state machine; derives a button-only frame with Contact Count zero via `aoahid_touchpad_button`. | Same contact guards as Touchscreen; button changes are busy between contact-frame packets, so contact and button edges cannot be coalesced away. | Contact domains, button count (may be zero for a buttonless clickpad), physical size, gesture, palm, and pointer-acceleration policy. | Button processing is a **[Specified Linux implementation observation]** at the cited revision; frame coordination is **[Guide policy]**. Always conditional (never a portable candidate), because Android converts Touchpad contacts to ordinary mouse-source `MotionEvent` motion and gesture value-add is release/OEM dependent; see `FACT_AUDIT.md` A-14a. **[Unverified on hardware]**. |
 | Direct pen | A sample with Tip set is accepted only with In Range set; contact pressure is floored to one; Away serializes In Range, Tip, pressure, Invert, and barrel buttons as zero; an in-range pen/eraser change emits an automatic departure before re-entry. The caller's In Range value is checked, not inferred. | Tip, In Range, tool-end, and barrel edges are retained until their first accepted report. | X/Y, pressure, tilt and Twist ranges, barrel Usages, hover support, and display association. | Usage meanings are **[HUT 1.7 definition]**; pressure contact behavior is **[Android platform documentation]**; Away normalization and tool switching are **[Guide policy]** informed by the specified Linux implementation. Portable candidate and **[Unverified on hardware]**. |
 | Indirect pen/tablet | Uses the same pen state machine and Away normalization. | Same pen transition guards. | Indirect collection choice, field domains, target mapping, and display policy. | **[Guide policy]** over HUT fields; conditional and **[Unverified on hardware]**. |
 | Battery Strength | A known value is serialized directly; unknown is converted to a deterministic representable value outside the logical interval when Null support was declared. | State replacement is blocked only by the node's one-report-in-flight rule; no key-like edge is invented. | Strength range, width, Report ID, and whether unknown/Null is supported. | Null semantics are **[USB HID 1.11 requirement]** and **[HUT 1.7 definition]**; deterministic encoding is **[Guide policy]**. Conditional and **[Unverified on hardware]**. |
@@ -342,6 +343,30 @@ Inactive fixed slots are zero-filled. The logical Contact Count range still repr
   resets and the next activity frame begins at `0`. Clock selection, modulo,
   successful-completion boundary, and reset are **[Guide policy]** mechanics;
   they are not added HUT semantics.
+
+## Touchpad
+
+### Descriptor forms
+
+`aoahid_spec_create_touchpad` is an independent factory from `aoahid_spec_create_touchscreen`, with its own `aoahid_touchpad_options` struct, but it shares descriptor generation, validation, and the contact/button state machine with Touchscreen through one internal `TouchFields` representation. Every contact field (`x`, `y`, `contact_identifier`, `contact_count`, optional `pressure`/`width`/`height`/`azimuth`/`scan_time`, `maximum_contacts`, `contacts_per_report`, and the multi-packet/Report ID options) has the same name, meaning, and validation rule as `aoahid_touch_options`; only the Application Collection Usage, `button_count`, and the runtime `android_status` differ.
+
+| Profile | Application Usage | Contact Usage | Classification status |
+|---|---|---|---|
+| Touchpad | Digitizers Touch Pad `0x0d/0x05` | Finger `0x22` | Conditional; **[Unverified on hardware]** (always conditional, never a portable candidate; see "Classification" below) |
+
+`aoahid_touchpad_options` adds one field beyond `aoahid_touch_options`: `button_count`, a `uint32_t` naming the Touchpad's physical click buttons. `button_count` may be `0` for a buttonless clickpad; a buttonless Touchpad is a fully valid Spec whose `aoahid_touchpad_button` calls are simply never in range (`button > touch->buttons.size()` always holds when `button_count == 0`).
+
+### Contact lifecycle
+
+Identical to Touchscreen: driven entirely through `aoahid_touch(node, contact_id, down, x, y, extra)`, following the same `None -> Down -> Up -> None` state machine described in the Touchscreen section above. The same function accepts a Node of either `AOAHID_PROFILE_TOUCHSCREEN` or `AOAHID_PROFILE_TOUCHPAD` kind.
+
+### Button lifecycle
+
+`aoahid_touchpad_button(node, button, pressed)` is a one-based button index (`1` through `button_count`) with `pressed` either `0` or `1`. It shares its edge-guard state machine with Mouse and Gamepad buttons: a changed value cannot be replaced before its first accepted report (`AOAHID_ERR_BUSY` while a transition is pending), and it is rejected outright during an in-flight or multi-packet contact frame. Button state contributes to the same wire field (Button Page, one-bit-per-Usage, `FieldSemantic::buttons`) as Mouse and Gamepad, emitted after Contact Count in the fixed-slot frame. On close, every button clears alongside contact neutralization, matching the pre-0.3.0 implementation this profile restores. `aoahid_touchpad_button` on a Touchscreen Node, or `aoahid_touch` mutations through a Touchpad Node that violate the shared contact guards, are rejected exactly as documented above.
+
+### Classification
+
+Unlike Touchscreen, `android_status` is always `AOAHID_ANDROID_CONDITIONAL`, independent of `button_count`. Touchpad is a genuinely distinct Linux input property (`INPUT_PROP_POINTER`, versus a touchscreen's `INPUT_PROP_DIRECT`), but Android converts Touchpad contacts into ordinary mouse-source `MotionEvent` cursor motion, and the gesture value-add of a Touch Pad Application Collection over a plain Mouse profile varies by Android release and OEM. See `FACT_AUDIT.md` A-14a for the full historical note.
 
 ## Pen and stylus
 

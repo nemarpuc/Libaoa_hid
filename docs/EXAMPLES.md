@@ -53,7 +53,7 @@ The close helpers preserve the ABI's two different ownership rules:
 ## One example per profile kind
 
 `examples/c/profiles/` holds one small, self-contained program for each of the
-eight `aoahid_profile_kind` values. Each file carries the complete option set
+nine `aoahid_profile_kind` values. Each file carries the complete option set
 for its own profile and nothing else, so it can be copied into a product and
 edited directly. None of them creates a Context or opens a device, so they run
 anywhere the library links, and `AOAHID_BUILD_TESTS` registers each one as
@@ -69,8 +69,9 @@ anywhere the library links, and `AOAHID_BUILD_TESTS` registers each one as
 | 6 | `AOAHID_PROFILE_PEN` | `pen.c` | `aoahid_spec_create_pen` |
 | 7 | `AOAHID_PROFILE_BATTERY` | `battery.c` | `aoahid_spec_create_battery` |
 | 8 | `AOAHID_PROFILE_RAW` | `raw.c` | `aoahid_spec_create_raw` |
+| 9 | `AOAHID_PROFILE_TOUCHPAD` | `touchpad.c` | `aoahid_spec_create_touchpad` |
 
-`profile_example.h` is shared by all eight. It holds only the reporting
+`profile_example.h` is shared by all nine. It holds only the reporting
 helper; it contains no product values, so each example remains the single
 source of its own options. That helper prints two things: the descriptor size
 and report layout the library derived from the caller's options, and then the
@@ -79,7 +80,9 @@ complete call sequence that would send the profile to a real device -
 `aoahid_node_open`, the profile's own mutation calls, `aoahid_node_close`, and
 `aoahid_device_close`. Each example supplies its own mutation steps, so
 `keyboard.c` shows the `aoahid_kbd` press/submit/release/submit cycle while
-`touchscreen.c` shows the `aoahid_touch` tip-down/tip-up frame. The sequence is
+`touchscreen.c` shows the `aoahid_touch` tip-down/tip-up frame, and
+`touchpad.c` shows the same `aoahid_touch` frame plus an
+`aoahid_touchpad_button` press/submit/release/submit cycle. The sequence is
 printed rather than executed because these programs open no device; run
 `examples/c/verify/` against a phone to watch the same calls take effect.
 

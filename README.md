@@ -133,7 +133,7 @@ can confirm a real phone reacts before writing product code.
 The complete, fully explicit C session is
 [examples/c/multi_profile.c](examples/c/multi_profile.c). For a single profile
 in isolation, [examples/c/profiles/](examples/c/profiles) has one self-contained
-program per HID profile kind, all eight of which run without a device. In
+program per HID profile kind, all nine of which run without a device. In
 outline:
 
 1. Create a context and explicitly select caller-poll or internal-thread mode.
