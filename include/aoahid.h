@@ -430,6 +430,11 @@ typedef struct aoahid_touchpad_options {
     uint32_t enable_height;
     aoahid_integer_field height;
     uint32_t enable_azimuth;
+    /* HUT Azimuth is counter-clockwise through a full circular range. The
+     * audited Linux implementation at commit 35556bed836f8dc07ac55f69c8d17dce3e7f0e25
+     * consumes samples in [0, logical_maximum). That half-open range is an
+     * exact-revision implementation observation, not a HID/HUT rule or a claim
+     * about another target. */
     aoahid_integer_field azimuth;
     uint32_t enable_scan_time;
     aoahid_integer_field scan_time;
@@ -1146,8 +1151,8 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_dpad(aoahid_node* node, uint32_t up,
                                                  uint32_t right, uint32_t left);
 
 /* aoahid_touch
- * Ownership: Borrows a Touchscreen Node and extra for the call; it
- * copies the sample and changes no ownership.
+ * Ownership: Borrows a Touchscreen or Touchpad Node and extra for the call;
+ * it copies the sample and changes no ownership.
  * Blocking: Does not block, allocate, log, or perform I/O.
  * Synchronization: Belongs to the parent Context domain; serialize mutation and
  * submission calls. It is rejected during an in-flight/multi-packet frame.
