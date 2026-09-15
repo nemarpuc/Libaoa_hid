@@ -526,6 +526,7 @@ if(AOAHID_BUILD_EXAMPLES)
       toggle
       gamepad
       touchscreen
+      touchpad
       pen
       battery
       raw)
