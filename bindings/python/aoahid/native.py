@@ -56,6 +56,7 @@ AOAHID_PROFILE_TOUCHSCREEN = 5
 AOAHID_PROFILE_PEN = 6
 AOAHID_PROFILE_BATTERY = 7
 AOAHID_PROFILE_RAW = 8
+AOAHID_PROFILE_TOUCHPAD = 9
 
 AOAHID_ANDROID_PORTABLE_CANDIDATE = 1
 AOAHID_ANDROID_CONDITIONAL = 2
@@ -340,6 +341,34 @@ class TouchOptions(c.Structure):
     ]
 
 
+class TouchpadOptions(c.Structure):
+    _fields_ = [
+        ("struct_size", c.c_uint32),
+        ("reserved", c.c_uint32),
+        ("report_id", ReportId),
+        ("maximum_contacts", c.c_uint32),
+        ("contacts_per_report", c.c_uint32),
+        ("contact_identifier", IntegerField),
+        ("x", IntegerField),
+        ("y", IntegerField),
+        ("contact_count", IntegerField),
+        ("enable_pressure", c.c_uint32),
+        ("pressure", IntegerField),
+        ("enable_width", c.c_uint32),
+        ("width", IntegerField),
+        ("enable_height", c.c_uint32),
+        ("height", IntegerField),
+        ("enable_azimuth", c.c_uint32),
+        ("azimuth", IntegerField),
+        ("enable_scan_time", c.c_uint32),
+        ("scan_time", IntegerField),
+        ("scan_time_unit_100us", c.c_uint32),
+        ("enable_contact_count_maximum_feature_declaration", c.c_uint32),
+        ("enable_multi_packet_frames", c.c_uint32),
+        ("button_count", c.c_uint32),
+    ]
+
+
 class PenOptions(c.Structure):
     _fields_ = [
         ("struct_size", c.c_uint32),
@@ -471,6 +500,7 @@ ABI_STRUCTS = {
     "aoahid_gamepad_axis": GamepadAxis,
     "aoahid_gamepad_options": GamepadOptions,
     "aoahid_touch_options": TouchOptions,
+    "aoahid_touchpad_options": TouchpadOptions,
     "aoahid_pen_options": PenOptions,
     "aoahid_battery_options": BatteryOptions,
     "aoahid_raw_report": RawReport,
@@ -515,6 +545,7 @@ def load(path: Union[os.PathLike, str]) -> c.CDLL:
         "aoahid_spec_create_toggle": ToggleOptions,
         "aoahid_spec_create_gamepad": GamepadOptions,
         "aoahid_spec_create_touchscreen": TouchOptions,
+        "aoahid_spec_create_touchpad": TouchpadOptions,
         "aoahid_spec_create_pen": PenOptions,
         "aoahid_spec_create_battery": BatteryOptions,
         "aoahid_spec_create_raw": RawOptions,
@@ -541,6 +572,7 @@ def load(path: Union[os.PathLike, str]) -> c.CDLL:
     declare("aoahid_gamepad_set_axis", [NodeP, c.c_size_t, c.c_int32], result)
     declare("aoahid_dpad", [NodeP, c.c_uint32, c.c_uint32, c.c_uint32, c.c_uint32], result)
     declare("aoahid_touch", [NodeP, c.c_uint32, c.c_uint32, c.c_int32, c.c_int32, c.POINTER(TouchExtra)], result)
+    declare("aoahid_touchpad_button", [NodeP, c.c_uint32, c.c_uint32], result)
     declare("aoahid_pen_update", [NodeP, c.POINTER(PenSample)], result)
     declare("aoahid_pen_depart", [NodeP], result)
     declare("aoahid_battery_update", [NodeP, c.c_uint32, c.c_int32], result)
@@ -578,6 +610,7 @@ __all__ += [
     "GamepadAxis",
     "GamepadOptions",
     "TouchOptions",
+    "TouchpadOptions",
     "PenOptions",
     "BatteryOptions",
     "RawReport",
