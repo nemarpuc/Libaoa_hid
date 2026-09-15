@@ -108,6 +108,11 @@ safe_spec_type!(
     sys::aoahid_touch_options,
     sys::aoahid_spec_create_touchscreen
 );
+safe_spec_type!(
+    TouchpadSpec,
+    sys::aoahid_touchpad_options,
+    sys::aoahid_spec_create_touchpad
+);
 pointer_spec_type!(
     PenSpec,
     sys::aoahid_pen_options,
@@ -179,6 +184,7 @@ node_type!(MouseNodeRef);
 node_type!(ToggleNodeRef);
 node_type!(GamepadNodeRef);
 node_type!(TouchscreenNodeRef);
+node_type!(TouchpadNodeRef);
 node_type!(PenNodeRef);
 node_type!(BatteryNodeRef);
 node_type!(RawNodeRef);
@@ -250,6 +256,33 @@ impl TouchscreenNodeRef {
                 extra.map_or(core::ptr::null(), |value| value as *const _),
             )
         })
+    }
+}
+
+/// Always fixed-slot Multi-Touch under the Touch Pad Application Collection.
+impl TouchpadNodeRef {
+    pub fn touch(
+        self,
+        contact_id: u32,
+        down: bool,
+        x: i32,
+        y: i32,
+        extra: Option<&sys::aoahid_touch_extra>,
+    ) -> Result<(), Error> {
+        result(unsafe {
+            sys::aoahid_touch(
+                self.as_ptr(),
+                contact_id,
+                u32::from(down),
+                x,
+                y,
+                extra.map_or(core::ptr::null(), |value| value as *const _),
+            )
+        })
+    }
+
+    pub fn button(self, button: u32, pressed: bool) -> Result<(), Error> {
+        result(unsafe { sys::aoahid_touchpad_button(self.as_ptr(), button, u32::from(pressed)) })
     }
 }
 
