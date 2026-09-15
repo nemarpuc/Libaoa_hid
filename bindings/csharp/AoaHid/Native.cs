@@ -43,6 +43,7 @@ public enum ProfileKind : int
 {
     Keyboard = 1, Mouse = 2, Toggle = 3, Gamepad = 4,
     Touchscreen = 5, Pen = 6, Battery = 7, Raw = 8,
+    Touchpad = 9,
 }
 
 public enum AndroidStatus : int
@@ -288,6 +289,34 @@ public struct TouchOptions
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public struct TouchpadOptions
+{
+    public uint StructSize;
+    public uint Reserved;
+    public ReportId ReportId;
+    public uint MaximumContacts;
+    public uint ContactsPerReport;
+    public IntegerField ContactIdentifier;
+    public IntegerField X;
+    public IntegerField Y;
+    public IntegerField ContactCount;
+    public uint EnablePressure;
+    public IntegerField Pressure;
+    public uint EnableWidth;
+    public IntegerField Width;
+    public uint EnableHeight;
+    public IntegerField Height;
+    public uint EnableAzimuth;
+    public IntegerField Azimuth;
+    public uint EnableScanTime;
+    public IntegerField ScanTime;
+    public uint ScanTimeUnit100us;
+    public uint EnableContactCountMaximumFeatureDeclaration;
+    public uint EnableMultiPacketFrames;
+    public uint ButtonCount;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct PenOptions
 {
     public uint StructSize;
@@ -502,6 +531,7 @@ public static class Native
             ["aoahid_gamepad_axis"] = typeof(GamepadAxis),
             ["aoahid_gamepad_options"] = typeof(GamepadOptions),
             ["aoahid_touch_options"] = typeof(TouchOptions),
+            ["aoahid_touchpad_options"] = typeof(TouchpadOptions),
             ["aoahid_pen_options"] = typeof(PenOptions),
             ["aoahid_battery_options"] = typeof(BatteryOptions),
             ["aoahid_raw_report"] = typeof(RawReport),
@@ -554,6 +584,8 @@ public static class Native
     public static extern Result SpecCreateGamepad(in GamepadOptions options, out nint spec);
     [DllImport(Library, EntryPoint = "aoahid_spec_create_touchscreen", ExactSpelling = true, CallingConvention = Call)]
     public static extern Result SpecCreateTouchscreen(in TouchOptions options, out nint spec);
+    [DllImport(Library, EntryPoint = "aoahid_spec_create_touchpad", ExactSpelling = true, CallingConvention = Call)]
+    public static extern Result SpecCreateTouchpad(in TouchpadOptions options, out nint spec);
     [DllImport(Library, EntryPoint = "aoahid_spec_create_pen", ExactSpelling = true, CallingConvention = Call)]
     public static extern Result SpecCreatePen(in PenOptions options, out nint spec);
     [DllImport(Library, EntryPoint = "aoahid_spec_create_battery", ExactSpelling = true, CallingConvention = Call)]
@@ -602,6 +634,8 @@ public static class Native
     // pointer and an all-zero struct identically, so no separate nint overload is needed.
     [DllImport(Library, EntryPoint = "aoahid_touch", ExactSpelling = true, CallingConvention = Call)]
     public static extern Result Touch(nint node, uint contactId, uint down, int x, int y, in TouchExtra extra);
+    [DllImport(Library, EntryPoint = "aoahid_touchpad_button", ExactSpelling = true, CallingConvention = Call)]
+    public static extern Result TouchpadButton(nint node, uint button, uint pressed);
     [DllImport(Library, EntryPoint = "aoahid_pen_update", ExactSpelling = true, CallingConvention = Call)]
     public static extern Result PenUpdate(nint node, in PenSample sample);
     [DllImport(Library, EntryPoint = "aoahid_pen_depart", ExactSpelling = true, CallingConvention = Call)]
