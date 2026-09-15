@@ -36,6 +36,7 @@ of hardware verification. See [TARGET_MATRIX.md](docs/TARGET_MATRIX.md).
 | Toggle: System Control fields | conditional | yes | no | no | Explicit HUT semantics; system handling and target mapping vary |
 | Gamepad | portable candidate | yes | no | no | Caller-declared axes and target mappings |
 | Touchscreen, fixed MT | portable candidate | yes | no | no | Audited Linux commit and dated Android documentation; target matrix still required |
+| Touchpad | conditional | yes | no | no | Distinct Linux input property (INPUT_PROP_POINTER); Android converts contacts to mouse-source motion, gesture value-add is OEM/release dependent |
 | Pen, direct screen | portable candidate | yes | no | no | Invert tool transition; target matrix still required |
 | Pen, indirect tablet | conditional | yes | no | no | Target classification and mapping evidence required |
 | Toggle: Camera keys | conditional | yes | no | no | HUT Camera Auto-focus/Shutter subset only |

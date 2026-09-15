@@ -26,6 +26,7 @@ ROWS = (
     Presentation("system-controls", "Toggle: System Control fields", "conditional", "Explicit HUT semantics; system handling and target mapping vary"),
     Presentation("gamepad", "Gamepad", "portable candidate", "Caller-declared axes and target mappings"),
     Presentation("touchscreen-fixed-mt", "Touchscreen, fixed MT", "portable candidate", "Audited Linux commit and dated Android documentation; target matrix still required"),
+    Presentation("touchpad", "Touchpad", "conditional", "Distinct Linux input property (INPUT_PROP_POINTER); Android converts contacts to mouse-source motion, gesture value-add is OEM/release dependent"),
     Presentation("pen", "Pen, direct screen", "portable candidate", "Invert tool transition; target matrix still required"),
     Presentation("pen-indirect", "Pen, indirect tablet", "conditional", "Target classification and mapping evidence required"),
     Presentation("camera-keys", "Toggle: Camera keys", "conditional", "HUT Camera Auto-focus/Shutter subset only"),

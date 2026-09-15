@@ -5,6 +5,38 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-15
+
+### Added
+
+- **Touchpad profile.** `AOAHID_PROFILE_TOUCHPAD`, `aoahid_touchpad_options`,
+  `aoahid_spec_create_touchpad`, and `aoahid_touchpad_button` add back a
+  Touchpad Application Collection (Digitizers Touch Pad `0x0d/0x05`) as its
+  own independent profile — not, as before its 0.3.0 removal, a
+  `touchpad_button_count` field folded into the Touchscreen options.
+  `aoahid_touch_options` / `aoahid_spec_create_touchscreen` are unchanged.
+
+  `aoahid_touchpad_options` mirrors `aoahid_touch_options` field-for-field
+  (same fixed-slot Multi-Touch contact shape) plus a `button_count` field for
+  the Touchpad's physical click buttons; `button_count` may be zero for a
+  buttonless clickpad. `aoahid_touchpad_button(node, button, pressed)` is a
+  one-based, edge-guarded button state machine restored from the pre-0.3.0
+  implementation, now gated to Touchpad Nodes only.
+
+  Internally, Touchscreen and Touchpad now share one `TouchFields`
+  representation, one descriptor/validation function, and one contact+button
+  state machine; only the Application Collection Usage and the runtime
+  `aoahid_capability_manifest.android_status` (Touchscreen stays a portable
+  candidate; Touchpad is always conditional — Android converts Touchpad
+  contacts to ordinary mouse-source motion, and gesture value-add is
+  release/OEM dependent) differ between the two.
+
+  A new C++ `touchpad_node_ref` wrapper offers `touch()` and `button()`;
+  `touchscreen_node_ref` is unchanged (`touch()` only).
+
+  This is a purely additive ABI change: every 0.3.0 struct, enum value, and
+  function signature is unchanged.
+
 ## [0.3.0] - 2026-09-15
 
 ### Removed
