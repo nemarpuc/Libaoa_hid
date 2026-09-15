@@ -11,6 +11,7 @@
 #include "hid/validator.hpp"
 
 #include <algorithm>
+#include <cstdio>
 #include <limits>
 #include <memory>
 #include <new>
@@ -479,6 +480,38 @@ template <typename Function> void abi_void(const char* field, Function&& functio
                   "A C++ exception was contained at the C ABI boundary.");
     }
 }
+
+/* aoahid_touch_options and aoahid_touchpad_options share every field below
+ * verbatim (same names, same order); only button_count, present solely on
+ * aoahid_touchpad_options, is excluded and set separately by each caller. One
+ * templated copy keeps the two option structs' shared shape edited in exactly
+ * one place instead of two independently hand-maintained functions. A
+ * template cannot itself carry C language linkage, so it is defined here,
+ * before the extern "C" block below, rather than beside its two callers. */
+template <typename Options>
+void touch_fields_from(const Options& options, aoa::detail::TouchFields* out) noexcept {
+    out->report_id = options.report_id;
+    out->maximum_contacts = options.maximum_contacts;
+    out->contacts_per_report = options.contacts_per_report;
+    out->contact_identifier = options.contact_identifier;
+    out->x = options.x;
+    out->y = options.y;
+    out->contact_count = options.contact_count;
+    out->enable_pressure = options.enable_pressure;
+    out->pressure = options.pressure;
+    out->enable_width = options.enable_width;
+    out->width = options.width;
+    out->enable_height = options.enable_height;
+    out->height = options.height;
+    out->enable_azimuth = options.enable_azimuth;
+    out->azimuth = options.azimuth;
+    out->enable_scan_time = options.enable_scan_time;
+    out->scan_time = options.scan_time;
+    out->scan_time_unit_100us = options.scan_time_unit_100us;
+    out->enable_contact_count_maximum_feature_declaration =
+        options.enable_contact_count_maximum_feature_declaration;
+    out->enable_multi_packet_frames = options.enable_multi_packet_frames;
+}
 } // namespace
 
 namespace aoa::detail {
@@ -843,19 +876,12 @@ thread_local char g_touch_field_scratch[64];
 
 /* set_error() stores the raw field-name pointer without copying it (see
  * error_detail.cpp), so this must return a pointer with at least
- * thread-local storage duration, never a stack-local std::string. */
+ * thread-local storage duration, never a stack-local std::string.
+ * snprintf's own bounds check makes truncation safe (and visible in the
+ * unlikely case a future prefix/suffix exceeds the buffer) rather than
+ * silent, so this is preferred over a hand-rolled copy loop. */
 const char* touch_field(const char* prefix, const char* suffix) noexcept {
-    std::size_t written = 0U;
-    for (const char* p = prefix; *p != '\0' && written + 1U < sizeof(g_touch_field_scratch); ++p) {
-        g_touch_field_scratch[written++] = *p;
-    }
-    if (written + 1U < sizeof(g_touch_field_scratch)) {
-        g_touch_field_scratch[written++] = '.';
-    }
-    for (const char* p = suffix; *p != '\0' && written + 1U < sizeof(g_touch_field_scratch); ++p) {
-        g_touch_field_scratch[written++] = *p;
-    }
-    g_touch_field_scratch[written] = '\0';
+    std::snprintf(g_touch_field_scratch, sizeof(g_touch_field_scratch), "%s.%s", prefix, suffix);
     return g_touch_field_scratch;
 }
 
@@ -1097,32 +1123,6 @@ static aoahid_result create_touch_spec_from_fields(const aoa::detail::TouchField
         out_spec);
 }
 
-static void touch_fields_from_touchscreen(const aoahid_touch_options& options,
-                                          aoa::detail::TouchFields* out) noexcept {
-    out->report_id = options.report_id;
-    out->maximum_contacts = options.maximum_contacts;
-    out->contacts_per_report = options.contacts_per_report;
-    out->contact_identifier = options.contact_identifier;
-    out->x = options.x;
-    out->y = options.y;
-    out->contact_count = options.contact_count;
-    out->enable_pressure = options.enable_pressure;
-    out->pressure = options.pressure;
-    out->enable_width = options.enable_width;
-    out->width = options.width;
-    out->enable_height = options.enable_height;
-    out->height = options.height;
-    out->enable_azimuth = options.enable_azimuth;
-    out->azimuth = options.azimuth;
-    out->enable_scan_time = options.enable_scan_time;
-    out->scan_time = options.scan_time;
-    out->scan_time_unit_100us = options.scan_time_unit_100us;
-    out->enable_contact_count_maximum_feature_declaration =
-        options.enable_contact_count_maximum_feature_declaration;
-    out->enable_multi_packet_frames = options.enable_multi_packet_frames;
-    out->button_count = 0U;
-}
-
 static aoahid_result aoahid_spec_create_touchscreen_impl(const aoahid_touch_options* options,
                                                          aoahid_spec** out_spec) {
     aoa::detail::clear_error();
@@ -1138,36 +1138,11 @@ static aoahid_result aoahid_spec_create_touchscreen_impl(const aoahid_touch_opti
         return AOAHID_ERR_PARAM;
     }
     aoa::detail::TouchFields fields{};
-    touch_fields_from_touchscreen(*options, &fields);
+    touch_fields_from(*options, &fields);
+    fields.button_count = 0U;
     return create_touch_spec_from_fields(fields, "touch", AOAHID_PROFILE_TOUCHSCREEN,
                                          aoa::hid::usage::touch_screen,
                                          AOAHID_ANDROID_PORTABLE_CANDIDATE, out_spec);
-}
-
-static void touch_fields_from_touchpad(const aoahid_touchpad_options& options,
-                                       aoa::detail::TouchFields* out) noexcept {
-    out->report_id = options.report_id;
-    out->maximum_contacts = options.maximum_contacts;
-    out->contacts_per_report = options.contacts_per_report;
-    out->contact_identifier = options.contact_identifier;
-    out->x = options.x;
-    out->y = options.y;
-    out->contact_count = options.contact_count;
-    out->enable_pressure = options.enable_pressure;
-    out->pressure = options.pressure;
-    out->enable_width = options.enable_width;
-    out->width = options.width;
-    out->enable_height = options.enable_height;
-    out->height = options.height;
-    out->enable_azimuth = options.enable_azimuth;
-    out->azimuth = options.azimuth;
-    out->enable_scan_time = options.enable_scan_time;
-    out->scan_time = options.scan_time;
-    out->scan_time_unit_100us = options.scan_time_unit_100us;
-    out->enable_contact_count_maximum_feature_declaration =
-        options.enable_contact_count_maximum_feature_declaration;
-    out->enable_multi_packet_frames = options.enable_multi_packet_frames;
-    out->button_count = options.button_count;
 }
 
 static aoahid_result aoahid_spec_create_touchpad_impl(const aoahid_touchpad_options* options,
@@ -1185,7 +1160,8 @@ static aoahid_result aoahid_spec_create_touchpad_impl(const aoahid_touchpad_opti
         return AOAHID_ERR_PARAM;
     }
     aoa::detail::TouchFields fields{};
-    touch_fields_from_touchpad(*options, &fields);
+    touch_fields_from(*options, &fields);
+    fields.button_count = options->button_count;
     return create_touch_spec_from_fields(fields, "touchpad", AOAHID_PROFILE_TOUCHPAD,
                                          aoa::hid::usage::touch_pad, AOAHID_ANDROID_CONDITIONAL,
                                          out_spec);
