@@ -970,10 +970,9 @@ static aoahid_result aoahid_touch_impl(aoahid_node* node, const std::uint32_t co
                                        const std::uint32_t down, const std::int32_t x,
                                        const std::int32_t y, const aoahid_touch_extra* extra) {
     aoa::detail::clear_error();
-    const bool right_kind =
-        node != nullptr && node->spec != nullptr &&
-        (node->spec->kind == AOAHID_PROFILE_TOUCHSCREEN ||
-         node->spec->kind == AOAHID_PROFILE_TOUCHPAD);
+    const bool right_kind = node != nullptr && node->spec != nullptr &&
+                            (node->spec->kind == AOAHID_PROFILE_TOUCHSCREEN ||
+                             node->spec->kind == AOAHID_PROFILE_TOUCHPAD);
     if (!right_kind || node->closed || !aoa::detail::valid_boolean(down)) {
         set_error(AOAHID_ERR_PARAM, "touch", "A live touch node and boolean down are required.");
         return AOAHID_ERR_PARAM;
