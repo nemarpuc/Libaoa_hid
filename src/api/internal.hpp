@@ -53,8 +53,35 @@ struct GamepadConfig {
     std::vector<GamepadAxisConfig> axes;
 };
 
+/* Profile-agnostic contact-field representation shared by Touchscreen and
+ * Touchpad. button_count is always here; Touchscreen always passes zero, so
+ * the button state machine below needs no profile_kind branch. */
+struct TouchFields {
+    aoahid_report_id_option report_id{};
+    std::uint32_t maximum_contacts{};
+    std::uint32_t contacts_per_report{};
+    aoahid_integer_field contact_identifier{};
+    aoahid_integer_field x{};
+    aoahid_integer_field y{};
+    aoahid_integer_field contact_count{};
+    std::uint32_t enable_pressure{};
+    aoahid_integer_field pressure{};
+    std::uint32_t enable_width{};
+    aoahid_integer_field width{};
+    std::uint32_t enable_height{};
+    aoahid_integer_field height{};
+    std::uint32_t enable_azimuth{};
+    aoahid_integer_field azimuth{};
+    std::uint32_t enable_scan_time{};
+    aoahid_integer_field scan_time{};
+    std::uint32_t scan_time_unit_100us{};
+    std::uint32_t enable_contact_count_maximum_feature_declaration{};
+    std::uint32_t enable_multi_packet_frames{};
+    std::uint32_t button_count{};
+};
+
 struct TouchConfig {
-    aoahid_touch_options options{};
+    TouchFields fields{};
 };
 
 struct PenConfig {
@@ -134,6 +161,8 @@ struct GamepadState {
 
 struct TouchState {
     std::array<ContactState, 16> contacts{};
+    std::vector<std::uint8_t> buttons;
+    std::vector<std::uint8_t> button_transitions;
     std::uint32_t scan_time{};
     std::size_t packet_cursor{};
     std::chrono::steady_clock::time_point scan_epoch{};
