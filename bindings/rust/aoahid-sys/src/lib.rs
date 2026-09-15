@@ -34,7 +34,7 @@ pub type aoahid_dpad_representation = i32;
 pub type aoahid_usage_semantic = i32;
 
 pub const AOAHID_VERSION_MAJOR: u32 = 0;
-pub const AOAHID_VERSION_MINOR: u32 = 3;
+pub const AOAHID_VERSION_MINOR: u32 = 4;
 pub const AOAHID_VERSION_PATCH: u32 = 0;
 pub const AOAHID_OK: i32 = 0;
 pub const AOAHID_ERR_PARAM: i32 = 1;
@@ -74,6 +74,7 @@ pub const AOAHID_PROFILE_TOUCHSCREEN: i32 = 5;
 pub const AOAHID_PROFILE_PEN: i32 = 6;
 pub const AOAHID_PROFILE_BATTERY: i32 = 7;
 pub const AOAHID_PROFILE_RAW: i32 = 8;
+pub const AOAHID_PROFILE_TOUCHPAD: i32 = 9;
 pub const AOAHID_ANDROID_PORTABLE_CANDIDATE: i32 = 1;
 pub const AOAHID_ANDROID_CONDITIONAL: i32 = 2;
 pub const AOAHID_ANDROID_CUSTOM_SYSTEM_ONLY: i32 = 3;
@@ -255,6 +256,31 @@ c_struct!(aoahid_touch_options {
     enable_contact_count_maximum_feature_declaration: u32,
     enable_multi_packet_frames: u32,
 });
+c_struct!(aoahid_touchpad_options {
+    struct_size: u32,
+    reserved: u32,
+    report_id: aoahid_report_id_option,
+    maximum_contacts: u32,
+    contacts_per_report: u32,
+    contact_identifier: aoahid_integer_field,
+    x: aoahid_integer_field,
+    y: aoahid_integer_field,
+    contact_count: aoahid_integer_field,
+    enable_pressure: u32,
+    pressure: aoahid_integer_field,
+    enable_width: u32,
+    width: aoahid_integer_field,
+    enable_height: u32,
+    height: aoahid_integer_field,
+    enable_azimuth: u32,
+    azimuth: aoahid_integer_field,
+    enable_scan_time: u32,
+    scan_time: aoahid_integer_field,
+    scan_time_unit_100us: u32,
+    enable_contact_count_maximum_feature_declaration: u32,
+    enable_multi_packet_frames: u32,
+    button_count: u32,
+});
 c_struct!(aoahid_pen_options {
     struct_size: u32, reserved: u32, report_id: aoahid_report_id_option,
     mode: aoahid_pen_mode,
@@ -379,6 +405,10 @@ extern "C" {
         options: *const aoahid_touch_options,
         out_spec: *mut *mut aoahid_spec,
     ) -> aoahid_result;
+    pub fn aoahid_spec_create_touchpad(
+        options: *const aoahid_touchpad_options,
+        out_spec: *mut *mut aoahid_spec,
+    ) -> aoahid_result;
     pub fn aoahid_spec_create_pen(
         options: *const aoahid_pen_options,
         out_spec: *mut *mut aoahid_spec,
@@ -447,6 +477,8 @@ extern "C" {
         y: i32,
         extra: *const aoahid_touch_extra,
     ) -> aoahid_result;
+    pub fn aoahid_touchpad_button(node: *mut aoahid_node, button: u32, pressed: u32)
+        -> aoahid_result;
     pub fn aoahid_pen_update(
         node: *mut aoahid_node,
         sample: *const aoahid_pen_sample,

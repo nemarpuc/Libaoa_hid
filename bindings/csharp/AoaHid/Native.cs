@@ -436,7 +436,7 @@ public static class Native
     private const string Library = "aoahid";
     private const CallingConvention Call = CallingConvention.Cdecl;
     public const uint AOAHID_VERSION_MAJOR = 0;
-    public const uint AOAHID_VERSION_MINOR = 3;
+    public const uint AOAHID_VERSION_MINOR = 4;
     public const uint AOAHID_VERSION_PATCH = 0;
 
     public static readonly IReadOnlyDictionary<string, int> AbiConstants =
@@ -477,6 +477,7 @@ public static class Native
             ["AOAHID_PROFILE_PEN"] = 6,
             ["AOAHID_PROFILE_BATTERY"] = 7,
             ["AOAHID_PROFILE_RAW"] = 8,
+            ["AOAHID_PROFILE_TOUCHPAD"] = 9,
             ["AOAHID_ANDROID_PORTABLE_CANDIDATE"] = 1,
             ["AOAHID_ANDROID_CONDITIONAL"] = 2,
             ["AOAHID_ANDROID_CUSTOM_SYSTEM_ONLY"] = 3,

@@ -71,6 +71,7 @@ fn rust_constants() -> BTreeMap<String, usize> {
             AOAHID_PROFILE_PEN,
             AOAHID_PROFILE_BATTERY,
             AOAHID_PROFILE_RAW,
+            AOAHID_PROFILE_TOUCHPAD,
             AOAHID_ANDROID_PORTABLE_CANDIDATE,
             AOAHID_ANDROID_CONDITIONAL,
             AOAHID_ANDROID_CUSTOM_SYSTEM_ONLY,
@@ -321,6 +322,36 @@ fn rust_layout() -> BTreeMap<String, usize> {
             scan_time_unit_100us,
             enable_contact_count_maximum_feature_declaration,
             enable_multi_packet_frames
+        ]
+    );
+    layout!(
+        values,
+        aoahid_touchpad_options,
+        "aoahid_touchpad_options",
+        [
+            struct_size,
+            reserved,
+            report_id,
+            maximum_contacts,
+            contacts_per_report,
+            contact_identifier,
+            x,
+            y,
+            contact_count,
+            enable_pressure,
+            pressure,
+            enable_width,
+            width,
+            enable_height,
+            height,
+            enable_azimuth,
+            azimuth,
+            enable_scan_time,
+            scan_time,
+            scan_time_unit_100us,
+            enable_contact_count_maximum_feature_declaration,
+            enable_multi_packet_frames,
+            button_count
         ]
     );
     layout!(
