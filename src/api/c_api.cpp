@@ -447,8 +447,13 @@ aoahid_result initialize_node_state(aoahid_node* node) {
         node->state = std::move(value);
         break;
     }
-    case AOAHID_PROFILE_TOUCHSCREEN: {
-        node->state = aoa::detail::TouchState{};
+    case AOAHID_PROFILE_TOUCHSCREEN:
+    case AOAHID_PROFILE_TOUCHPAD: {
+        const auto* spec = std::get_if<aoa::detail::TouchConfig>(&node->spec->config);
+        aoa::detail::TouchState value{};
+        value.buttons.resize(spec->fields.button_count);
+        value.button_transitions.resize(spec->fields.button_count);
+        node->state = std::move(value);
         break;
     }
     case AOAHID_PROFILE_PEN:
@@ -497,9 +502,12 @@ bool has_non_neutral_state(const aoahid_node* node) noexcept {
                            [](const std::uint8_t value) { return value != 0U; });
     }
     if (const auto* touch = std::get_if<aoa::detail::TouchState>(&node->state)) {
-        return std::any_of(touch->contacts.begin(), touch->contacts.end(), [](const auto& contact) {
-            return contact.phase == aoa::detail::ContactPhase::down;
-        });
+        const bool active_contact =
+            std::any_of(touch->contacts.begin(), touch->contacts.end(), [](const auto& contact) {
+                return contact.phase == aoa::detail::ContactPhase::down;
+            });
+        return active_contact || std::any_of(touch->buttons.begin(), touch->buttons.end(),
+                                             [](const std::uint8_t value) { return value != 0U; });
     }
     if (const auto* pen = std::get_if<aoa::detail::PenState>(&node->state)) {
         return pen->tool_switch_departure || pen->desired.in_range != 0U ||
@@ -568,6 +576,10 @@ AOAHID_NOINLINE bool neutralize_touch(aoa::detail::TouchState* touch) noexcept {
             contact.phase = aoa::detail::ContactPhase::up;
         }
     }
+    had_non_neutral_state =
+        had_non_neutral_state || std::any_of(touch->buttons.begin(), touch->buttons.end(),
+                                             [](const std::uint8_t value) { return value != 0U; });
+    std::fill(touch->buttons.begin(), touch->buttons.end(), std::uint8_t{0});
     touch->packet_cursor = 0U;
     return had_non_neutral_state;
 }
@@ -1520,7 +1532,7 @@ aoahid_result AOAHID_CALL aoahid_node_submit(aoahid_node* node) try {
     const auto* scan_config = std::get_if<aoa::detail::TouchConfig>(&node->spec->config);
     const bool update_scan_time = scan_touch != nullptr && scan_touch->packet_cursor == 0U &&
                                   scan_config != nullptr &&
-                                  scan_config->options.enable_scan_time == 1U;
+                                  scan_config->fields.enable_scan_time == 1U;
     const std::uint32_t previous_scan_time =
         update_scan_time ? scan_touch->scan_time : std::uint32_t{0};
     const auto previous_scan_epoch =
@@ -1546,7 +1558,7 @@ aoahid_result AOAHID_CALL aoahid_node_submit(aoahid_node* node) try {
             const std::uint64_t ticks =
                 elapsed <= 0 ? 0U : static_cast<std::uint64_t>(elapsed) / 100U;
             const std::uint64_t modulus =
-                static_cast<std::uint64_t>(scan_config->options.scan_time.logical_maximum) + 1U;
+                static_cast<std::uint64_t>(scan_config->fields.scan_time.logical_maximum) + 1U;
             scan_touch->scan_time = static_cast<std::uint32_t>(ticks % modulus);
         }
     }

@@ -839,145 +839,169 @@ static aoahid_result aoahid_spec_create_gamepad_impl(const aoahid_gamepad_option
     return create_controller_spec(options, out_spec);
 }
 
-static aoahid_result create_touch_spec(const aoahid_touch_options* options,
-                                       aoahid_spec** out_spec) {
-    if (options == nullptr ||
-        !aoa::detail::valid_struct(options, options == nullptr ? 0U : options->struct_size,
-                                   static_cast<std::uint32_t>(sizeof(*options)),
-                                   "touchscreen_options")) {
-        return AOAHID_ERR_PARAM;
+thread_local char g_touch_field_scratch[64];
+
+/* set_error() stores the raw field-name pointer without copying it (see
+ * error_detail.cpp), so this must return a pointer with at least
+ * thread-local storage duration, never a stack-local std::string. */
+const char* touch_field(const char* prefix, const char* suffix) noexcept {
+    std::size_t written = 0U;
+    for (const char* p = prefix; *p != '\0' && written + 1U < sizeof(g_touch_field_scratch); ++p) {
+        g_touch_field_scratch[written++] = *p;
     }
-    if (options->reserved != 0U || !validate_report_id(options->report_id, "touch.report_id") ||
-        !validate_field(options->x, "touch.x") || !validate_field(options->y, "touch.y") ||
-        options->x.logical_minimum > 0 || options->x.logical_maximum < 0 ||
-        options->y.logical_minimum > 0 || options->y.logical_maximum < 0 ||
-        options->maximum_contacts == 0U || options->maximum_contacts > 16U ||
-        options->contacts_per_report == 0U ||
-        options->contacts_per_report > options->maximum_contacts ||
-        !validate_option_boolean(options->enable_pressure, "touch.enable_pressure") ||
-        !validate_option_boolean(options->enable_width, "touch.enable_width") ||
-        !validate_option_boolean(options->enable_height, "touch.enable_height") ||
-        !validate_option_boolean(options->enable_azimuth, "touch.enable_azimuth") ||
-        !validate_option_boolean(options->enable_scan_time, "touch.enable_scan_time") ||
-        !validate_option_boolean(options->scan_time_unit_100us, "touch.scan_time_unit_100us") ||
-        !validate_option_boolean(options->enable_contact_count_maximum_feature_declaration,
-                                 "touch.enable_contact_count_maximum_feature_declaration") ||
-        !validate_option_boolean(options->enable_multi_packet_frames,
-                                 "touch.enable_multi_packet_frames")) {
-        set_error(AOAHID_ERR_PARAM, "touchscreen_options",
+    if (written + 1U < sizeof(g_touch_field_scratch)) {
+        g_touch_field_scratch[written++] = '.';
+    }
+    for (const char* p = suffix; *p != '\0' && written + 1U < sizeof(g_touch_field_scratch); ++p) {
+        g_touch_field_scratch[written++] = *p;
+    }
+    g_touch_field_scratch[written] = '\0';
+    return g_touch_field_scratch;
+}
+
+static aoahid_result create_touch_spec_from_fields(const aoa::detail::TouchFields& fields,
+                                                    const char* prefix,
+                                                    const aoahid_profile_kind profile_kind,
+                                                    const std::uint16_t application_usage,
+                                                    const aoahid_android_status android_status,
+                                                    aoahid_spec** out_spec) {
+    if (!validate_report_id(fields.report_id, touch_field(prefix, "report_id")) ||
+        !validate_field(fields.x, touch_field(prefix, "x")) ||
+        !validate_field(fields.y, touch_field(prefix, "y")) ||
+        fields.x.logical_minimum > 0 || fields.x.logical_maximum < 0 ||
+        fields.y.logical_minimum > 0 || fields.y.logical_maximum < 0 ||
+        fields.maximum_contacts == 0U || fields.maximum_contacts > 16U ||
+        fields.contacts_per_report == 0U ||
+        fields.contacts_per_report > fields.maximum_contacts ||
+        !validate_option_boolean(fields.enable_pressure, touch_field(prefix, "enable_pressure")) ||
+        !validate_option_boolean(fields.enable_width, touch_field(prefix, "enable_width")) ||
+        !validate_option_boolean(fields.enable_height, touch_field(prefix, "enable_height")) ||
+        !validate_option_boolean(fields.enable_azimuth, touch_field(prefix, "enable_azimuth")) ||
+        !validate_option_boolean(fields.enable_scan_time, touch_field(prefix, "enable_scan_time")) ||
+        !validate_option_boolean(fields.scan_time_unit_100us,
+                                 touch_field(prefix, "scan_time_unit_100us")) ||
+        !validate_option_boolean(
+            fields.enable_contact_count_maximum_feature_declaration,
+            touch_field(prefix, "enable_contact_count_maximum_feature_declaration")) ||
+        !validate_option_boolean(fields.enable_multi_packet_frames,
+                                 touch_field(prefix, "enable_multi_packet_frames"))) {
+        set_error(AOAHID_ERR_PARAM, touch_field(prefix, "fields"),
                   "The touch options contain an invalid required field, range, count, or flag.");
         return AOAHID_ERR_PARAM;
     }
-    if (!validate_field(options->contact_identifier, "touch.contact_identifier") ||
-        !validate_field(options->contact_count, "touch.contact_count")) {
-        set_error(AOAHID_ERR_PARAM, "touch.contact_fields",
+    if (!validate_field(fields.contact_identifier, touch_field(prefix, "contact_identifier")) ||
+        !validate_field(fields.contact_count, touch_field(prefix, "contact_count"))) {
+        set_error(AOAHID_ERR_PARAM, touch_field(prefix, "contact_fields"),
                   "Fixed-slot Multi-Touch requires explicit Contact Identifier and Contact Count "
                   "fields.");
         return AOAHID_ERR_PARAM;
     }
-    if (options->contact_count.logical_minimum > 0 ||
-        options->contact_count.logical_maximum <
-            static_cast<std::int32_t>(options->maximum_contacts)) {
-        set_error(AOAHID_ERR_PARAM, "touch.contact_count",
+    if (fields.contact_count.logical_minimum > 0 ||
+        fields.contact_count.logical_maximum <
+            static_cast<std::int32_t>(fields.maximum_contacts)) {
+        set_error(AOAHID_ERR_PARAM, touch_field(prefix, "contact_count"),
                   "Contact Count must represent zero through maximum_contacts even though "
                   "fixed-slot output never emits an isolated zero frame.");
         return AOAHID_ERR_PARAM;
     }
-    if (options->contact_identifier.logical_minimum > 0 ||
-        options->contact_identifier.logical_maximum < 0 ||
-        static_cast<std::uint64_t>(options->contact_identifier.logical_maximum) + 1U <
-            options->maximum_contacts) {
-        set_error(AOAHID_ERR_PARAM, "touch.contact_identifier",
+    if (fields.contact_identifier.logical_minimum > 0 ||
+        fields.contact_identifier.logical_maximum < 0 ||
+        static_cast<std::uint64_t>(fields.contact_identifier.logical_maximum) + 1U <
+            fields.maximum_contacts) {
+        set_error(AOAHID_ERR_PARAM, touch_field(prefix, "contact_identifier"),
                   "The Contact Identifier range must represent zero for inactive slots and at "
                   "least maximum_contacts distinct nonnegative API IDs.");
         return AOAHID_ERR_PARAM;
     }
-    if (options->enable_multi_packet_frames == 0U &&
-        options->contacts_per_report != options->maximum_contacts) {
-        set_error(AOAHID_ERR_PARAM, "touch.contacts_per_report",
+    if (fields.enable_multi_packet_frames == 0U &&
+        fields.contacts_per_report != fields.maximum_contacts) {
+        set_error(AOAHID_ERR_PARAM, touch_field(prefix, "contacts_per_report"),
                   "Without multi-packet frames every declared contact must fit one report.");
         return AOAHID_ERR_PARAM;
     }
-    if (options->enable_pressure == 1U &&
-        (!validate_field(options->pressure, "touch.pressure") ||
-         options->pressure.logical_minimum != 0 || options->pressure.logical_maximum < 1)) {
-        set_error(AOAHID_ERR_PARAM, "touch.pressure",
+    if (fields.enable_pressure == 1U &&
+        (!validate_field(fields.pressure, touch_field(prefix, "pressure")) ||
+         fields.pressure.logical_minimum != 0 || fields.pressure.logical_maximum < 1)) {
+        set_error(AOAHID_ERR_PARAM, touch_field(prefix, "pressure"),
                   "Enabled touch pressure must explicitly represent zero and at least one positive "
                   "contact value.");
         return AOAHID_ERR_PARAM;
     }
-    if ((options->enable_pressure == 0U && !field_is_zero(options->pressure)) ||
-        (options->enable_width == 0U && !field_is_zero(options->width)) ||
-        (options->enable_height == 0U && !field_is_zero(options->height)) ||
-        (options->enable_azimuth == 0U && !field_is_zero(options->azimuth)) ||
-        (options->enable_scan_time == 0U &&
-         (!field_is_zero(options->scan_time) || options->scan_time_unit_100us != 0U))) {
+    if ((fields.enable_pressure == 0U && !field_is_zero(fields.pressure)) ||
+        (fields.enable_width == 0U && !field_is_zero(fields.width)) ||
+        (fields.enable_height == 0U && !field_is_zero(fields.height)) ||
+        (fields.enable_azimuth == 0U && !field_is_zero(fields.azimuth)) ||
+        (fields.enable_scan_time == 0U &&
+         (!field_is_zero(fields.scan_time) || fields.scan_time_unit_100us != 0U))) {
         set_error(
-            AOAHID_ERR_PARAM, "touch.disabled_fields",
+            AOAHID_ERR_PARAM, touch_field(prefix, "disabled_fields"),
             "Disabled pressure, geometry, and Scan Time declarations must be canonical zero.");
         return AOAHID_ERR_PARAM;
     }
-    if (options->enable_azimuth == 1U &&
-        (!validate_field(options->azimuth, "touch.azimuth") ||
-         options->azimuth.logical_minimum != 0 || options->azimuth.logical_maximum <= 0)) {
-        set_error(AOAHID_ERR_PARAM, "touch.azimuth",
+    if (fields.enable_azimuth == 1U &&
+        (!validate_field(fields.azimuth, touch_field(prefix, "azimuth")) ||
+         fields.azimuth.logical_minimum != 0 || fields.azimuth.logical_maximum <= 0)) {
+        set_error(AOAHID_ERR_PARAM, touch_field(prefix, "azimuth"),
                   "Enabled Azimuth requires logical minimum zero and a positive full-turn logical "
                   "maximum.");
         return AOAHID_ERR_PARAM;
     }
-    if (options->enable_width == 1U && !validate_field(options->width, "touch.width")) {
+    if (fields.enable_width == 1U && !validate_field(fields.width, touch_field(prefix, "width"))) {
         return AOAHID_ERR_PARAM;
     }
-    if (options->enable_height == 1U && !validate_field(options->height, "touch.height")) {
+    if (fields.enable_height == 1U &&
+        !validate_field(fields.height, touch_field(prefix, "height"))) {
         return AOAHID_ERR_PARAM;
     }
-    if ((options->enable_width == 1U &&
-         (options->width.logical_minimum > 0 || options->width.logical_maximum < 0)) ||
-        (options->enable_height == 1U &&
-         (options->height.logical_minimum > 0 || options->height.logical_maximum < 0))) {
-        set_error(AOAHID_ERR_PARAM, "touch.inactive_geometry",
+    if ((fields.enable_width == 1U &&
+         (fields.width.logical_minimum > 0 || fields.width.logical_maximum < 0)) ||
+        (fields.enable_height == 1U &&
+         (fields.height.logical_minimum > 0 || fields.height.logical_maximum < 0))) {
+        set_error(AOAHID_ERR_PARAM, touch_field(prefix, "inactive_geometry"),
                   "Enabled width and height fields must represent zero for inactive fixed slots.");
         return AOAHID_ERR_PARAM;
     }
-    if ((options->enable_width == 1U &&
-         !physical_units_match(options->width.physical, options->x.physical)) ||
-        (options->enable_height == 1U &&
-         !physical_units_match(options->height.physical, options->y.physical))) {
-        set_error(AOAHID_ERR_PARAM, "touch.geometry_units",
+    if ((fields.enable_width == 1U &&
+         !physical_units_match(fields.width.physical, fields.x.physical)) ||
+        (fields.enable_height == 1U &&
+         !physical_units_match(fields.height.physical, fields.y.physical))) {
+        set_error(AOAHID_ERR_PARAM, touch_field(prefix, "geometry_units"),
                   "HUT Width must use the same HID Unit and Unit Exponent as X, and Height must "
                   "use the same Unit and Unit Exponent as Y.");
         return AOAHID_ERR_PARAM;
     }
-    if (options->enable_scan_time == 1U &&
-        (!validate_field(options->scan_time, "touch.scan_time") ||
-         options->scan_time_unit_100us != 1U || options->scan_time.logical_minimum != 0 ||
-         options->scan_time.logical_maximum < 1 ||
-         !physical_is_zero(options->scan_time.physical))) {
+    if (fields.enable_scan_time == 1U &&
+        (!validate_field(fields.scan_time, touch_field(prefix, "scan_time")) ||
+         fields.scan_time_unit_100us != 1U || fields.scan_time.logical_minimum != 0 ||
+         fields.scan_time.logical_maximum < 1 ||
+         !physical_is_zero(fields.scan_time.physical))) {
         set_error(
-            AOAHID_ERR_PARAM, "touch.scan_time",
+            AOAHID_ERR_PARAM, touch_field(prefix, "scan_time"),
             "The portable Linux profile requires an explicit 100-microsecond Scan Time counter.");
         return AOAHID_ERR_PARAM;
     }
+    if (fields.button_count > 65535U) {
+        set_error(AOAHID_ERR_OVERFLOW, touch_field(prefix, "button_count"),
+                  "The Button Usage range cannot exceed the 16-bit Usage value space.");
+        return AOAHID_ERR_OVERFLOW;
+    }
     aoa::detail::TouchConfig config{};
-    config.options = *options;
+    config.fields = fields;
     return build_generated_spec(
-        GeneratedSpecIdentity{AOAHID_PROFILE_TOUCHSCREEN, AOAHID_ANDROID_PORTABLE_CANDIDATE},
-        config,
+        GeneratedSpecIdentity{profile_kind, android_status}, config,
         [=](DescriptorBuilder& builder, ReportLayout& layout) {
-            if (!builder.begin_application(aoa::hid::usage::page_digitizers,
-                                           aoa::hid::usage::touch_screen) ||
-                !builder.set_report_id(options->report_id.enabled == 1U,
-                                       options->report_id.value)) {
+            if (!builder.begin_application(aoa::hid::usage::page_digitizers, application_usage) ||
+                !builder.set_report_id(fields.report_id.enabled == 1U, fields.report_id.value)) {
                 return false;
             }
-            if (options->enable_contact_count_maximum_feature_declaration == 1U &&
+            if (fields.enable_contact_count_maximum_feature_declaration == 1U &&
                 !builder.feature_static_value(
                     aoa::hid::usage::page_digitizers, aoa::hid::usage::contact_count_maximum, 0,
-                    static_cast<std::int32_t>(options->maximum_contacts),
-                    static_cast<std::uint8_t>(options->contact_count.bit_width))) {
+                    static_cast<std::int32_t>(fields.maximum_contacts),
+                    static_cast<std::uint8_t>(fields.contact_count.bit_width))) {
                 return false;
             }
-            for (std::uint32_t contact = 0U; contact < options->contacts_per_report; ++contact) {
+            for (std::uint32_t contact = 0U; contact < fields.contacts_per_report; ++contact) {
                 if (!builder.begin_logical(aoa::hid::usage::page_digitizers,
                                            aoa::hid::usage::finger) ||
                     !builder.variable(aoa::hid::usage::page_digitizers, aoa::hid::usage::tip_switch,
@@ -988,77 +1012,84 @@ static aoahid_result create_touch_spec(const aoahid_touch_options* options,
                 pad_report(builder, layout);
                 if (!builder.variable(
                         aoa::hid::usage::page_digitizers, aoa::hid::usage::contact_identifier,
-                        options->contact_identifier.logical_minimum,
-                        options->contact_identifier.logical_maximum,
-                        static_cast<std::uint8_t>(options->contact_identifier.bit_width), false,
+                        fields.contact_identifier.logical_minimum,
+                        fields.contact_identifier.logical_maximum,
+                        static_cast<std::uint8_t>(fields.contact_identifier.bit_width), false,
                         false, FieldSemantic::contact_id, static_cast<std::uint16_t>(contact),
-                        false, &options->contact_identifier.physical) ||
+                        false, &fields.contact_identifier.physical) ||
                     !builder.variable(aoa::hid::usage::page_generic_desktop, aoa::hid::usage::x,
-                                      options->x.logical_minimum, options->x.logical_maximum,
-                                      static_cast<std::uint8_t>(options->x.bit_width), false, false,
+                                      fields.x.logical_minimum, fields.x.logical_maximum,
+                                      static_cast<std::uint8_t>(fields.x.bit_width), false, false,
                                       FieldSemantic::x, static_cast<std::uint16_t>(contact), false,
-                                      &options->x.physical) ||
+                                      &fields.x.physical) ||
                     !builder.variable(aoa::hid::usage::page_generic_desktop, aoa::hid::usage::y,
-                                      options->y.logical_minimum, options->y.logical_maximum,
-                                      static_cast<std::uint8_t>(options->y.bit_width), false, false,
+                                      fields.y.logical_minimum, fields.y.logical_maximum,
+                                      static_cast<std::uint8_t>(fields.y.bit_width), false, false,
                                       FieldSemantic::y, static_cast<std::uint16_t>(contact), false,
-                                      &options->y.physical)) {
+                                      &fields.y.physical)) {
                     return false;
                 }
-                if (options->enable_pressure == 1U &&
+                if (fields.enable_pressure == 1U &&
                     !builder.variable(
                         aoa::hid::usage::page_digitizers, aoa::hid::usage::tip_pressure,
-                        options->pressure.logical_minimum, options->pressure.logical_maximum,
-                        static_cast<std::uint8_t>(options->pressure.bit_width), false, false,
+                        fields.pressure.logical_minimum, fields.pressure.logical_maximum,
+                        static_cast<std::uint8_t>(fields.pressure.bit_width), false, false,
                         FieldSemantic::pressure, static_cast<std::uint16_t>(contact), false,
-                        &options->pressure.physical)) {
+                        &fields.pressure.physical)) {
                     return false;
                 }
-                if (options->enable_width == 1U &&
+                if (fields.enable_width == 1U &&
                     !builder.variable(
                         aoa::hid::usage::page_digitizers, aoa::hid::usage::width,
-                        options->width.logical_minimum, options->width.logical_maximum,
-                        static_cast<std::uint8_t>(options->width.bit_width), false, false,
+                        fields.width.logical_minimum, fields.width.logical_maximum,
+                        static_cast<std::uint8_t>(fields.width.bit_width), false, false,
                         FieldSemantic::width, static_cast<std::uint16_t>(contact), false,
-                        &options->width.physical)) {
+                        &fields.width.physical)) {
                     return false;
                 }
-                if (options->enable_height == 1U &&
+                if (fields.enable_height == 1U &&
                     !builder.variable(
                         aoa::hid::usage::page_digitizers, aoa::hid::usage::height,
-                        options->height.logical_minimum, options->height.logical_maximum,
-                        static_cast<std::uint8_t>(options->height.bit_width), false, false,
+                        fields.height.logical_minimum, fields.height.logical_maximum,
+                        static_cast<std::uint8_t>(fields.height.bit_width), false, false,
                         FieldSemantic::height, static_cast<std::uint16_t>(contact), false,
-                        &options->height.physical)) {
+                        &fields.height.physical)) {
                     return false;
                 }
-                if (options->enable_azimuth == 1U &&
+                if (fields.enable_azimuth == 1U &&
                     !builder.variable(
                         aoa::hid::usage::page_digitizers, aoa::hid::usage::azimuth,
-                        options->azimuth.logical_minimum, options->azimuth.logical_maximum,
-                        static_cast<std::uint8_t>(options->azimuth.bit_width), false, false,
+                        fields.azimuth.logical_minimum, fields.azimuth.logical_maximum,
+                        static_cast<std::uint8_t>(fields.azimuth.bit_width), false, false,
                         FieldSemantic::azimuth, static_cast<std::uint16_t>(contact), false,
-                        &options->azimuth.physical)) {
+                        &fields.azimuth.physical)) {
                     return false;
                 }
                 if (!builder.end_collection()) {
                     return false;
                 }
             }
-            if (options->enable_scan_time == 1U &&
+            if (fields.enable_scan_time == 1U &&
                 !builder.variable(
                     aoa::hid::usage::page_digitizers, aoa::hid::usage::scan_time,
-                    options->scan_time.logical_minimum, options->scan_time.logical_maximum,
-                    static_cast<std::uint8_t>(options->scan_time.bit_width), false, false,
-                    FieldSemantic::scan_time, 0U, false, &options->scan_time.physical)) {
+                    fields.scan_time.logical_minimum, fields.scan_time.logical_maximum,
+                    static_cast<std::uint8_t>(fields.scan_time.bit_width), false, false,
+                    FieldSemantic::scan_time, 0U, false, &fields.scan_time.physical)) {
                 return false;
             }
             if (!builder.variable(
                     aoa::hid::usage::page_digitizers, aoa::hid::usage::contact_count,
-                    options->contact_count.logical_minimum, options->contact_count.logical_maximum,
-                    static_cast<std::uint8_t>(options->contact_count.bit_width), false, false,
-                    FieldSemantic::contact_count, 0U, false, &options->contact_count.physical)) {
+                    fields.contact_count.logical_minimum, fields.contact_count.logical_maximum,
+                    static_cast<std::uint8_t>(fields.contact_count.bit_width), false, false,
+                    FieldSemantic::contact_count, 0U, false, &fields.contact_count.physical)) {
                 return false;
+            }
+            if (fields.button_count > 0U) {
+                if (!builder.variable_range(aoa::hid::usage::page_button, 1U,
+                                            static_cast<std::uint16_t>(fields.button_count), 1U,
+                                            FieldSemantic::buttons)) {
+                    return false;
+                }
             }
             pad_report(builder, layout);
             return builder.end_collection();
@@ -1066,10 +1097,98 @@ static aoahid_result create_touch_spec(const aoahid_touch_options* options,
         out_spec);
 }
 
+static void touch_fields_from_touchscreen(const aoahid_touch_options& options,
+                                          aoa::detail::TouchFields* out) noexcept {
+    out->report_id = options.report_id;
+    out->maximum_contacts = options.maximum_contacts;
+    out->contacts_per_report = options.contacts_per_report;
+    out->contact_identifier = options.contact_identifier;
+    out->x = options.x;
+    out->y = options.y;
+    out->contact_count = options.contact_count;
+    out->enable_pressure = options.enable_pressure;
+    out->pressure = options.pressure;
+    out->enable_width = options.enable_width;
+    out->width = options.width;
+    out->enable_height = options.enable_height;
+    out->height = options.height;
+    out->enable_azimuth = options.enable_azimuth;
+    out->azimuth = options.azimuth;
+    out->enable_scan_time = options.enable_scan_time;
+    out->scan_time = options.scan_time;
+    out->scan_time_unit_100us = options.scan_time_unit_100us;
+    out->enable_contact_count_maximum_feature_declaration =
+        options.enable_contact_count_maximum_feature_declaration;
+    out->enable_multi_packet_frames = options.enable_multi_packet_frames;
+    out->button_count = 0U;
+}
+
 static aoahid_result aoahid_spec_create_touchscreen_impl(const aoahid_touch_options* options,
                                                          aoahid_spec** out_spec) {
     aoa::detail::clear_error();
-    return create_touch_spec(options, out_spec);
+    if (options == nullptr ||
+        !aoa::detail::valid_struct(options, options == nullptr ? 0U : options->struct_size,
+                                   static_cast<std::uint32_t>(sizeof(*options)),
+                                   "touchscreen_options")) {
+        return AOAHID_ERR_PARAM;
+    }
+    if (options->reserved != 0U) {
+        set_error(AOAHID_ERR_PARAM, "touchscreen_options",
+                  "The touch options contain an invalid required field, range, count, or flag.");
+        return AOAHID_ERR_PARAM;
+    }
+    aoa::detail::TouchFields fields{};
+    touch_fields_from_touchscreen(*options, &fields);
+    return create_touch_spec_from_fields(fields, "touch", AOAHID_PROFILE_TOUCHSCREEN,
+                                         aoa::hid::usage::touch_screen,
+                                         AOAHID_ANDROID_PORTABLE_CANDIDATE, out_spec);
+}
+
+static void touch_fields_from_touchpad(const aoahid_touchpad_options& options,
+                                       aoa::detail::TouchFields* out) noexcept {
+    out->report_id = options.report_id;
+    out->maximum_contacts = options.maximum_contacts;
+    out->contacts_per_report = options.contacts_per_report;
+    out->contact_identifier = options.contact_identifier;
+    out->x = options.x;
+    out->y = options.y;
+    out->contact_count = options.contact_count;
+    out->enable_pressure = options.enable_pressure;
+    out->pressure = options.pressure;
+    out->enable_width = options.enable_width;
+    out->width = options.width;
+    out->enable_height = options.enable_height;
+    out->height = options.height;
+    out->enable_azimuth = options.enable_azimuth;
+    out->azimuth = options.azimuth;
+    out->enable_scan_time = options.enable_scan_time;
+    out->scan_time = options.scan_time;
+    out->scan_time_unit_100us = options.scan_time_unit_100us;
+    out->enable_contact_count_maximum_feature_declaration =
+        options.enable_contact_count_maximum_feature_declaration;
+    out->enable_multi_packet_frames = options.enable_multi_packet_frames;
+    out->button_count = options.button_count;
+}
+
+static aoahid_result aoahid_spec_create_touchpad_impl(const aoahid_touchpad_options* options,
+                                                      aoahid_spec** out_spec) {
+    aoa::detail::clear_error();
+    if (options == nullptr ||
+        !aoa::detail::valid_struct(options, options == nullptr ? 0U : options->struct_size,
+                                   static_cast<std::uint32_t>(sizeof(*options)),
+                                   "touchpad_options")) {
+        return AOAHID_ERR_PARAM;
+    }
+    if (options->reserved != 0U) {
+        set_error(AOAHID_ERR_PARAM, "touchpad_options",
+                  "The touchpad options contain an invalid required field, range, count, or flag.");
+        return AOAHID_ERR_PARAM;
+    }
+    aoa::detail::TouchFields fields{};
+    touch_fields_from_touchpad(*options, &fields);
+    return create_touch_spec_from_fields(fields, "touchpad", AOAHID_PROFILE_TOUCHPAD,
+                                         aoa::hid::usage::touch_pad, AOAHID_ANDROID_CONDITIONAL,
+                                         out_spec);
 }
 
 static aoahid_result aoahid_spec_create_pen_impl(const aoahid_pen_options* options,
@@ -1428,6 +1547,12 @@ aoahid_result AOAHID_CALL aoahid_spec_create_touchscreen(const aoahid_touch_opti
                                                          aoahid_spec** out_spec) {
     return abi_spec_factory(out_spec, "spec.create_touchscreen",
                             [&] { return aoahid_spec_create_touchscreen_impl(options, out_spec); });
+}
+
+aoahid_result AOAHID_CALL aoahid_spec_create_touchpad(const aoahid_touchpad_options* options,
+                                                      aoahid_spec** out_spec) {
+    return abi_spec_factory(out_spec, "spec.create_touchpad",
+                            [&] { return aoahid_spec_create_touchpad_impl(options, out_spec); });
 }
 
 aoahid_result AOAHID_CALL aoahid_spec_create_pen(const aoahid_pen_options* options,

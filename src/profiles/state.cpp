@@ -191,6 +191,8 @@ void consume_lifecycle_transitions(aoahid_node* node) noexcept {
         for (auto& contact : touch->contacts) {
             contact.lifecycle_transition_pending = false;
         }
+        std::fill(touch->button_transitions.begin(), touch->button_transitions.end(),
+                  std::uint8_t{0});
     } else if (auto* pen = state<aoa::detail::PenState>(node); pen != nullptr) {
         pen->barrel_transitions = 0U;
         pen->in_range_transition_pending = false;
@@ -212,7 +214,7 @@ std::size_t collect_touch(const aoa::detail::TouchState& touch,
 
 bool validate_contact(const aoa::detail::TouchConfig& config_value,
                       const aoahid_touch_contact& contact, const char* operation) noexcept {
-    const auto& options = config_value.options;
+    const auto& options = config_value.fields;
     if (contact.contact_id >
             static_cast<std::uint32_t>(options.contact_identifier.logical_maximum) ||
         static_cast<std::int64_t>(contact.contact_id) <
@@ -356,6 +358,8 @@ aoahid_result serialize_node(aoahid_node* node, std::uint8_t* report, const std:
                        field.instance < gamepad_config->options.button_count + 4U) {
                 value =
                     (gamepad->hat >> (field.instance - gamepad_config->options.button_count)) & 1;
+            } else if (touch != nullptr && field.instance < touch->buttons.size()) {
+                value = touch->buttons[field.instance];
             } else if (pen != nullptr) {
                 value = pen->tool_switch_departure || pen->desired.in_range == 0U
                             ? 0
@@ -515,7 +519,7 @@ aoahid_result serialize_node(aoahid_node* node, std::uint8_t* report, const std:
     }
     if (touch != nullptr && touch_config != nullptr) {
         node->submitted_touch_count =
-            std::min<std::size_t>(touch_config->options.contacts_per_report,
+            std::min<std::size_t>(touch_config->fields.contacts_per_report,
                                   active_count > touch_start ? active_count - touch_start : 0U);
         node->submitted_touch_final_packet =
             touch_start + node->submitted_touch_count >= active_count;
@@ -561,7 +565,9 @@ void transfer_complete(void* user, const aoahid_result result,
                     std::any_of(touch->contacts.begin(), touch->contacts.end(),
                                 [](const ContactState& contact) {
                                     return contact.phase == ContactPhase::down;
-                                });
+                                }) ||
+                    std::any_of(touch->buttons.begin(), touch->buttons.end(),
+                                [](const std::uint8_t value) { return value != 0U; });
                 if (!still_active) {
                     // HUT 1.7 section 16.5 defines the base as the first frame
                     // after inactivity, so the next activity starts at zero.
@@ -965,7 +971,9 @@ static aoahid_result aoahid_touch_impl(aoahid_node* node, const std::uint32_t co
                                        const std::int32_t y, const aoahid_touch_extra* extra) {
     aoa::detail::clear_error();
     const bool right_kind =
-        node != nullptr && node->spec != nullptr && node->spec->kind == AOAHID_PROFILE_TOUCHSCREEN;
+        node != nullptr && node->spec != nullptr &&
+        (node->spec->kind == AOAHID_PROFILE_TOUCHSCREEN ||
+         node->spec->kind == AOAHID_PROFILE_TOUCHPAD);
     if (!right_kind || node->closed || !aoa::detail::valid_boolean(down)) {
         set_error(AOAHID_ERR_PARAM, "touch", "A live touch node and boolean down are required.");
         return AOAHID_ERR_PARAM;
@@ -993,7 +1001,7 @@ static aoahid_result aoahid_touch_impl(aoahid_node* node, const std::uint32_t co
             set_error(AOAHID_ERR_PARAM, "touch.contact_id", "Lift requires an active Contact ID.");
             return AOAHID_ERR_PARAM;
         }
-        if (!in_range(x, spec->options.x) || !in_range(y, spec->options.y)) {
+        if (!in_range(x, spec->fields.x) || !in_range(y, spec->fields.y)) {
             set_error(AOAHID_ERR_PARAM, "touch", "The final coordinates are outside the spec.");
             return AOAHID_ERR_PARAM;
         }
@@ -1044,7 +1052,7 @@ static aoahid_result aoahid_touch_impl(aoahid_node* node, const std::uint32_t co
     if (found == touch->contacts.end() ||
         std::count_if(touch->contacts.begin(), touch->contacts.end(), [](const auto& entry) {
             return entry.phase != ContactPhase::none;
-        }) >= static_cast<std::ptrdiff_t>(spec->options.maximum_contacts)) {
+        }) >= static_cast<std::ptrdiff_t>(spec->fields.maximum_contacts)) {
         set_error(AOAHID_ERR_OVERFLOW, "touch.maximum_contacts",
                   "No declared contact slot remains.");
         return AOAHID_ERR_OVERFLOW;
@@ -1054,6 +1062,40 @@ static aoahid_result aoahid_touch_impl(aoahid_node* node, const std::uint32_t co
     found->lifecycle_transition_pending = true;
     touch->packet_cursor = 0U;
     node->dirty = true;
+    return AOAHID_OK;
+}
+
+static aoahid_result aoahid_touchpad_button_impl(aoahid_node* node, const std::uint32_t button,
+                                                 const std::uint32_t pressed) {
+    aoa::detail::clear_error();
+    const aoahid_result check = usable(node, AOAHID_PROFILE_TOUCHPAD, "touchpad.button");
+    if (check != AOAHID_OK)
+        return check;
+    auto* touch = state<aoa::detail::TouchState>(node);
+    if (touch->packet_cursor != 0U) {
+        set_error(AOAHID_ERR_BUSY, "touchpad.button",
+                  "The current multi-packet frame must finish before state changes.");
+        return AOAHID_ERR_BUSY;
+    }
+    if (button == 0U || button > touch->buttons.size() || !aoa::detail::valid_boolean(pressed)) {
+        set_error(AOAHID_ERR_PARAM, "touchpad.button",
+                  "Button is one-based and pressed must be zero or one.");
+        return AOAHID_ERR_PARAM;
+    }
+    if (!transition_storage_matches(touch->buttons, touch->button_transitions, "touchpad.button")) {
+        return AOAHID_ERR_INTERNAL;
+    }
+    const std::size_t index = button - 1U;
+    const auto value = static_cast<std::uint8_t>(pressed);
+    const bool changed = touch->buttons[index] != value;
+    if (changed && touch->button_transitions[index] != 0U) {
+        return pending_transition("touchpad.button");
+    }
+    if (changed) {
+        touch->buttons[index] = value;
+        touch->button_transitions[index] = 1U;
+    }
+    node->dirty = node->dirty || changed;
     return AOAHID_OK;
 }
 
@@ -1210,6 +1252,12 @@ aoahid_result AOAHID_CALL aoahid_touch(aoahid_node* node, const std::uint32_t co
                                        const std::int32_t y, const aoahid_touch_extra* extra) {
     return abi_state_result("touch",
                             [&] { return aoahid_touch_impl(node, contact_id, down, x, y, extra); });
+}
+
+aoahid_result AOAHID_CALL aoahid_touchpad_button(aoahid_node* node, const std::uint32_t button,
+                                                 const std::uint32_t pressed) {
+    return abi_state_result("touchpad.button",
+                            [&] { return aoahid_touchpad_button_impl(node, button, pressed); });
 }
 
 aoahid_result AOAHID_CALL aoahid_pen_update(aoahid_node* node, const aoahid_pen_sample* sample) {
