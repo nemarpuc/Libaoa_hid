@@ -885,12 +885,17 @@ const char* touch_field(const char* prefix, const char* suffix) noexcept {
     return g_touch_field_scratch;
 }
 
-static aoahid_result create_touch_spec_from_fields(const aoa::detail::TouchFields& fields,
-                                                   const char* prefix,
-                                                   const aoahid_profile_kind profile_kind,
-                                                   const std::uint16_t application_usage,
-                                                   const aoahid_android_status android_status,
-                                                   aoahid_spec** out_spec) {
+// profile_kind, application_usage, and android_status are only ever passed
+// as fixed literals from this function's two call sites (the Touchscreen and
+// Touchpad wrappers), never from caller-supplied runtime values, so a
+// transposition would be a compile-time-local mistake caught immediately by
+// every existing test rather than a live bug.
+static aoahid_result
+create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char* prefix,
+                              // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+                              const aoahid_profile_kind profile_kind,
+                              const std::uint16_t application_usage,
+                              const aoahid_android_status android_status, aoahid_spec** out_spec) {
     if (!validate_report_id(fields.report_id, touch_field(prefix, "report_id")) ||
         !validate_field(fields.x, touch_field(prefix, "x")) ||
         !validate_field(fields.y, touch_field(prefix, "y")) || fields.x.logical_minimum > 0 ||
