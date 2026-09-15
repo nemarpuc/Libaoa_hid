@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 libaoahid contributors
-"""Compare the compiler-observed public C ABI with the v0.3.0 golden schema."""
+"""Compare the compiler-observed public C ABI with the v0.4.0 golden schema."""
 
 from __future__ import annotations
 
@@ -236,6 +236,34 @@ class TouchOptions(c.Structure):
     ]
 
 
+class TouchpadOptions(c.Structure):
+    _fields_ = [
+        ("struct_size", U32),
+        ("reserved", U32),
+        ("report_id", ReportIdOption),
+        ("maximum_contacts", U32),
+        ("contacts_per_report", U32),
+        ("contact_identifier", IntegerField),
+        ("x", IntegerField),
+        ("y", IntegerField),
+        ("contact_count", IntegerField),
+        ("enable_pressure", U32),
+        ("pressure", IntegerField),
+        ("enable_width", U32),
+        ("width", IntegerField),
+        ("enable_height", U32),
+        ("height", IntegerField),
+        ("enable_azimuth", U32),
+        ("azimuth", IntegerField),
+        ("enable_scan_time", U32),
+        ("scan_time", IntegerField),
+        ("scan_time_unit_100us", U32),
+        ("enable_contact_count_maximum_feature_declaration", U32),
+        ("enable_multi_packet_frames", U32),
+        ("button_count", U32),
+    ]
+
+
 class PenOptions(c.Structure):
     _fields_ = [
         ("struct_size", U32),
@@ -367,6 +395,7 @@ GOLDEN_STRUCTS = {
     "aoahid_gamepad_axis": GamepadAxis,
     "aoahid_gamepad_options": GamepadOptions,
     "aoahid_touch_options": TouchOptions,
+    "aoahid_touchpad_options": TouchpadOptions,
     "aoahid_pen_options": PenOptions,
     "aoahid_battery_options": BatteryOptions,
     "aoahid_raw_report": RawReport,
@@ -381,7 +410,7 @@ GOLDEN_STRUCTS = {
 
 GOLDEN_CONSTANTS = {
     "AOAHID_VERSION_MAJOR": 0,
-    "AOAHID_VERSION_MINOR": 3,
+    "AOAHID_VERSION_MINOR": 4,
     "AOAHID_VERSION_PATCH": 0,
     "AOAHID_OK": 0,
     "AOAHID_ERR_PARAM": 1,
@@ -418,6 +447,7 @@ GOLDEN_CONSTANTS = {
     "AOAHID_PROFILE_PEN": 6,
     "AOAHID_PROFILE_BATTERY": 7,
     "AOAHID_PROFILE_RAW": 8,
+    "AOAHID_PROFILE_TOUCHPAD": 9,
     "AOAHID_ANDROID_PORTABLE_CANDIDATE": 1,
     "AOAHID_ANDROID_CONDITIONAL": 2,
     "AOAHID_ANDROID_CUSTOM_SYSTEM_ONLY": 3,
@@ -476,7 +506,7 @@ def parse_observed(output: str) -> dict[str, int]:
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("usage: check_v0_3_0_golden.py LAYOUT_ORACLE", file=sys.stderr)
+        print("usage: check_v0_4_0_golden.py LAYOUT_ORACLE", file=sys.stderr)
         return 2
     executable = Path(sys.argv[1])
     completed = subprocess.run(
@@ -486,15 +516,15 @@ def main() -> int:
     expected = expected_values()
     failed = False
     for key in sorted(expected.keys() - observed.keys()):
-        print(f"v0.3.0 ABI oracle omitted {key}", file=sys.stderr)
+        print(f"v0.4.0 ABI oracle omitted {key}", file=sys.stderr)
         failed = True
     for key in sorted(observed.keys() - expected.keys()):
-        print(f"v0.3.0 ABI oracle added unknown entry {key}", file=sys.stderr)
+        print(f"v0.4.0 ABI oracle added unknown entry {key}", file=sys.stderr)
         failed = True
     for key in sorted(expected.keys() & observed.keys()):
         if observed[key] != expected[key]:
             print(
-                f"v0.3.0 ABI drift: {key}: observed {observed[key]}, "
+                f"v0.4.0 ABI drift: {key}: observed {observed[key]}, "
                 f"expected {expected[key]}",
                 file=sys.stderr,
             )
@@ -502,7 +532,7 @@ def main() -> int:
     if failed:
         return 1
     print(
-        f"v0.3.0 C ABI matches: {len(GOLDEN_STRUCTS)} structures, "
+        f"v0.4.0 C ABI matches: {len(GOLDEN_STRUCTS)} structures, "
         f"{len(GOLDEN_CONSTANTS)} constants"
     )
     return 0

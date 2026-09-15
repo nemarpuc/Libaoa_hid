@@ -53,6 +53,7 @@ int main(void) {
     AOAHID_CONSTANT(AOAHID_PROFILE_PEN);
     AOAHID_CONSTANT(AOAHID_PROFILE_BATTERY);
     AOAHID_CONSTANT(AOAHID_PROFILE_RAW);
+    AOAHID_CONSTANT(AOAHID_PROFILE_TOUCHPAD);
     AOAHID_CONSTANT(AOAHID_ANDROID_PORTABLE_CANDIDATE);
     AOAHID_CONSTANT(AOAHID_ANDROID_CONDITIONAL);
     AOAHID_CONSTANT(AOAHID_ANDROID_CUSTOM_SYSTEM_ONLY);
@@ -256,6 +257,31 @@ int main(void) {
     AOAHID_FIELD(aoahid_touch_options, scan_time_unit_100us);
     AOAHID_FIELD(aoahid_touch_options, enable_contact_count_maximum_feature_declaration);
     AOAHID_FIELD(aoahid_touch_options, enable_multi_packet_frames);
+
+    AOAHID_BEGIN(aoahid_touchpad_options);
+    AOAHID_FIELD(aoahid_touchpad_options, struct_size);
+    AOAHID_FIELD(aoahid_touchpad_options, reserved);
+    AOAHID_FIELD(aoahid_touchpad_options, report_id);
+    AOAHID_FIELD(aoahid_touchpad_options, maximum_contacts);
+    AOAHID_FIELD(aoahid_touchpad_options, contacts_per_report);
+    AOAHID_FIELD(aoahid_touchpad_options, contact_identifier);
+    AOAHID_FIELD(aoahid_touchpad_options, x);
+    AOAHID_FIELD(aoahid_touchpad_options, y);
+    AOAHID_FIELD(aoahid_touchpad_options, contact_count);
+    AOAHID_FIELD(aoahid_touchpad_options, enable_pressure);
+    AOAHID_FIELD(aoahid_touchpad_options, pressure);
+    AOAHID_FIELD(aoahid_touchpad_options, enable_width);
+    AOAHID_FIELD(aoahid_touchpad_options, width);
+    AOAHID_FIELD(aoahid_touchpad_options, enable_height);
+    AOAHID_FIELD(aoahid_touchpad_options, height);
+    AOAHID_FIELD(aoahid_touchpad_options, enable_azimuth);
+    AOAHID_FIELD(aoahid_touchpad_options, azimuth);
+    AOAHID_FIELD(aoahid_touchpad_options, enable_scan_time);
+    AOAHID_FIELD(aoahid_touchpad_options, scan_time);
+    AOAHID_FIELD(aoahid_touchpad_options, scan_time_unit_100us);
+    AOAHID_FIELD(aoahid_touchpad_options, enable_contact_count_maximum_feature_declaration);
+    AOAHID_FIELD(aoahid_touchpad_options, enable_multi_packet_frames);
+    AOAHID_FIELD(aoahid_touchpad_options, button_count);
 
     AOAHID_BEGIN(aoahid_pen_options);
     AOAHID_FIELD(aoahid_pen_options, struct_size);

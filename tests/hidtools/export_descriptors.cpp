@@ -401,6 +401,35 @@ int main(const int argc, char** argv) {
          ok;
     spec = nullptr;
 
+    aoahid_touchpad_options touchpad{};
+    touchpad.struct_size = static_cast<std::uint32_t>(sizeof(touchpad));
+    touchpad.report_id = touch.report_id;
+    touchpad.maximum_contacts = touch.maximum_contacts;
+    touchpad.contacts_per_report = touch.contacts_per_report;
+    touchpad.contact_identifier = touch.contact_identifier;
+    touchpad.x = touch.x;
+    touchpad.y = touch.y;
+    touchpad.contact_count = touch.contact_count;
+    touchpad.enable_pressure = touch.enable_pressure;
+    touchpad.pressure = touch.pressure;
+    touchpad.enable_width = touch.enable_width;
+    touchpad.width = touch.width;
+    touchpad.enable_height = touch.enable_height;
+    touchpad.height = touch.height;
+    touchpad.enable_azimuth = touch.enable_azimuth;
+    touchpad.azimuth = touch.azimuth;
+    touchpad.enable_scan_time = touch.enable_scan_time;
+    touchpad.scan_time = touch.scan_time;
+    touchpad.scan_time_unit_100us = touch.scan_time_unit_100us;
+    touchpad.enable_contact_count_maximum_feature_declaration =
+        touch.enable_contact_count_maximum_feature_declaration;
+    touchpad.enable_multi_packet_frames = touch.enable_multi_packet_frames;
+    touchpad.button_count = 2U;
+    ok = emit_descriptor(output_directory, "touchpad",
+                         aoahid_spec_create_touchpad(&touchpad, &spec), spec) &&
+         ok;
+    spec = nullptr;
+
     static constexpr std::array<std::uint16_t, 2U> barrel_usages{
         aoa::hid::usage::barrel_switch, aoa::hid::usage::secondary_barrel_switch};
     aoahid_pen_options pen{};
