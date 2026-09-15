@@ -95,8 +95,6 @@ fn rust_constants() -> BTreeMap<String, usize> {
             AOAHID_DPAD_NONE,
             AOAHID_DPAD_HAT,
             AOAHID_DPAD_BUTTONS,
-            AOAHID_CONTROLLER_GAMEPAD,
-            AOAHID_CONTROLLER_JOYSTICK,
             AOAHID_USAGE_SELECTOR_BITMAP,
             AOAHID_USAGE_ON_OFF_TOGGLE,
             AOAHID_USAGE_ON_OFF_MAINTAINED,
@@ -286,7 +284,6 @@ fn rust_layout() -> BTreeMap<String, usize> {
             struct_size,
             reserved,
             report_id,
-            application,
             axes,
             axis_count,
             button_count,
@@ -323,8 +320,7 @@ fn rust_layout() -> BTreeMap<String, usize> {
             scan_time,
             scan_time_unit_100us,
             enable_contact_count_maximum_feature_declaration,
-            enable_multi_packet_frames,
-            touchpad_button_count
+            enable_multi_packet_frames
         ]
     );
     layout!(

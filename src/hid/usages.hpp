@@ -25,7 +25,6 @@ constexpr std::uint16_t page_camera_control = 0x90U;
 
 constexpr std::uint16_t pointer = 0x01U;
 constexpr std::uint16_t mouse = 0x02U;
-constexpr std::uint16_t joystick = 0x04U;
 constexpr std::uint16_t gamepad = 0x05U;
 constexpr std::uint16_t keyboard = 0x06U;
 constexpr std::uint16_t x = 0x30U;
@@ -61,7 +60,6 @@ constexpr std::uint16_t camera_shutter = 0x21U;
 constexpr std::uint16_t digitizer = 0x01U;
 constexpr std::uint16_t pen = 0x02U;
 constexpr std::uint16_t touch_screen = 0x04U;
-constexpr std::uint16_t touch_pad = 0x05U;
 constexpr std::uint16_t stylus = 0x20U;
 constexpr std::uint16_t finger = 0x22U;
 constexpr std::uint16_t tip_pressure = 0x30U;

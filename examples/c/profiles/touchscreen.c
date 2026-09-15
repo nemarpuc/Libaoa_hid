@@ -2,10 +2,7 @@
 // Copyright (c) 2026 libaoahid contributors
 /* Touchscreen profile: fixed multi-touch with three contacts per report and the
  * full optional field set enabled. Azimuth declares degrees through the four
- * HID 1.11 Global physical items rather than assuming a unit. Set
- * options.touchpad_button_count above zero to additionally declare a
- * Touchpad's physical click buttons and reach the Touch Pad Application
- * Collection with this same factory and the same runtime API. */
+ * HID 1.11 Global physical items rather than assuming a unit. */
 #include "profile_example.h"
 
 static const char* const k_send_sequence[] = {

@@ -17,9 +17,9 @@ The public factory surface was consolidated from fourteen `aoahid_profile_kind` 
 | `aoahid_spec_create_system_control` / `AOAHID_PROFILE_SYSTEM_CONTROL` | `aoahid_spec_create_toggle` with those three fields set to Generic Desktop / System Control |
 | `aoahid_spec_create_camera_keys` / `AOAHID_PROFILE_CAMERA_KEYS` | `aoahid_spec_create_toggle` with `field_page` set to Camera Control (`0x90`); the Auto-focus/Shutter-only restriction is still enforced whenever `field_page == 0x90` |
 | `aoahid_spec_create_telephony_keys` / `AOAHID_PROFILE_TELEPHONY_KEYS` | `aoahid_spec_create_toggle` with those three fields set to the Telephony Device page |
-| `aoahid_spec_create_joystick` / `AOAHID_PROFILE_JOYSTICK` | `aoahid_spec_create_gamepad` with `options.application = AOAHID_CONTROLLER_JOYSTICK` |
-| `aoahid_spec_create_touchpad` / `AOAHID_PROFILE_TOUCHPAD` | `aoahid_spec_create_touchscreen` with `options.touchpad_button_count` above zero |
-| Touchscreen one-contact MT / pure ST (`aoahid_touch_protocol`) | Removed. Every Touchscreen/Touchpad Spec is now the fixed-slot Multi-Touch form only; `aoahid_touch_options` no longer has `protocol` or `target_verified` fields |
+| `aoahid_spec_create_joystick` / `AOAHID_PROFILE_JOYSTICK` | Removed in 0.3.0. `aoahid_gamepad_options` no longer has an `application` field; `aoahid_spec_create_gamepad` always emits the Game Pad Application Collection. |
+| `aoahid_spec_create_touchpad` / `AOAHID_PROFILE_TOUCHPAD` | Removed in 0.3.0. `aoahid_touch_options` no longer has a `touchpad_button_count` field; `aoahid_spec_create_touchscreen` always emits the Touch Screen Application Collection. |
+| Touchscreen one-contact MT / pure ST (`aoahid_touch_protocol`) | Removed. Every Touchscreen Spec is now the fixed-slot Multi-Touch form only; `aoahid_touch_options` no longer has `protocol` or `target_verified` fields |
 
 The runtime (per-report) API was also consolidated: `aoahid_keyboard_key_down`/`key_up`/`release_all` became `aoahid_kbd(node, usage, down)`; `aoahid_consumer_press`/`release`/`tap` and the redundant `aoahid_system_press`/`release`/`tap` became `aoahid_toggle(node, usage, down)`; `aoahid_gamepad_hat`/`aoahid_gamepad_dpad` became `aoahid_dpad(node, up, down, right, left)`; and `aoahid_touch_down`/`move`/`up` became `aoahid_touch(node, contact_id, down, x, y, extra)`, which auto-detects placement versus movement from whether `contact_id` is already active.
 
@@ -48,12 +48,10 @@ contract. The audit below records both the automation and its boundary.
 | Toggle: System Control (same factory, Generic Desktop / System Control page) | Same one-active-control state machine as the Consumer Control page. | Same accepted-report transition guard. | Allow-list, semantics, and target event evidence. | **[HUT 1.7 definition]** plus **[Guide policy]**; conditional and **[Unverified on hardware]**. |
 | Toggle: Camera keys (same factory, `field_page = 0x90`) | Auto-focus and Shutter are fixed to their audited OSC fields by a validator rule keyed on `field_page == 0x90`; `down=1` then `down=0` emits assertion and re-arm reports. | Same accepted-report transition guard. | Whether Android exposes or intercepts the events is not inferred. | Camera Usage and OSC type are **[HUT 1.7 definition]**; the Consumer Application Collection is **[Guide policy]**. Conditional and **[Unverified on hardware]**. |
 | Toggle: Telephony keys (same factory, Telephony Device page) | Same exact-field state machine for the caller allow-list. | Same accepted-report transition guard. | Telephony allow-list, semantics, and target event evidence. | **[HUT 1.7 definition]** plus **[Guide policy]**; conditional and **[Unverified on hardware]**. |
-| Gamepad with canonical Hat (`aoahid_spec_create_gamepad`, `application = AOAHID_CONTROLLER_GAMEPAD`) | Four boolean directions passed to `aoahid_dpad` are converted to one of eight Hat values; no direction emits the deterministic Null value `15`; button edges and close-time axis/Hat neutralization are derived from state. | Button and Hat direction edges cannot be replaced before their first accepted report. Opposite Hat pairs are rejected instead of guessed. | Axis roles, ranges, widths, neutral values, buttons, Report ID, and target mappings. | Android Hat metadata and A/B/X/Y Button mappings are **[Android platform documentation]**; Usage meaning is **[HUT 1.7 definition]**; conversion and edge handling are **[Guide policy]**. Portable-candidate status requires the Game Pad collection, canonical Hat, and a contiguous Button range beginning at `1` with count at least `5`; otherwise it is conditional. **[Unverified on hardware]**. |
+| Gamepad with canonical Hat (`aoahid_spec_create_gamepad`) | Four boolean directions passed to `aoahid_dpad` are converted to one of eight Hat values; no direction emits the deterministic Null value `15`; button edges and close-time axis/Hat neutralization are derived from state. | Button and Hat direction edges cannot be replaced before their first accepted report. Opposite Hat pairs are rejected instead of guessed. | Axis roles, ranges, widths, neutral values, buttons, Report ID, and target mappings. | Android Hat metadata and A/B/X/Y Button mappings are **[Android platform documentation]**; Usage meaning is **[HUT 1.7 definition]**; conversion and edge handling are **[Guide policy]**. Portable-candidate status requires the Game Pad collection, canonical Hat, and a contiguous Button range beginning at `1` with count at least `5`; otherwise it is conditional. **[Unverified on hardware]**. |
 | Gamepad with raw D-pad fields | The four `aoahid_dpad` input booleans are copied to independent D-pad Up/Down/Right/Left OOC bits; simultaneous bits are not converted into an angle. Close clears all four bits along with buttons and explicit axis neutrals. | The four-bit state shares one accepted-report transition guard. | All gamepad axes and button product values. | Raw fields are **[HUT 1.7 definition]** §4.7; state derivation and close neutralization are **[Guide policy]**. Android combination behavior is not established, so the manifest is conditional and **[Unverified on hardware]**. |
 | Gamepad without a D-pad | No directional value is synthesized. Buttons retain their per-edge guards, axes accept only explicit in-range samples, and close uses each explicit axis neutral. | Button edges cannot be replaced before their first accepted report; one report per node may be in flight. | Whether omitting a D-pad is suitable, plus every axis, button, and target mapping. | Absence of the CDD Hat contract is **[Guide policy]** and leaves the manifest conditional and **[Unverified on hardware]**. |
-| Gamepad: Joystick application (same factory, `application = AOAHID_CONTROLLER_JOYSTICK`) | Reuses the same button, axis, Hat, raw-D-pad, neutral, and edge state machines selected by its descriptor. | Same Gamepad guards. | Joystick collection choice and every axis/button product value. | Joystick CA is **[HUT 1.7 definition]**; Android portability is not established by that Usage alone. Conditional and **[Unverified on hardware]**. |
 | Touchscreen, fixed MT (`aoahid_spec_create_touchscreen`; the only Multi-Touch form) | The frame is split at `contacts_per_report`; total Contact Count is emitted only in the first packet and continuation packets carry zero; inactive slots are zero-filled. `aoahid_touch` auto-detects a new contact_id as placement and an already-active one as movement. | Contact mutations and ID reuse are guarded across the complete multi-packet frame. | Maximum contacts, contacts per report, every field domain, and optional-field selection. | Packet interpretation is a **[Specified Linux implementation observation]**; deterministic packet construction is **[Guide policy]**. Portable candidate and **[Unverified on hardware]**. |
-| Touchscreen: Touchpad application (same factory, `touchpad_button_count > 0`) | Uses the same fixed-MT contact/count/Up automation and derives a button-only frame with Contact Count zero via `aoahid_touchpad_button`. | Button changes are busy between contact-frame packets; contact and button edges cannot be coalesced away. | Contact domains, button count, physical size, gesture, palm, and pointer-acceleration policy. | Button processing is a **[Specified Linux implementation observation]** at the cited revision; frame coordination is **[Guide policy]**. Conditional and **[Unverified on hardware]**. |
 | Direct pen | A sample with Tip set is accepted only with In Range set; contact pressure is floored to one; Away serializes In Range, Tip, pressure, Invert, and barrel buttons as zero; an in-range pen/eraser change emits an automatic departure before re-entry. The caller's In Range value is checked, not inferred. | Tip, In Range, tool-end, and barrel edges are retained until their first accepted report. | X/Y, pressure, tilt and Twist ranges, barrel Usages, hover support, and display association. | Usage meanings are **[HUT 1.7 definition]**; pressure contact behavior is **[Android platform documentation]**; Away normalization and tool switching are **[Guide policy]** informed by the specified Linux implementation. Portable candidate and **[Unverified on hardware]**. |
 | Indirect pen/tablet | Uses the same pen state machine and Away normalization. | Same pen transition guards. | Indirect collection choice, field domains, target mapping, and display policy. | **[Guide policy]** over HUT fields; conditional and **[Unverified on hardware]**. |
 | Battery Strength | A known value is serialized directly; unknown is converted to a deterministic representable value outside the logical interval when Null support was declared. | State replacement is blocked only by the node's one-report-in-flight rule; no key-like edge is invented. | Strength range, width, Report ID, and whether unknown/Null is supported. | Null semantics are **[USB HID 1.11 requirement]** and **[HUT 1.7 definition]**; deterministic encoding is **[Guide policy]**. Conditional and **[Unverified on hardware]**. |
@@ -180,11 +178,11 @@ Declaring `field_page = 0x90` additionally rejects any Usage other than `0x20`/`
 
 Every entry still carries an expected Linux event type and code. Audited mappings such as `Play/Pause -> EV_KEY/KEY_PLAYPAUSE`, `Volume Increment -> EV_KEY/KEY_VOLUMEUP`, and `Volume -> EV_ABS/ABS_VOLUME` are **[Specified Linux implementation observation]** from `hidinput_configure_usage` at commit `35556bed836f8dc07ac55f69c8d17dce3e7f0e25`; they do not establish Android delivery. All profiles in this section remain conditional and **[Unverified on hardware]**.
 
-## Gamepad, joystick, and D-pad
+## Gamepad and D-pad
 
 ### Collections and controls
 
-- Application collection: Generic Desktop / Gamepad (`0x01/0x05`) or Joystick (`0x01/0x04`), selected by `aoahid_gamepad_options.application`. **[HUT 1.7 definition]**
+- Application collection: Generic Desktop / Gamepad (`0x01/0x05`). **[HUT 1.7 definition]**
 - Generic Desktop axes: X `0x30`, Y `0x31`, Z `0x32`, Rx `0x33`, Ry `0x34`, Rz `0x35`, Slider `0x36`, Dial `0x37`, and Wheel `0x38`. **[HUT 1.7 definition]**
 - D-pad alternatives: Hat switch `0x39`, or D-pad Up/Down/Right/Left `0x90..0x93`. **[HUT 1.7 definition]**
 - Simulation axes admitted by this profile include Rudder `0xba`, Throttle `0xbb`, Accelerator `0xc4`, Brake `0xc5`, and Steering `0xc8` on Simulation Controls Page `0x02`. **[HUT 1.7 definition]**
@@ -192,10 +190,9 @@ Every entry still carries an expected Linux event type and code. Audited mapping
 
 ### Factory constraints and classification boundary
 
-Both factories require at least two explicitly declared axes, including exactly
-one X and one Y role, at least one Button Usage, a nonzero first Button Usage,
-and a controller Application value that matches the selected Gamepad or
-Joystick factory. Every axis role must match its audited HUT Usage Page and
+The factory requires at least two explicitly declared axes, including exactly
+one X and one Y role, at least one Button Usage, and a nonzero first Button
+Usage. Every axis role must match its audited HUT Usage Page and
 Usage; duplicate roles, an out-of-range neutral, missing target-evidence names,
 and an axis field whose range does not fit its declared bit width are rejected.
 **[HUT 1.7 definition]** for the Usage identities; **[Guide policy]** for the
@@ -213,8 +210,8 @@ one-bit fields after the declared Button fields and rejects a count that would
 overflow the layout's 16-bit field-instance space. A canonical-Hat Gamepad is
 marked portable candidate only when its contiguous ordinary Button Usage range
 begins at `1` and has at least `5` entries. That includes the Android 17 CDD
-§7.2.6.1 A=`1`, B=`2`, X=`4`, and Y=`5` mappings. Raw D-pad, no D-pad, every
-Joystick, and every other Button range remain conditional. The CDD mappings are
+§7.2.6.1 A=`1`, B=`2`, X=`4`, and Y=`5` mappings. Raw D-pad, no D-pad, and every
+other Button range remain conditional. The CDD mappings are
 **[Android platform documentation]**; range contiguity and status distinctions
 are **[Guide policy]**. All remain **[Unverified on hardware]**.
 
@@ -255,8 +252,8 @@ canonical Hat wire value shown above or, when the Spec selected
 `AOAHID_DPAD_BUTTONS`, the four raw OOC bits without combining them into an
 angle. The current ACK
 dispatches those Variable fields individually; that exact source observation
-does not establish portable Android combination behavior. Raw D-pad and every
-Joystick manifest are therefore conditional. **[HUT 1.7 definition]** §4.7;
+does not establish portable Android combination behavior. The raw D-pad
+manifest is therefore conditional. **[HUT 1.7 definition]** §4.7;
 **[Specified Linux implementation observation]** at commit `f67745b7d96806e622db56f4be97af16d6e99850`;
 **[Unverified on hardware]**.
 
@@ -288,16 +285,15 @@ rejected. Hat Usage is **[HUT 1.7 definition]** §4.3.
 
 On close, buttons clear, the hat uses its Null encoding, and each axis uses its explicit neutral. **[Guide policy]**
 
-## Touchscreen and touchpad
+## Touchscreen
 
 ### Descriptor forms
 
-`aoahid_spec_create_touchscreen` is the only factory; setting `options.touchpad_button_count` above zero selects the Touch Pad Application Collection instead of Touch Screen, both sharing this one fixed-slot Multi-Touch state machine. The one-contact-MT and pure-single-touch descriptor forms this library previously also emitted have been removed.
+`aoahid_spec_create_touchscreen` is the only factory and always emits the Touch Screen Application Collection as the one fixed-slot Multi-Touch state machine. The one-contact-MT and pure-single-touch descriptor forms this library previously also emitted have been removed.
 
 | Profile | Application Usage | Contact Usage | Classification status |
 |---|---|---|---|
-| Touchscreen (`touchpad_button_count == 0`) | Digitizers Touch Screen `0x0d/0x04` | Finger `0x22` | Portable candidate; **[Unverified on hardware]** |
-| Touchpad (`touchpad_button_count > 0`) | Digitizers Touch Pad `0x0d/0x05` | Finger `0x22` | Conditional; **[Unverified on hardware]** |
+| Touchscreen | Digitizers Touch Screen `0x0d/0x04` | Finger `0x22` | Portable candidate; **[Unverified on hardware]** |
 
 Multitouch records use Tip Switch `0x42`, Contact Identifier `0x51`, X/Y `0x01/0x30,0x31`, and Contact Count `0x54`. Optional fields are Tip Pressure `0x30`, Width `0x48`, Height `0x49`, Scan Time `0x56`, and a declarative Contact Count Maximum `0x55`. Usage identifiers are **[HUT 1.7 definition]** §16. Contact Count Maximum is emitted as Constant Feature metadata; it does not imply a Feature-response operation, and the manifest continues to report Feature transport as unsupported. **[Guide policy]**
 
@@ -328,14 +324,6 @@ Contact Count is the number of contact records carried by the frame, including e
 
 Inactive fixed slots are zero-filled. The logical Contact Count range still represents zero through the configured maximum because continuation packets require zero.
 
-### Touchpad buttons
-
-Caller-selected Button Page fields may be placed outside the Finger collections and inside the Touch Pad Application Collection. In the audited generic multitouch implementation, `mt_touch_input_mapping` maps these fields to mouse-button event codes and `mt_touch_input_configured` can mark a one-button pointer device as a buttonpad. **[Specified Linux implementation observation]** `mt_touch_input_mapping`, `mt_touch_input_configured`.
-
-When no contacts exist and no multi-packet frame is in progress, a button-only press or release carries Contact Count `0`. In the audited default-class path, `mt_process_slot` skips the zero-filled contact records, `mt_process_mt_event` emits the button value, and `mt_sync_frame` synchronizes the input frame. **[Specified Linux implementation observation]** `mt_process_slot`, `mt_process_mt_event`, `mt_touch_report`, `mt_sync_frame` at commit `35556bed836f8dc07ac55f69c8d17dce3e7f0e25`.
-
-This zero-count form is only the exact-revision button-processing observation above; it is not a touch-lift mechanism and is not promoted to an Android requirement. The state API returns `AOAHID_ERR_BUSY` for a touchpad-button mutation between packets of a contact frame. On close, a previously reported pressed button is released only after the current frame is complete. Android classification and click visibility remain **[Unverified on hardware]**, so the profile remains conditional.
-
 ### Pressure, size, and time
 
 - **Pressure:** **[Android platform documentation]** pressure is nonzero during contact and zero during hover/noncontact when a pressure axis exists. The profile requires a range that represents 0 and 1; Tip=1 is floored to at least 1. If pressure is unavailable, omit the field.
@@ -350,12 +338,10 @@ This zero-count form is only the exact-revision button-processing observation ab
   frame, the state machine derives elapsed `std::chrono::steady_clock` time in
   100-microsecond ticks from the activity epoch, modulo
   `logical_maximum + 1`. Continuation packets reuse that frame's value. After
-  successful completion leaves both contacts and buttons inactive, the epoch
+  successful completion leaves every contact inactive, the epoch
   resets and the next activity frame begins at `0`. Clock selection, modulo,
   successful-completion boundary, and reset are **[Guide policy]** mechanics;
   they are not added HUT semantics.
-
-Touchpad contacts can be converted into cursor and gesture behavior rather than exposed as raw application contacts. Exact classification, click behavior, gesture policy, palm rejection, and acceleration are **[Unverified on hardware]**.
 
 ## Pen and stylus
 

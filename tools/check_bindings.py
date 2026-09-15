@@ -212,7 +212,6 @@ CSHARP_ENUM_TYPES = {
     "aoahid_pen_mode": "PenMode",
     "aoahid_axis_role": "AxisRole",
     "aoahid_dpad_representation": "DpadRepresentation",
-    "aoahid_controller_application": "ControllerApplication",
     "aoahid_usage_semantic": "UsageSemantic",
 }
 
@@ -226,7 +225,6 @@ CSHARP_ENUM_CONSTANT_PREFIXES = {
     "aoahid_pen_mode": "AOAHID_PEN_",
     "aoahid_axis_role": "AOAHID_AXIS_",
     "aoahid_dpad_representation": "AOAHID_DPAD_",
-    "aoahid_controller_application": "AOAHID_CONTROLLER_",
     "aoahid_usage_semantic": "AOAHID_USAGE_",
 }
 

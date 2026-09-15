@@ -448,11 +448,7 @@ aoahid_result initialize_node_state(aoahid_node* node) {
         break;
     }
     case AOAHID_PROFILE_TOUCHSCREEN: {
-        const auto* spec = std::get_if<aoa::detail::TouchConfig>(&node->spec->config);
-        aoa::detail::TouchState value{};
-        value.buttons.resize(spec->options.touchpad_button_count);
-        value.button_transitions.resize(spec->options.touchpad_button_count);
-        node->state = std::move(value);
+        node->state = aoa::detail::TouchState{};
         break;
     }
     case AOAHID_PROFILE_PEN:
@@ -501,12 +497,9 @@ bool has_non_neutral_state(const aoahid_node* node) noexcept {
                            [](const std::uint8_t value) { return value != 0U; });
     }
     if (const auto* touch = std::get_if<aoa::detail::TouchState>(&node->state)) {
-        const bool active_contact =
-            std::any_of(touch->contacts.begin(), touch->contacts.end(), [](const auto& contact) {
-                return contact.phase == aoa::detail::ContactPhase::down;
-            });
-        return active_contact || std::any_of(touch->buttons.begin(), touch->buttons.end(),
-                                             [](const std::uint8_t value) { return value != 0U; });
+        return std::any_of(touch->contacts.begin(), touch->contacts.end(), [](const auto& contact) {
+            return contact.phase == aoa::detail::ContactPhase::down;
+        });
     }
     if (const auto* pen = std::get_if<aoa::detail::PenState>(&node->state)) {
         return pen->tool_switch_departure || pen->desired.in_range != 0U ||
@@ -575,10 +568,6 @@ AOAHID_NOINLINE bool neutralize_touch(aoa::detail::TouchState* touch) noexcept {
             contact.phase = aoa::detail::ContactPhase::up;
         }
     }
-    had_non_neutral_state =
-        had_non_neutral_state || std::any_of(touch->buttons.begin(), touch->buttons.end(),
-                                             [](const std::uint8_t value) { return value != 0U; });
-    std::fill(touch->buttons.begin(), touch->buttons.end(), std::uint8_t{0});
     touch->packet_cursor = 0U;
     return had_non_neutral_state;
 }

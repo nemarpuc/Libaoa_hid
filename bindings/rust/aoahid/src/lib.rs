@@ -210,8 +210,6 @@ impl ToggleNodeRef {
     }
 }
 
-/// Covers both the Gamepad and Joystick Application Collection Usage; which
-/// one a bound node speaks is decided by the Spec's aoahid_controller_application.
 impl GamepadNodeRef {
     pub fn button(self, button: u32, pressed: bool) -> Result<(), Error> {
         result(unsafe { sys::aoahid_gamepad_button(self.as_ptr(), button, u32::from(pressed)) })
@@ -232,8 +230,7 @@ impl GamepadNodeRef {
     }
 }
 
-/// Always fixed-slot Multi-Touch. Also covers Touchpad; `button` is only
-/// meaningful when the Spec declared touchpad_button_count above zero.
+/// Always fixed-slot Multi-Touch.
 impl TouchscreenNodeRef {
     pub fn touch(
         self,
@@ -253,9 +250,6 @@ impl TouchscreenNodeRef {
                 extra.map_or(core::ptr::null(), |value| value as *const _),
             )
         })
-    }
-    pub fn button(self, button: u32, pressed: bool) -> Result<(), Error> {
-        result(unsafe { sys::aoahid_touchpad_button(self.as_ptr(), button, u32::from(pressed)) })
     }
 }
 

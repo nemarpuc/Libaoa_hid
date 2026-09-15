@@ -64,8 +64,8 @@ anywhere the library links, and `AOAHID_BUILD_TESTS` registers each one as
 | 1 | `AOAHID_PROFILE_KEYBOARD` | `keyboard.c` | `aoahid_spec_create_keyboard` (also reaches the former Barcode/MSR wedge form) |
 | 2 | `AOAHID_PROFILE_MOUSE` | `mouse.c` | `aoahid_spec_create_mouse` |
 | 3 | `AOAHID_PROFILE_TOGGLE` | `toggle.c` | `aoahid_spec_create_toggle` (Consumer/System/Camera/Telephony, selected by `application_page`/`application_usage`/`field_page`) |
-| 4 | `AOAHID_PROFILE_GAMEPAD` | `gamepad.c` | `aoahid_spec_create_gamepad` (also reaches Joystick via `application`) |
-| 5 | `AOAHID_PROFILE_TOUCHSCREEN` | `touchscreen.c` | `aoahid_spec_create_touchscreen` (also reaches Touchpad via `touchpad_button_count`) |
+| 4 | `AOAHID_PROFILE_GAMEPAD` | `gamepad.c` | `aoahid_spec_create_gamepad` |
+| 5 | `AOAHID_PROFILE_TOUCHSCREEN` | `touchscreen.c` | `aoahid_spec_create_touchscreen` |
 | 6 | `AOAHID_PROFILE_PEN` | `pen.c` | `aoahid_spec_create_pen` |
 | 7 | `AOAHID_PROFILE_BATTERY` | `battery.c` | `aoahid_spec_create_battery` |
 | 8 | `AOAHID_PROFILE_RAW` | `raw.c` | `aoahid_spec_create_raw` |

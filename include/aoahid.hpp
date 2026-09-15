@@ -75,8 +75,6 @@ class toggle_node_ref final : public node_ref {
     friend aoahid_result bind(aoahid_node*, toggle_node_ref&) noexcept;
 };
 
-/* Covers both the Gamepad and Joystick Application Collection Usage; which
- * one a bound Node speaks is decided by the Spec's aoahid_controller_application. */
 class gamepad_node_ref final : public node_ref {
   public:
     constexpr gamepad_node_ref() noexcept = default;
@@ -95,8 +93,7 @@ class gamepad_node_ref final : public node_ref {
     friend aoahid_result bind(aoahid_node*, gamepad_node_ref&) noexcept;
 };
 
-/* Always fixed-slot Multi-Touch. Also covers Touchpad; button() is only
- * meaningful when the Spec declared touchpad_button_count above zero. */
+/* Always fixed-slot Multi-Touch. */
 class touchscreen_node_ref final : public node_ref {
   public:
     constexpr touchscreen_node_ref() noexcept = default;
@@ -104,9 +101,6 @@ class touchscreen_node_ref final : public node_ref {
                                       std::int32_t y,
                                       const aoahid_touch_extra* extra = nullptr) const noexcept {
         return aoahid_touch(value_, contact_id, down ? 1U : 0U, x, y, extra);
-    }
-    [[nodiscard]] aoahid_result button(std::uint32_t index, bool pressed) const noexcept {
-        return aoahid_touchpad_button(value_, index, pressed ? 1U : 0U);
     }
 
   private:

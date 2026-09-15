@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 libaoahid contributors
-"""Compare the compiler-observed public C ABI with the v0.2.0 golden schema."""
+"""Compare the compiler-observed public C ABI with the v0.3.0 golden schema."""
 
 from __future__ import annotations
 
@@ -198,7 +198,6 @@ class GamepadOptions(c.Structure):
         ("struct_size", U32),
         ("reserved", U32),
         ("report_id", ReportIdOption),
-        ("application", I32),
         ("axes", c.POINTER(GamepadAxis)),
         ("axis_count", SIZE),
         ("button_count", U32),
@@ -234,7 +233,6 @@ class TouchOptions(c.Structure):
         ("scan_time_unit_100us", U32),
         ("enable_contact_count_maximum_feature_declaration", U32),
         ("enable_multi_packet_frames", U32),
-        ("touchpad_button_count", U32),
     ]
 
 
@@ -383,7 +381,7 @@ GOLDEN_STRUCTS = {
 
 GOLDEN_CONSTANTS = {
     "AOAHID_VERSION_MAJOR": 0,
-    "AOAHID_VERSION_MINOR": 2,
+    "AOAHID_VERSION_MINOR": 3,
     "AOAHID_VERSION_PATCH": 0,
     "AOAHID_OK": 0,
     "AOAHID_ERR_PARAM": 1,
@@ -444,8 +442,6 @@ GOLDEN_CONSTANTS = {
     "AOAHID_DPAD_NONE": 1,
     "AOAHID_DPAD_HAT": 2,
     "AOAHID_DPAD_BUTTONS": 3,
-    "AOAHID_CONTROLLER_GAMEPAD": 1,
-    "AOAHID_CONTROLLER_JOYSTICK": 2,
     "AOAHID_USAGE_SELECTOR_BITMAP": 1,
     "AOAHID_USAGE_ON_OFF_TOGGLE": 2,
     "AOAHID_USAGE_ON_OFF_MAINTAINED": 3,
@@ -480,7 +476,7 @@ def parse_observed(output: str) -> dict[str, int]:
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("usage: check_v0_2_0_golden.py LAYOUT_ORACLE", file=sys.stderr)
+        print("usage: check_v0_3_0_golden.py LAYOUT_ORACLE", file=sys.stderr)
         return 2
     executable = Path(sys.argv[1])
     completed = subprocess.run(
@@ -490,15 +486,15 @@ def main() -> int:
     expected = expected_values()
     failed = False
     for key in sorted(expected.keys() - observed.keys()):
-        print(f"v0.2.0 ABI oracle omitted {key}", file=sys.stderr)
+        print(f"v0.3.0 ABI oracle omitted {key}", file=sys.stderr)
         failed = True
     for key in sorted(observed.keys() - expected.keys()):
-        print(f"v0.2.0 ABI oracle added unknown entry {key}", file=sys.stderr)
+        print(f"v0.3.0 ABI oracle added unknown entry {key}", file=sys.stderr)
         failed = True
     for key in sorted(expected.keys() & observed.keys()):
         if observed[key] != expected[key]:
             print(
-                f"v0.2.0 ABI drift: {key}: observed {observed[key]}, "
+                f"v0.3.0 ABI drift: {key}: observed {observed[key]}, "
                 f"expected {expected[key]}",
                 file=sys.stderr,
             )
@@ -506,7 +502,7 @@ def main() -> int:
     if failed:
         return 1
     print(
-        f"v0.2.0 C ABI matches: {len(GOLDEN_STRUCTS)} structures, "
+        f"v0.3.0 C ABI matches: {len(GOLDEN_STRUCTS)} structures, "
         f"{len(GOLDEN_CONSTANTS)} constants"
     )
     return 0

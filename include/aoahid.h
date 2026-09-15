@@ -30,7 +30,7 @@ extern "C" {
 #endif
 
 #define AOAHID_VERSION_MAJOR 0
-#define AOAHID_VERSION_MINOR 2
+#define AOAHID_VERSION_MINOR 3
 #define AOAHID_VERSION_PATCH 0
 
 typedef struct aoahid_context aoahid_context;
@@ -103,11 +103,10 @@ enum {
      * System Control, Camera Control, Telephony, or a caller-chosen page. The
      * exact Application Collection and field Usage Page are caller fields. */
     AOAHID_PROFILE_TOGGLE = 3,
-    /* Also covers the Joystick Application Collection Usage; select it with
-     * aoahid_gamepad_options.application. */
+    /* Always the Generic Desktop / Game Pad Application Collection Usage. */
     AOAHID_PROFILE_GAMEPAD = 4,
-    /* Fixed-slot Multi-Touch only. Also covers Touchpad; select it by setting
-     * aoahid_touch_options.touchpad_button_count above zero. */
+    /* Always the fixed-slot Multi-Touch Touch Screen Application Collection
+     * Usage. */
     AOAHID_PROFILE_TOUCHSCREEN = 5,
     AOAHID_PROFILE_PEN = 6,
     AOAHID_PROFILE_BATTERY = 7,
@@ -146,9 +145,6 @@ enum {
 
 typedef int32_t aoahid_dpad_representation;
 enum { AOAHID_DPAD_NONE = 1, AOAHID_DPAD_HAT = 2, AOAHID_DPAD_BUTTONS = 3 };
-
-typedef int32_t aoahid_controller_application;
-enum { AOAHID_CONTROLLER_GAMEPAD = 1, AOAHID_CONTROLLER_JOYSTICK = 2 };
 
 /* Exact one-control report semantics selected for each Consumer, System,
  * Camera, or Telephony Usage.  These values name a descriptor encoding, not
@@ -364,7 +360,6 @@ typedef struct aoahid_gamepad_options {
     uint32_t struct_size;
     uint32_t reserved;
     aoahid_report_id_option report_id;
-    aoahid_controller_application application;
     const aoahid_gamepad_axis* axes;
     size_t axis_count;
     uint32_t button_count;
@@ -380,10 +375,8 @@ typedef struct aoahid_gamepad_options {
 
 /* Always the fixed-slot Multi-Touch report shape (explicit Contact
  * Identifier and Contact Count fields, one packet per declared slot unless
- * enable_multi_packet_frames selects more). Set touchpad_button_count above
- * zero to additionally declare a Touchpad's physical click buttons and place
- * the Application Collection under the Touch Pad Usage instead of Touch
- * Screen. */
+ * enable_multi_packet_frames selects more) under the Touch Screen Application
+ * Collection Usage. */
 typedef struct aoahid_touch_options {
     uint32_t struct_size;
     uint32_t reserved;
@@ -412,7 +405,6 @@ typedef struct aoahid_touch_options {
     uint32_t scan_time_unit_100us;
     uint32_t enable_contact_count_maximum_feature_declaration;
     uint32_t enable_multi_packet_frames;
-    uint32_t touchpad_button_count;
 } aoahid_touch_options;
 
 typedef struct aoahid_pen_options {
@@ -799,10 +791,9 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_spec_create_toggle(const aoahid_togg
  * Blocking: Performs validation and allocation but no I/O or waiting.
  * Synchronization: Has no Context domain and may run concurrently; caller-owned
  * input/output storage must not be concurrently mutated.
- * Selects the Gamepad or Joystick Application Collection through
- * options->application; both share this one factory and one runtime API.
+ * Always the Generic Desktop / Game Pad Application Collection.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid pointers/ABI fields, axis,
- * button, application, or D-pad declarations; AOAHID_ERR_UNSET_FIELD for missing
+ * button, or D-pad declarations; AOAHID_ERR_UNSET_FIELD for missing
  * axis width/evidence; AOAHID_ERR_OVERFLOW for count/Usage/descriptor/layout
  * overflow; AOAHID_ERR_INTERNAL for allocation, generation inconsistency, or an
  * unexpected exception. */
@@ -815,9 +806,7 @@ aoahid_spec_create_gamepad(const aoahid_gamepad_options* options, aoahid_spec** 
  * Blocking: Performs validation and allocation but no I/O or waiting.
  * Synchronization: Has no Context domain and may run concurrently; out_spec and
  * caller-owned options must not be concurrently mutated.
- * Set options->touchpad_button_count above zero to declare a Touchpad's
- * physical click buttons and use the Touch Pad Application Collection instead
- * of Touch Screen; both share this one factory and one runtime API.
+ * Always the fixed-slot Multi-Touch Touch Screen Application Collection.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid pointers/ABI fields, range,
  * count, or flag; AOAHID_ERR_OVERFLOW for button, descriptor, or layout
  * overflow; AOAHID_ERR_INTERNAL for allocation, generation inconsistency, or
@@ -1072,7 +1061,7 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_toggle(aoahid_node* node, uint16_t u
                                                    uint32_t down);
 
 /* aoahid_gamepad_button
- * Ownership: Borrows a Gamepad or Joystick Node; no ownership changes.
+ * Ownership: Borrows a Gamepad Node; no ownership changes.
  * Blocking: Does not block, allocate, log, or perform I/O.
  * Synchronization: Belongs to the parent Context domain; serialize mutation and
  * submission calls. It is rejected while one report is in flight.
@@ -1084,7 +1073,7 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_gamepad_button(aoahid_node* node, ui
                                                            uint32_t pressed);
 
 /* aoahid_gamepad_set_axis
- * Ownership: Borrows a Gamepad or Joystick Node; no ownership changes.
+ * Ownership: Borrows a Gamepad Node; no ownership changes.
  * Blocking: Does not block, allocate, log, or perform I/O.
  * Synchronization: Belongs to the parent Context domain; serialize mutation and
  * submission calls. It is rejected while one report is in flight.
@@ -1095,7 +1084,7 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_gamepad_set_axis(aoahid_node* node, 
                                                              int32_t value);
 
 /* aoahid_dpad
- * Ownership: Borrows a Gamepad or Joystick Node; no ownership changes.
+ * Ownership: Borrows a Gamepad Node; no ownership changes.
  * Blocking: Does not block, allocate, log, or perform I/O.
  * Synchronization: Belongs to the parent Context domain; serialize mutation and
  * submission calls. It is rejected while one report is in flight.
@@ -1110,7 +1099,7 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_dpad(aoahid_node* node, uint32_t up,
                                                  uint32_t right, uint32_t left);
 
 /* aoahid_touch
- * Ownership: Borrows a Touchscreen/Touchpad Node and extra for the call; it
+ * Ownership: Borrows a Touchscreen Node and extra for the call; it
  * copies the sample and changes no ownership.
  * Blocking: Does not block, allocate, log, or perform I/O.
  * Synchronization: Belongs to the parent Context domain; serialize mutation and
@@ -1129,18 +1118,6 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_dpad(aoahid_node* node, uint32_t up,
 AOAHID_API aoahid_result AOAHID_CALL aoahid_touch(aoahid_node* node, uint32_t contact_id,
                                                   uint32_t down, int32_t x, int32_t y,
                                                   const aoahid_touch_extra* extra);
-
-/* aoahid_touchpad_button
- * Ownership: Borrows exactly a Touchpad Node; no ownership changes.
- * Blocking: Does not block, allocate, log, or perform I/O.
- * Synchronization: Belongs to the parent Context domain; serialize mutation and
- * submission calls. It is rejected during an in-flight/multi-packet frame.
- * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid Node/profile, one-based button,
- * or pressed flag; AOAHID_ERR_BUSY for an in-flight frame;
- * AOAHID_ERR_NO_DEVICE for sticky loss; AOAHID_ERR_INTERNAL for unexpected
- * ABI-boundary failure. */
-AOAHID_API aoahid_result AOAHID_CALL aoahid_touchpad_button(aoahid_node* node, uint32_t button,
-                                                            uint32_t pressed);
 
 /* aoahid_pen_update
  * Ownership: Borrows a Pen Node and sample for the call; it copies the sample and

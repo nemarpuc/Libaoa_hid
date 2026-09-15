@@ -16,7 +16,7 @@ from typing import Union
 
 # All public enum domains in aoahid.h are exactly int32_t.
 AOAHID_VERSION_MAJOR = 0
-AOAHID_VERSION_MINOR = 2
+AOAHID_VERSION_MINOR = 3
 AOAHID_VERSION_PATCH = 0
 AOAHID_OK = 0
 AOAHID_ERR_PARAM = 1
@@ -82,8 +82,6 @@ AOAHID_AXIS_SIMULATION_THROTTLE = 14
 AOAHID_DPAD_NONE = 1
 AOAHID_DPAD_HAT = 2
 AOAHID_DPAD_BUTTONS = 3
-AOAHID_CONTROLLER_GAMEPAD = 1
-AOAHID_CONTROLLER_JOYSTICK = 2
 
 AOAHID_USAGE_SELECTOR_BITMAP = 1
 AOAHID_USAGE_ON_OFF_TOGGLE = 2
@@ -304,7 +302,6 @@ class GamepadOptions(c.Structure):
         ("struct_size", c.c_uint32),
         ("reserved", c.c_uint32),
         ("report_id", ReportId),
-        ("application", c.c_int32),
         ("axes", c.POINTER(GamepadAxis)),
         ("axis_count", c.c_size_t),
         ("button_count", c.c_uint32),
@@ -340,7 +337,6 @@ class TouchOptions(c.Structure):
         ("scan_time_unit_100us", c.c_uint32),
         ("enable_contact_count_maximum_feature_declaration", c.c_uint32),
         ("enable_multi_packet_frames", c.c_uint32),
-        ("touchpad_button_count", c.c_uint32),
     ]
 
 
@@ -545,7 +541,6 @@ def load(path: Union[os.PathLike, str]) -> c.CDLL:
     declare("aoahid_gamepad_set_axis", [NodeP, c.c_size_t, c.c_int32], result)
     declare("aoahid_dpad", [NodeP, c.c_uint32, c.c_uint32, c.c_uint32, c.c_uint32], result)
     declare("aoahid_touch", [NodeP, c.c_uint32, c.c_uint32, c.c_int32, c.c_int32, c.POINTER(TouchExtra)], result)
-    declare("aoahid_touchpad_button", [NodeP, c.c_uint32, c.c_uint32], result)
     declare("aoahid_pen_update", [NodeP, c.POINTER(PenSample)], result)
     declare("aoahid_pen_depart", [NodeP], result)
     declare("aoahid_battery_update", [NodeP, c.c_uint32, c.c_int32], result)
