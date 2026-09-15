@@ -86,9 +86,10 @@ previously selected the Joystick or Touchpad form; it is a breaking-ABI
 change within the pre-1.0 line. Neither removed form ever completed the
 four-level physical-device gate (`getevent`, `dumpsys input`, application
 API, and kernel device), so this release does not retract a hardware
-verification claim -- both forms were already `[Unverified on hardware]`.
-The Android kernel/`EventHub`/`Generic.kl` source citations above establish
-which Application Collection Android's generic input stack favors; they are
+verification claim -- both forms were already **not hardware-verified**, and
+no profile in this release has completed that gate. The Android
+kernel/`EventHub`/`Generic.kl` source citations above establish which
+Application Collection Android's generic input stack favors; they are
 `[Specified Linux/AOSP implementation observation]`, not a claim that this
 library's own generated descriptors have been exercised through that code
 path on a physical device. See `TARGET_MATRIX.md`.
