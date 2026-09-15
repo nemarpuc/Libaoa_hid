@@ -1234,70 +1234,6 @@ void test_descriptor_requirements_are_caller_policies() {
     aoahid_fake_libusb_reset();
 }
 
-void test_public_touchpad_button_only_close() {
-    aoahid_fake_libusb_reset();
-    const Candidate candidate = add_candidate(12U, {5U, 2U});
-
-    aoahid_context* context = nullptr;
-    aoahid_context_options context_options = public_context_options();
-    AOAHID_CHECK(aoahid_context_create(&context_options, &context) == AOAHID_OK);
-
-    const aoahid_device_info selected{candidate.bus,
-                                      candidate.address,
-                                      candidate.port_path.data(),
-                                      candidate.port_path.size(),
-                                      candidate.vendor_id,
-                                      candidate.product_id,
-                                      candidate.serial.c_str(),
-                                      candidate.product.c_str()};
-    aoahid_device* device = nullptr;
-    aoahid_device_options device_options = public_device_options();
-    device_options.close_drain_timeout_ms = 100U;
-    AOAHID_CHECK(aoahid_device_open(context, &selected, &device_options, &device) == AOAHID_OK);
-
-    aoahid_touch_options touch{};
-    touch.struct_size = sizeof(touch);
-    touch.maximum_contacts = 2U;
-    touch.contacts_per_report = 2U;
-    touch.contact_identifier = {0, 15, 4U, {}};
-    touch.x = {0, 1000, 16U, {}};
-    touch.y = {0, 1000, 16U, {}};
-    touch.contact_count = {0, 2, 2U, {}};
-    touch.enable_scan_time = 1U;
-    touch.scan_time = {0, 65535, 16U, {}};
-    touch.scan_time_unit_100us = 1U;
-    touch.enable_multi_packet_frames = 0U;
-    touch.touchpad_button_count = 1U;
-
-    aoahid_spec* spec = nullptr;
-    AOAHID_CHECK(aoahid_spec_create_touchscreen(&touch, &spec) == AOAHID_OK);
-    const aoa::hid::FieldLayout* count =
-        profile_field(spec, aoa::hid::FieldSemantic::contact_count);
-    const aoa::hid::FieldLayout* button = profile_field(spec, aoa::hid::FieldSemantic::buttons);
-    AOAHID_CHECK(count != nullptr && button != nullptr);
-
-    const aoahid_node_options node_options{sizeof(aoahid_node_options), 0U, 1U, 0U};
-    aoahid_node* node = nullptr;
-    AOAHID_CHECK(aoahid_node_open(device, spec, &node_options, &node) == AOAHID_OK);
-    AOAHID_CHECK(aoahid_touchpad_button(node, 1U, 1U) == AOAHID_OK);
-    AOAHID_CHECK(aoahid_node_submit_blocking(node, 100U) == AOAHID_OK);
-    AOAHID_CHECK(aoahid_node_close(node) == AOAHID_OK);
-
-    const auto payloads = control_payloads_for(57U);
-    AOAHID_CHECK(payloads.size() == 2U);
-    if (payloads.size() == 2U && count != nullptr && button != nullptr) {
-        AOAHID_CHECK(extract_report_value(payloads[0], *count) == 0U);
-        AOAHID_CHECK(extract_report_value(payloads[0], *button) == 1U);
-        AOAHID_CHECK(extract_report_value(payloads[1], *count) == 0U);
-        AOAHID_CHECK(extract_report_value(payloads[1], *button) == 0U);
-    }
-
-    aoahid_spec_release(spec);
-    AOAHID_CHECK(aoahid_device_close(device) == AOAHID_OK);
-    AOAHID_CHECK(aoahid_context_destroy(context) == AOAHID_OK);
-    aoahid_fake_libusb_reset();
-}
-
 void test_public_controller_close_neutralizes_dpad() {
     aoahid_fake_libusb_reset();
     const Candidate candidate = add_candidate(14U, {5U, 4U});
@@ -1328,7 +1264,6 @@ void test_public_controller_close_neutralizes_dpad() {
     controller.axis_count = axes.size();
     controller.button_count = 5U;
     controller.button_usage_minimum = 1U;
-    controller.application = AOAHID_CONTROLLER_GAMEPAD;
 
     controller.dpad_representation = AOAHID_DPAD_BUTTONS;
     aoahid_spec* raw_spec = nullptr;
@@ -2181,7 +2116,6 @@ void test_transport() {
     test_zero_tuning_fallbacks_and_zero_reservation();
     test_cancel_and_device_isolation();
     test_blocking_event_wait_is_woken_by_cancel();
-    test_public_touchpad_button_only_close();
     test_public_controller_close_neutralizes_dpad();
     test_descriptor_requirements_are_caller_policies();
     test_public_touch_scan_time_lifecycle();

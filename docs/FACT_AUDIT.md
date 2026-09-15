@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This document records the source audit used for the HID descriptor and Input-report layer of `libaoahid`. It covers HID item encoding, Report IDs, top-level collections and reports, keyboard rollover, pointer deltas, Consumer and System controls, gamepad axes and hats, multitouch, touchpads, and pens.
+This document records the source audit used for the HID descriptor and Input-report layer of `libaoahid`. It covers HID item encoding, Report IDs, top-level collections and reports, keyboard rollover, pointer deltas, Consumer and System controls, gamepad axes and hats, multitouch, and pens.
 
 The AOA transport decision is intentionally kept separate. The current runtime
 is Mode A-only, while acceptance of requests 54-57 before `ACCESSORY_START`
@@ -428,8 +428,8 @@ HUT's Gamepad Usage alone does not establish this Android contract.
 Pad Application Collection with the canonical Hat and a contiguous Button Page
 range beginning at `1` whose count is at least `5`; that range necessarily
 contains the CDD's A/B/X/Y Usage IDs. Contiguity is a **[Guide policy]** imposed
-by this generated descriptor form, not CDD wording. Raw D-pad, no-D-pad,
-Joystick, and other button ranges remain conditional. Every form remains
+by this generated descriptor form, not CDD wording. Raw D-pad, no-D-pad, and
+other button ranges remain conditional. Every form remains
 **[Unverified on hardware]**.
 
 **Source conflict:** the same CDD subsection says Hat values increase clockwise
@@ -468,15 +468,9 @@ universal HUT direction-number rule, and is separately recorded in
 
 **Resolution:** The "reuse previous expected count" description does not apply unchanged to the singular one-contact path. It also does not make an empty report a portable lift. The one-contact MT profile uses the same Contact ID and sends one explicit report with Tip Switch clear before removing the contact.
 
-### A-14a - Touchpad buttons and an idle zero-count report
+### A-14a - Touchpad application removed in 0.3.0
 
-**Input ambiguity:** `DESIGN.md` §8.2 says that buttons which do not belong to the pointer collection go in a separate node. It does not say that every physical touchpad button is forbidden in a Touch Pad Application Collection. The generated touchpad descriptor places its Button Page fields outside the Finger collections and inside the Touch Pad Application Collection.
-
-**[Specified Linux implementation observation]** In the audited generic multitouch path, `mt_touch_input_mapping` counts Button Page fields and maps them to `BTN_MOUSE` codes. `mt_touch_input_configured` marks a pointer device with one such button as a buttonpad. For an idle default-class frame, `num_received` and `num_expected` are both zero. A Contact Count of zero leaves `num_expected` unchanged; `mt_process_slot` skips the zero-filled contact records under `MT_QUIRK_CONTACT_CNT_ACCURATE`; `mt_process_mt_event` emits the mapped button value; and the final `num_received >= num_expected` check calls `mt_sync_frame`, which calls `input_sync`. This establishes the button press/release processing path in commit `35556bed836f8dc07ac55f69c8d17dce3e7f0e25`; it is not a USB HID rule or an Android compatibility guarantee.
-
-**[Specified Linux implementation observation]** The same source has separate logic for a Win8 PTP first packet whose Contact Count is zero and whose only change is a button event. That path uses a Scan Time change to distinguish the report from a continuation packet. The generated conditional Android touchpad profile does not depend on Win8 grouping or on a Feature response.
-
-**Resolution:** The conditional touchpad factory may include caller-selected Button Page fields. A button-only press or release when no contact frame is in progress carries Contact Count zero. Button mutation is rejected while a multi-packet frame is between packets, so that such a report cannot be inserted where zero means continuation. Closing a previously reported pressed button sends the same zero-count button-release form after any current frame has completed. Touchscreen buttons remain rejected by the generated portable-candidate factory. Android classification, click handling, and application visibility remain **[Unverified on hardware]**.
+**Historical note:** Through 0.2.0, setting `touchpad_button_count` above zero on `aoahid_touch_options` selected the Digitizers Touch Pad Application Collection instead of Touch Screen and added caller-selected Button Page fields, reusing the same fixed-slot Multi-Touch contact engine. That option, its runtime `aoahid_touchpad_button` call, and the underlying button/button-transition state were removed in 0.3.0. `aoahid_spec_create_touchscreen` now always emits the Touch Screen Application Collection. This entry's number is kept for stable cross-referencing; it no longer describes live behavior.
 
 ### A-14b - Azimuth full-turn endpoint differs from its sample domain
 
@@ -534,8 +528,8 @@ Minimum `0`. At the first activity frame after inactivity, the state machine
 captures `std::chrono::steady_clock` as its epoch and emits `0`. Each later
 frame derives elapsed 100-microsecond ticks modulo
 `logical_maximum + 1`; every continuation packet reuses the value chosen for
-that frame. When successful completion leaves both contacts and touchpad
-buttons inactive, it clears the epoch so the next activity frame starts at
+that frame. When successful completion leaves every contact inactive, it
+clears the epoch so the next activity frame starts at
 `0`. The clock choice, modulo, completion boundary, and inactive reset are
 **[Guide policy]** implementation mechanics, not HUT requirements. Any other
 unit is target-specific and requires a separate target audit.

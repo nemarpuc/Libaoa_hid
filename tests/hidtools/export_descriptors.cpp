@@ -382,7 +382,6 @@ int main(const int argc, char** argv) {
                             "AXIS_Y"}};
     aoahid_gamepad_options controller{};
     controller.struct_size = static_cast<std::uint32_t>(sizeof(controller));
-    controller.application = AOAHID_CONTROLLER_GAMEPAD;
     controller.axes = axes.data();
     controller.axis_count = axes.size();
     controller.button_count = 12U;
@@ -395,19 +394,9 @@ int main(const int argc, char** argv) {
                          aoahid_spec_create_gamepad(&controller, &spec), spec) &&
          ok;
     spec = nullptr;
-    controller.application = AOAHID_CONTROLLER_JOYSTICK;
-    ok = emit_descriptor(output_directory, "joystick",
-                         aoahid_spec_create_gamepad(&controller, &spec), spec) &&
-         ok;
-    spec = nullptr;
 
     aoahid_touch_options touch = fixed_touch_options();
     ok = emit_descriptor(output_directory, "touchscreen-fixed-mt",
-                         aoahid_spec_create_touchscreen(&touch, &spec), spec) &&
-         ok;
-    spec = nullptr;
-    touch.touchpad_button_count = 2U;
-    ok = emit_descriptor(output_directory, "touchpad-fixed-mt",
                          aoahid_spec_create_touchscreen(&touch, &spec), spec) &&
          ok;
     spec = nullptr;

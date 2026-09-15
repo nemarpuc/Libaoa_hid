@@ -190,7 +190,6 @@ fn create_specs() -> Result<Specs, sys::aoahid_result> {
         scan_time_unit_100us: 0,
         enable_contact_count_maximum_feature_declaration: 0,
         enable_multi_packet_frames: 0,
-        touchpad_button_count: 0,
     };
     let mut specs = Specs {
         keyboard: ptr::null_mut(),

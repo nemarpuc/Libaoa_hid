@@ -673,8 +673,6 @@ static aoahid_result create_controller_spec(const aoahid_gamepad_options* option
     if (options->reserved != 0U || !validate_report_id(options->report_id, "gamepad.report_id") ||
         options->axes == nullptr || options->axis_count < 2U || options->button_count == 0U ||
         options->button_count > 65535U || options->button_usage_minimum == 0U ||
-        (options->application != AOAHID_CONTROLLER_GAMEPAD &&
-         options->application != AOAHID_CONTROLLER_JOYSTICK) ||
         (options->dpad_representation != AOAHID_DPAD_NONE &&
          options->dpad_representation != AOAHID_DPAD_HAT &&
          options->dpad_representation != AOAHID_DPAD_BUTTONS)) {
@@ -781,19 +779,14 @@ static aoahid_result create_controller_spec(const aoahid_gamepad_options* option
     const bool has_android_abxy =
         options->button_usage_minimum == 1U && options->button_count >= 5U;
     const aoahid_android_status android_status =
-        options->application == AOAHID_CONTROLLER_JOYSTICK ||
-                options->dpad_representation == AOAHID_DPAD_BUTTONS ||
-                options->dpad_representation != AOAHID_DPAD_HAT || !has_android_abxy
+        options->dpad_representation != AOAHID_DPAD_HAT || !has_android_abxy
             ? AOAHID_ANDROID_CONDITIONAL
             : AOAHID_ANDROID_PORTABLE_CANDIDATE;
     return build_generated_spec(
         GeneratedSpecIdentity{AOAHID_PROFILE_GAMEPAD, android_status}, std::move(config),
         [=](DescriptorBuilder& builder, ReportLayout& layout) {
-            const std::uint16_t application_usage =
-                options->application == AOAHID_CONTROLLER_GAMEPAD ? aoa::hid::usage::gamepad
-                                                                  : aoa::hid::usage::joystick;
             if (!builder.begin_application(aoa::hid::usage::page_generic_desktop,
-                                           application_usage) ||
+                                           aoa::hid::usage::gamepad) ||
                 !builder.set_report_id(options->report_id.enabled == 1U,
                                        options->report_id.value) ||
                 !builder.variable_range(aoa::hid::usage::page_button, options->button_usage_minimum,
@@ -854,7 +847,6 @@ static aoahid_result create_touch_spec(const aoahid_touch_options* options,
                                    "touchscreen_options")) {
         return AOAHID_ERR_PARAM;
     }
-    const bool touchpad = options->touchpad_button_count != 0U;
     if (options->reserved != 0U || !validate_report_id(options->report_id, "touch.report_id") ||
         !validate_field(options->x, "touch.x") || !validate_field(options->y, "touch.y") ||
         options->x.logical_minimum > 0 || options->x.logical_maximum < 0 ||
@@ -966,22 +958,14 @@ static aoahid_result create_touch_spec(const aoahid_touch_options* options,
             "The portable Linux profile requires an explicit 100-microsecond Scan Time counter.");
         return AOAHID_ERR_PARAM;
     }
-    if (options->touchpad_button_count > 65535U) {
-        set_error(AOAHID_ERR_OVERFLOW, "touch.touchpad_button_count",
-                  "The Button Usage range cannot exceed the 16-bit Usage value space.");
-        return AOAHID_ERR_OVERFLOW;
-    }
     aoa::detail::TouchConfig config{};
     config.options = *options;
     return build_generated_spec(
-        GeneratedSpecIdentity{AOAHID_PROFILE_TOUCHSCREEN, touchpad
-                                                              ? AOAHID_ANDROID_CONDITIONAL
-                                                              : AOAHID_ANDROID_PORTABLE_CANDIDATE},
+        GeneratedSpecIdentity{AOAHID_PROFILE_TOUCHSCREEN, AOAHID_ANDROID_PORTABLE_CANDIDATE},
         config,
         [=](DescriptorBuilder& builder, ReportLayout& layout) {
-            const std::uint16_t application =
-                touchpad ? aoa::hid::usage::touch_pad : aoa::hid::usage::touch_screen;
-            if (!builder.begin_application(aoa::hid::usage::page_digitizers, application) ||
+            if (!builder.begin_application(aoa::hid::usage::page_digitizers,
+                                           aoa::hid::usage::touch_screen) ||
                 !builder.set_report_id(options->report_id.enabled == 1U,
                                        options->report_id.value)) {
                 return false;
@@ -1075,14 +1059,6 @@ static aoahid_result create_touch_spec(const aoahid_touch_options* options,
                     static_cast<std::uint8_t>(options->contact_count.bit_width), false, false,
                     FieldSemantic::contact_count, 0U, false, &options->contact_count.physical)) {
                 return false;
-            }
-            if (touchpad) {
-                if (!builder.variable_range(
-                        aoa::hid::usage::page_button, 1U,
-                        static_cast<std::uint16_t>(options->touchpad_button_count), 1U,
-                        FieldSemantic::buttons)) {
-                    return false;
-                }
             }
             pad_report(builder, layout);
             return builder.end_collection();

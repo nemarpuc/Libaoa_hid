@@ -31,11 +31,10 @@ pub type aoahid_android_status = i32;
 pub type aoahid_pen_mode = i32;
 pub type aoahid_axis_role = i32;
 pub type aoahid_dpad_representation = i32;
-pub type aoahid_controller_application = i32;
 pub type aoahid_usage_semantic = i32;
 
 pub const AOAHID_VERSION_MAJOR: u32 = 0;
-pub const AOAHID_VERSION_MINOR: u32 = 2;
+pub const AOAHID_VERSION_MINOR: u32 = 3;
 pub const AOAHID_VERSION_PATCH: u32 = 0;
 pub const AOAHID_OK: i32 = 0;
 pub const AOAHID_ERR_PARAM: i32 = 1;
@@ -100,8 +99,6 @@ pub const AOAHID_AXIS_SIMULATION_THROTTLE: i32 = 14;
 pub const AOAHID_DPAD_NONE: i32 = 1;
 pub const AOAHID_DPAD_HAT: i32 = 2;
 pub const AOAHID_DPAD_BUTTONS: i32 = 3;
-pub const AOAHID_CONTROLLER_GAMEPAD: i32 = 1;
-pub const AOAHID_CONTROLLER_JOYSTICK: i32 = 2;
 
 pub const AOAHID_USAGE_SELECTOR_BITMAP: i32 = 1;
 pub const AOAHID_USAGE_ON_OFF_TOGGLE: i32 = 2;
@@ -229,7 +226,7 @@ c_struct!(aoahid_gamepad_axis {
 });
 c_struct!(aoahid_gamepad_options {
     struct_size: u32, reserved: u32, report_id: aoahid_report_id_option,
-    application: aoahid_controller_application, axes: *const aoahid_gamepad_axis,
+    axes: *const aoahid_gamepad_axis,
     axis_count: usize, button_count: u32, button_usage_minimum: u16,
     dpad_representation: aoahid_dpad_representation,
     hat_logical_minimum: i32, hat_logical_maximum: i32, hat_bit_width: u32,
@@ -257,7 +254,6 @@ c_struct!(aoahid_touch_options {
     scan_time_unit_100us: u32,
     enable_contact_count_maximum_feature_declaration: u32,
     enable_multi_packet_frames: u32,
-    touchpad_button_count: u32,
 });
 c_struct!(aoahid_pen_options {
     struct_size: u32, reserved: u32, report_id: aoahid_report_id_option,
@@ -450,11 +446,6 @@ extern "C" {
         x: i32,
         y: i32,
         extra: *const aoahid_touch_extra,
-    ) -> aoahid_result;
-    pub fn aoahid_touchpad_button(
-        node: *mut aoahid_node,
-        button: u32,
-        pressed: u32,
     ) -> aoahid_result;
     pub fn aoahid_pen_update(
         node: *mut aoahid_node,

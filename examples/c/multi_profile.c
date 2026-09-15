@@ -246,7 +246,6 @@ static aoahid_result create_specs(specs* result) {
     touch.scan_time_unit_100us = 0U;
     touch.enable_contact_count_maximum_feature_declaration = 0U;
     touch.enable_multi_packet_frames = 0U;
-    touch.touchpad_button_count = 0U;
 
     *result = (specs){NULL, NULL, NULL};
     aoahid_result status = aoahid_spec_create_keyboard(&keyboard, &result->keyboard);

@@ -198,7 +198,6 @@ def create_specs(library: c.CDLL) -> Specs:
     touch_options.scan_time_unit_100us = 0
     touch_options.enable_contact_count_maximum_feature_declaration = 0
     touch_options.enable_multi_packet_frames = 0
-    touch_options.touchpad_button_count = 0
 
     keyboard = SpecP()  # noqa: F405
     mouse = SpecP()  # noqa: F405

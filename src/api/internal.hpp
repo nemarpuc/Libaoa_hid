@@ -134,8 +134,6 @@ struct GamepadState {
 
 struct TouchState {
     std::array<ContactState, 16> contacts{};
-    std::vector<std::uint8_t> buttons;
-    std::vector<std::uint8_t> button_transitions;
     std::uint32_t scan_time{};
     std::size_t packet_cursor{};
     std::chrono::steady_clock::time_point scan_epoch{};

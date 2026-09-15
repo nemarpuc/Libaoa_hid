@@ -191,8 +191,6 @@ void consume_lifecycle_transitions(aoahid_node* node) noexcept {
         for (auto& contact : touch->contacts) {
             contact.lifecycle_transition_pending = false;
         }
-        std::fill(touch->button_transitions.begin(), touch->button_transitions.end(),
-                  std::uint8_t{0});
     } else if (auto* pen = state<aoa::detail::PenState>(node); pen != nullptr) {
         pen->barrel_transitions = 0U;
         pen->in_range_transition_pending = false;
@@ -358,8 +356,6 @@ aoahid_result serialize_node(aoahid_node* node, std::uint8_t* report, const std:
                        field.instance < gamepad_config->options.button_count + 4U) {
                 value =
                     (gamepad->hat >> (field.instance - gamepad_config->options.button_count)) & 1;
-            } else if (touch != nullptr && field.instance < touch->buttons.size()) {
-                value = touch->buttons[field.instance];
             } else if (pen != nullptr) {
                 value = pen->tool_switch_departure || pen->desired.in_range == 0U
                             ? 0
@@ -565,9 +561,7 @@ void transfer_complete(void* user, const aoahid_result result,
                     std::any_of(touch->contacts.begin(), touch->contacts.end(),
                                 [](const ContactState& contact) {
                                     return contact.phase == ContactPhase::down;
-                                }) ||
-                    std::any_of(touch->buttons.begin(), touch->buttons.end(),
-                                [](const std::uint8_t value) { return value != 0U; });
+                                });
                 if (!still_active) {
                     // HUT 1.7 section 16.5 defines the base as the first frame
                     // after inactivity, so the next activity starts at zero.
@@ -1063,40 +1057,6 @@ static aoahid_result aoahid_touch_impl(aoahid_node* node, const std::uint32_t co
     return AOAHID_OK;
 }
 
-static aoahid_result aoahid_touchpad_button_impl(aoahid_node* node, const std::uint32_t button,
-                                                 const std::uint32_t pressed) {
-    aoa::detail::clear_error();
-    const aoahid_result check = usable(node, AOAHID_PROFILE_TOUCHSCREEN, "touchpad.button");
-    if (check != AOAHID_OK)
-        return check;
-    auto* touch = state<aoa::detail::TouchState>(node);
-    if (touch->packet_cursor != 0U) {
-        set_error(AOAHID_ERR_BUSY, "touchpad.button",
-                  "The current multi-packet frame must finish before state changes.");
-        return AOAHID_ERR_BUSY;
-    }
-    if (button == 0U || button > touch->buttons.size() || !aoa::detail::valid_boolean(pressed)) {
-        set_error(AOAHID_ERR_PARAM, "touchpad.button",
-                  "Button is one-based and pressed must be zero or one.");
-        return AOAHID_ERR_PARAM;
-    }
-    if (!transition_storage_matches(touch->buttons, touch->button_transitions, "touchpad.button")) {
-        return AOAHID_ERR_INTERNAL;
-    }
-    const std::size_t index = button - 1U;
-    const auto value = static_cast<std::uint8_t>(pressed);
-    const bool changed = touch->buttons[index] != value;
-    if (changed && touch->button_transitions[index] != 0U) {
-        return pending_transition("touchpad.button");
-    }
-    if (changed) {
-        touch->buttons[index] = value;
-        touch->button_transitions[index] = 1U;
-    }
-    node->dirty = node->dirty || changed;
-    return AOAHID_OK;
-}
-
 static aoahid_result aoahid_pen_update_impl(aoahid_node* node, const aoahid_pen_sample* sample) {
     aoa::detail::clear_error();
     const aoahid_result check = usable(node, AOAHID_PROFILE_PEN, "pen.update");
@@ -1250,12 +1210,6 @@ aoahid_result AOAHID_CALL aoahid_touch(aoahid_node* node, const std::uint32_t co
                                        const std::int32_t y, const aoahid_touch_extra* extra) {
     return abi_state_result("touch",
                             [&] { return aoahid_touch_impl(node, contact_id, down, x, y, extra); });
-}
-
-aoahid_result AOAHID_CALL aoahid_touchpad_button(aoahid_node* node, const std::uint32_t button,
-                                                 const std::uint32_t pressed) {
-    return abi_state_result("touchpad.button",
-                            [&] { return aoahid_touchpad_button_impl(node, button, pressed); });
 }
 
 aoahid_result AOAHID_CALL aoahid_pen_update(aoahid_node* node, const aoahid_pen_sample* sample) {

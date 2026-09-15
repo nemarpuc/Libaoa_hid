@@ -38,7 +38,6 @@ public enum ClaimPolicy : int { None = 1, Explicit = 2 }
 public enum LogLevel : int { Disabled = 1, Error = 2, Info = 3, Trace = 4 }
 public enum PenMode : int { DirectScreen = 1, IndirectTablet = 2 }
 public enum DpadRepresentation : int { None = 1, Hat = 2, Buttons = 3 }
-public enum ControllerApplication : int { Gamepad = 1, Joystick = 2 }
 
 public enum ProfileKind : int
 {
@@ -251,7 +250,6 @@ public struct GamepadOptions
     public uint StructSize;
     public uint Reserved;
     public ReportId ReportId;
-    public ControllerApplication Application;
     public nint Axes;
     public nuint AxisCount;
     public uint ButtonCount;
@@ -287,7 +285,6 @@ public struct TouchOptions
     public uint ScanTimeUnit100us;
     public uint EnableContactCountMaximumFeatureDeclaration;
     public uint EnableMultiPacketFrames;
-    public uint TouchpadButtonCount;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -410,7 +407,7 @@ public static class Native
     private const string Library = "aoahid";
     private const CallingConvention Call = CallingConvention.Cdecl;
     public const uint AOAHID_VERSION_MAJOR = 0;
-    public const uint AOAHID_VERSION_MINOR = 2;
+    public const uint AOAHID_VERSION_MINOR = 3;
     public const uint AOAHID_VERSION_PATCH = 0;
 
     public static readonly IReadOnlyDictionary<string, int> AbiConstants =
@@ -475,8 +472,6 @@ public static class Native
             ["AOAHID_DPAD_NONE"] = 1,
             ["AOAHID_DPAD_HAT"] = 2,
             ["AOAHID_DPAD_BUTTONS"] = 3,
-            ["AOAHID_CONTROLLER_GAMEPAD"] = 1,
-            ["AOAHID_CONTROLLER_JOYSTICK"] = 2,
             ["AOAHID_USAGE_SELECTOR_BITMAP"] = 1,
             ["AOAHID_USAGE_ON_OFF_TOGGLE"] = 2,
             ["AOAHID_USAGE_ON_OFF_MAINTAINED"] = 3,
@@ -607,8 +602,6 @@ public static class Native
     // pointer and an all-zero struct identically, so no separate nint overload is needed.
     [DllImport(Library, EntryPoint = "aoahid_touch", ExactSpelling = true, CallingConvention = Call)]
     public static extern Result Touch(nint node, uint contactId, uint down, int x, int y, in TouchExtra extra);
-    [DllImport(Library, EntryPoint = "aoahid_touchpad_button", ExactSpelling = true, CallingConvention = Call)]
-    public static extern Result TouchpadButton(nint node, uint button, uint pressed);
     [DllImport(Library, EntryPoint = "aoahid_pen_update", ExactSpelling = true, CallingConvention = Call)]
     public static extern Result PenUpdate(nint node, in PenSample sample);
     [DllImport(Library, EntryPoint = "aoahid_pen_depart", ExactSpelling = true, CallingConvention = Call)]

@@ -476,16 +476,15 @@ policy.
 - **Freeze on loss.** Once `NO_DEVICE` is sticky, state machines stop accepting input and every call returns `NO_DEVICE` rather than accumulating state that will never be sent.
 - **Send-time validation** *(guide §26)*, on when the caller sets `validate_reports = 1`: node/profile identity, prefix and value correctness, exact report length for the selected ID, every field inside its logical range with matching signedness, lifecycle correctness, and no fragmentation.
 
-### 8.2 Touchscreen and touchpad
+### 8.2 Touchscreen
 
 The predecessor's finger state machine is the reference implementation of this section and is generalized, not replaced.
 
 - **Three-phase contact lifecycle: `None -> Down -> Up -> None`.** The `Up` frame is mandatory and is the phase a naive implementation forgets. A contact cannot simply vanish from the report: Contact Count is the number of *valid* slots, so a contact that disappears is never observed to go up. It must appear once more with Tip Switch cleared, still counted, and only then be dropped *(guide §17.4)*.
 - **Contact Count is derived per packet.** The first packet of a fixed-MT frame
   carries the total emitted-record count and continuation packets carry zero,
-  matching the audited Linux frame accumulator. A touchpad button-only report
-  also carries zero. After the final Up, a no-contact touchscreen frame is not
-  sent. These cases are distinct (`FACT_AUDIT.md` A-13 and A-14a).
+  matching the audited Linux frame accumulator. After the final Up, a
+  no-contact touchscreen frame is not sent (`FACT_AUDIT.md` A-13).
 - **Coordinates are retained across the lift.** The release frame reports the contact where it was let go, not at the origin.
 - **Contact ID is stable for the life of a contact** and is reported with the final X/Y and `Tip Switch = 0` on release *(guide §1, §17.4)*.
 - **Pressure is clamped to at least 1 while the tip is down**, when pressure is
@@ -501,8 +500,6 @@ The predecessor's finger state machine is the reference implementation of this s
 Configurable and *never* chosen by the library: resolution, contact count 1-16 *(the 16 figure is an Android `MotionEvent` application policy, not a HID or kernel limit - guide §6)*, protocol form (one-contact MT, fixed MT, or target-specific pure single touch), pressure presence and range, width and height presence and range, azimuth, orientation, contact-count-maximum feature declaration, Report IDs, and every logical range.
 
 `PureSingleTouchTargetSpecific` requires the caller to set `target_verified = 1`, because pure ST is not guaranteed to be classified DIRECT *(guide §24)*.
-
-Touchpad is a separate profile with the same contact engine and a different collection strategy, because classification, not geometry, is what separates it from a touchscreen *(guide §18)*. Buttons that do not belong to the pointer collection go into a separate node, since extra buttons can change classification *(guide §1)*.
 
 ### 8.3 Keyboard and keypad
 
@@ -546,7 +543,7 @@ Resolution Multiplier Feature.
   Telephony require caller allow-lists, semantics, and expected target evidence.
   OS or `MediaSession` interception remains target behavior.
 
-### 8.6 Gamepad, joystick, D-pad
+### 8.6 Gamepad, D-pad
 
 - **Canonical Hat state.** The Android-candidate Hat is fixed to logical 0..7
   in four bits with Physical 0..315 Degrees. Boolean directions map to eight
@@ -562,10 +559,10 @@ Configurable: the full axis list with per-axis usage, bit width, signedness and
 range; button count and usage base; hat presence; whether the D-pad is a hat or
 buttons; Report IDs. Only a Game Pad with the canonical Hat and a contiguous
 Button range beginning at 1 with at least five fields is a portable candidate
-under the audited Android 17 contract. Raw/no-D-pad Gamepads and every Joystick
-remain conditional. Simulation Controls usages are permitted inside a Generic
-Desktop Game Pad or Joystick top-level collection *(guide §11, page 0x02)*;
-that HUT placement alone does not establish Android portability.
+under the audited Android 17 contract. Raw/no-D-pad Gamepads remain
+conditional. Simulation Controls usages are permitted inside a Generic
+Desktop Game Pad top-level collection *(guide §11, page 0x02)*; that HUT
+placement alone does not establish Android portability.
 
 ### 8.7 Pen and stylus
 
@@ -731,7 +728,7 @@ libaoahid/
   src/
     transport/                  usb_device, aoa_requests, transfer_pool, event_pump, discovery
     hid/                        item_writer, descriptor_builder, report_layout, validator, usages
-    profiles/                   keyboard, mouse, consumer, gamepad, touchscreen, touchpad, pen,
+    profiles/                   keyboard, mouse, consumer, gamepad, touchscreen, pen,
                                 barcode, camera, telephony, battery, raw
     api/                        c_api, handle_table, error_detail, logging
   bindings/
@@ -836,10 +833,9 @@ The phrase "Android supported" does not appear in release notes for anything not
 - **Layout property tests.** For every generated layout, every field's declared bit offset and width match where the serializer actually writes.
 - **State machine tests.** The obligations of §8 are each a named test: the
   mandatory `Up` frame, first-packet active Contact Count with continuation
-  Count `0` (and the touchpad idle Count `0` case), coordinate retention across
-  a lift, contact ID stability, roll-over overflow and recovery, delta
-  splitting and consumption, hat null value, In Range and Tip constraints, and
-  neutral state on close.
+  Count `0`, coordinate retention across a lift, contact ID stability,
+  roll-over overflow and recovery, delta splitting and consumption, hat null
+  value, In Range and Tip constraints, and neutral state on close.
 - **Mock transport** replacing libusb, verifying exact request numbers, `wValue`, `wIndex`, fragment offsets, ordering, and the first-report retry.
 - **Fuzzing** of the descriptor builder, the report serializer and the raw validator.
 - **Sanitizers**, including a teardown race suite that cancels transfers under load.

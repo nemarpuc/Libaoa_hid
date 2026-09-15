@@ -178,7 +178,6 @@ internal static class Program
             ScanTimeUnit100us = 0,
             EnableContactCountMaximumFeatureDeclaration = 0,
             EnableMultiPacketFrames = 0,
-            TouchpadButtonCount = 0,
         };
 
         nint keyboard = nint.Zero;

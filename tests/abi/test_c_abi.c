@@ -20,8 +20,6 @@ _Static_assert(sizeof(aoahid_pen_mode) == sizeof(int32_t), "aoahid_pen_mode ABI 
 _Static_assert(sizeof(aoahid_axis_role) == sizeof(int32_t), "aoahid_axis_role ABI width");
 _Static_assert(sizeof(aoahid_dpad_representation) == sizeof(int32_t),
                "aoahid_dpad_representation ABI width");
-_Static_assert(sizeof(aoahid_controller_application) == sizeof(int32_t),
-               "aoahid_controller_application ABI width");
 _Static_assert(sizeof(aoahid_usage_semantic) == sizeof(int32_t), "aoahid_usage_semantic ABI width");
 
 int main(void) {

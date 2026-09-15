@@ -478,7 +478,6 @@ void test_hat_domain() {
     aoahid_gamepad_options options{};
     options.struct_size = static_cast<std::uint32_t>(sizeof(options));
     options.report_id = {0U, 0U, {0U, 0U, 0U}};
-    options.application = AOAHID_CONTROLLER_GAMEPAD;
     options.axes = axes.data();
     options.axis_count = axes.size();
     options.button_count = 1U;
@@ -512,20 +511,6 @@ void test_hat_domain() {
     }
     aoahid_spec_release(spec);
 
-    options.application = AOAHID_CONTROLLER_JOYSTICK;
-    options.button_count = 5U;
-    spec = nullptr;
-    AOAHID_CHECK(aoahid_spec_create_gamepad(&options, &spec) == AOAHID_OK);
-    if (spec != nullptr) {
-        aoahid_capability_manifest manifest{};
-        manifest.struct_size = static_cast<std::uint32_t>(sizeof(manifest));
-        AOAHID_CHECK(aoahid_spec_manifest(spec, &manifest) == AOAHID_OK);
-        AOAHID_CHECK(manifest.android_status == AOAHID_ANDROID_CONDITIONAL);
-    }
-    aoahid_spec_release(spec);
-    options.application = AOAHID_CONTROLLER_GAMEPAD;
-    options.button_count = 1U;
-
     axes[0].usage_page = 0x02U;
     axes[0].usage = 0xC4U;
     spec = nullptr;
@@ -556,7 +541,6 @@ void test_controller_dpad_and_extended_axes() {
             AOAHID_AXIS_SIMULATION_THROTTLE, 0x02U, 0xBBU, {0, 255, 8U, {}}, 0, "TEST", "TEST"}};
     aoahid_gamepad_options options{};
     options.struct_size = static_cast<std::uint32_t>(sizeof(options));
-    options.application = AOAHID_CONTROLLER_GAMEPAD;
     options.axes = axes.data();
     options.axis_count = axes.size();
     options.button_count = 1U;
@@ -755,7 +739,6 @@ aoahid_touch_options touch_options() {
     options.scan_time_unit_100us = 1U;
     options.enable_contact_count_maximum_feature_declaration = 0U;
     options.enable_multi_packet_frames = 1U;
-    options.touchpad_button_count = 0U;
     return options;
 }
 
@@ -957,51 +940,6 @@ void test_touch_lift_frame_and_idle_suppression() {
     AOAHID_CHECK(aoa::detail::serialize_node(&node, report.data(), report.size(), &length) ==
                  AOAHID_OK);
     AOAHID_CHECK(scan_time != nullptr && extract(report.data(), *scan_time) == 0U);
-    aoahid_spec_release(spec);
-}
-
-void test_touchpad_button_only_and_mid_frame_guard() {
-    aoahid_touch_options options = touch_options();
-    options.touchpad_button_count = 1U;
-    aoahid_spec* spec = nullptr;
-    AOAHID_CHECK(aoahid_spec_create_touchscreen(&options, &spec) == AOAHID_OK);
-    if (spec == nullptr)
-        return;
-
-    aoahid_node node{};
-    node.spec = spec;
-    aoa::detail::TouchState state_value{};
-    state_value.buttons.resize(1U);
-    state_value.button_transitions.resize(1U);
-    node.state = std::move(state_value);
-
-    AOAHID_CHECK(aoahid_touchpad_button(&node, 1U, 1U) == AOAHID_OK);
-    std::array<std::uint8_t, 128U> report{};
-    std::size_t length = 0U;
-    AOAHID_CHECK(aoa::detail::serialize_node(&node, report.data(), report.size(), &length) ==
-                 AOAHID_OK);
-    const auto* count = field(spec, aoa::hid::FieldSemantic::contact_count);
-    const auto* button = field(spec, aoa::hid::FieldSemantic::buttons);
-    AOAHID_CHECK(count != nullptr && extract(report.data(), *count) == 0U);
-    AOAHID_CHECK(button != nullptr && extract(report.data(), *button) == 1U);
-    AOAHID_CHECK(aoahid_touchpad_button(&node, 1U, 0U) == AOAHID_ERR_BUSY);
-    aoa::detail::transfer_complete(&node, AOAHID_OK, 0);
-
-    auto* touch = std::get_if<aoa::detail::TouchState>(&node.state);
-    AOAHID_CHECK(touch != nullptr);
-    if (touch != nullptr) {
-        touch->packet_cursor = 1U;
-        AOAHID_CHECK(aoahid_touchpad_button(&node, 1U, 0U) == AOAHID_ERR_BUSY);
-        AOAHID_CHECK(touch->buttons[0] == 1U);
-        touch->packet_cursor = 0U;
-    }
-
-    AOAHID_CHECK(aoahid_touchpad_button(&node, 1U, 0U) == AOAHID_OK);
-    report.fill(0U);
-    AOAHID_CHECK(aoa::detail::serialize_node(&node, report.data(), report.size(), &length) ==
-                 AOAHID_OK);
-    AOAHID_CHECK(count != nullptr && extract(report.data(), *count) == 0U);
-    AOAHID_CHECK(button != nullptr && extract(report.data(), *button) == 0U);
     aoahid_spec_release(spec);
 }
 
@@ -1319,7 +1257,6 @@ void test_profiles() {
     test_touch_azimuth();
     test_touch_packets();
     test_touch_lift_frame_and_idle_suppression();
-    test_touchpad_button_only_and_mid_frame_guard();
     test_pen_switch();
     test_raw_report_id_order();
     test_raw_factory_bounds_before_allocation();
@@ -1329,9 +1266,6 @@ void test_profiles() {
     aoahid_touch_options invalid_touch = touch_options();
     invalid_touch.contact_identifier = {1, 15, 4U, {}};
     AOAHID_CHECK(aoahid_spec_create_touchscreen(&invalid_touch, &spec) == AOAHID_ERR_PARAM);
-    invalid_touch = touch_options();
-    invalid_touch.touchpad_button_count = 65536U;
-    AOAHID_CHECK(aoahid_spec_create_touchscreen(&invalid_touch, &spec) == AOAHID_ERR_OVERFLOW);
 
     aoahid_battery_options battery{};
     battery.struct_size = static_cast<std::uint32_t>(sizeof(battery));

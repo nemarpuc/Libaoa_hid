@@ -77,8 +77,6 @@ int main(void) {
     AOAHID_CONSTANT(AOAHID_DPAD_NONE);
     AOAHID_CONSTANT(AOAHID_DPAD_HAT);
     AOAHID_CONSTANT(AOAHID_DPAD_BUTTONS);
-    AOAHID_CONSTANT(AOAHID_CONTROLLER_GAMEPAD);
-    AOAHID_CONSTANT(AOAHID_CONTROLLER_JOYSTICK);
     AOAHID_CONSTANT(AOAHID_USAGE_SELECTOR_BITMAP);
     AOAHID_CONSTANT(AOAHID_USAGE_ON_OFF_TOGGLE);
     AOAHID_CONSTANT(AOAHID_USAGE_ON_OFF_MAINTAINED);
@@ -226,7 +224,6 @@ int main(void) {
     AOAHID_FIELD(aoahid_gamepad_options, struct_size);
     AOAHID_FIELD(aoahid_gamepad_options, reserved);
     AOAHID_FIELD(aoahid_gamepad_options, report_id);
-    AOAHID_FIELD(aoahid_gamepad_options, application);
     AOAHID_FIELD(aoahid_gamepad_options, axes);
     AOAHID_FIELD(aoahid_gamepad_options, axis_count);
     AOAHID_FIELD(aoahid_gamepad_options, button_count);
@@ -259,7 +256,6 @@ int main(void) {
     AOAHID_FIELD(aoahid_touch_options, scan_time_unit_100us);
     AOAHID_FIELD(aoahid_touch_options, enable_contact_count_maximum_feature_declaration);
     AOAHID_FIELD(aoahid_touch_options, enable_multi_packet_frames);
-    AOAHID_FIELD(aoahid_touch_options, touchpad_button_count);
 
     AOAHID_BEGIN(aoahid_pen_options);
     AOAHID_FIELD(aoahid_pen_options, struct_size);

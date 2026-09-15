@@ -2,10 +2,7 @@
 // Copyright (c) 2026 libaoahid contributors
 /* Gamepad profile: two declared axes, twelve buttons, and a Hat Switch.
  * The Android portable-candidate Hat requires an explicit logical 0..7 in four
- * bits, so those values are stated rather than inferred. Set
- * options.application to AOAHID_CONTROLLER_JOYSTICK instead of
- * AOAHID_CONTROLLER_GAMEPAD to reach the Joystick Application Collection with
- * this same factory and the same runtime API. */
+ * bits, so those values are stated rather than inferred. */
 #include "profile_example.h"
 
 static const aoahid_integer_field k_stick = {-32767, 32767, 16U, {0, 0, 0, 0, 0}};
@@ -25,7 +22,6 @@ int main(void) {
     aoahid_result result;
 
     options.struct_size = (uint32_t)sizeof options;
-    options.application = AOAHID_CONTROLLER_GAMEPAD;
     options.axes = axes;
     options.axis_count = sizeof axes / sizeof axes[0];
     options.button_count = 12U;

@@ -5,6 +5,94 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-15
+
+### Removed
+
+- **Breaking:** Removed the Joystick Application Collection from the Gamepad
+  profile. `aoahid_gamepad_options` no longer has an `application` field; the
+  `aoahid_controller_application` type and its `AOAHID_CONTROLLER_GAMEPAD`/
+  `AOAHID_CONTROLLER_JOYSTICK` enum were removed from the C ABI and every
+  language binding. `aoahid_spec_create_gamepad` now always emits the Generic
+  Desktop / Game Pad (`0x01/0x05`) Application Collection.
+
+  This was not a capability regression. A source audit of the exact mainline
+  Linux `hid-input.c` button-mapping code, the AOSP `EventHub.cpp`
+  classification logic, and the shipped `Generic.kl` key layout showed that
+  Gamepad already reaches everything Joystick could reach on Android:
+
+  - Button-count capacity is identical for both Application Collections
+    (`hid-input.c` maps buttons `0..15` to a dedicated 16-code range for
+    either form, and buttons beyond that fall through to the same shared
+    `BTN_TRIGGER_HAPPY` extension range for both).
+  - `Generic.kl` maps the Gamepad button range (`BTN_GAMEPAD`) to the named
+    Android game-controller keycodes (`BUTTON_A`, `BUTTON_B`, `BUTTON_X`,
+    `BUTTON_Y`, `BUTTON_START`, `BUTTON_SELECT`, `BUTTON_THUMBL/R`, and so
+    on), which is what `EventHub`'s `InputDeviceClass::GAMEPAD` check and
+    `SOURCE_GAMEPAD` classification key on. The Joystick button range
+    (`BTN_JOYSTICK`) maps only to the generic, unnamed `BUTTON_1..16`
+    keycodes, so a Joystick-application descriptor could reach
+    `SOURCE_JOYSTICK` but not the semantic `SOURCE_GAMEPAD` path that
+    ordinary Android game-controller APIs expect.
+
+  Keeping the Joystick option therefore cost real public-API surface and ABI
+  stability for an alternative that Android classifies as a strict subset of
+  Gamepad's outcome. A caller that specifically wants unnamed numbered
+  buttons instead of semantic ones (for example, a flight-stick/HOTAS-shaped
+  accessory) is expected to declare its Button Usage range directly; that
+  need does not require a separate top-level Application Collection choice.
+
+- **Breaking:** Removed the Touchpad Application Collection from the
+  Touchscreen profile. `aoahid_touch_options` no longer has a
+  `touchpad_button_count` field, and the `aoahid_touchpad_button` runtime
+  function was removed from the C ABI, the C++ wrapper, and every language
+  binding. `aoahid_spec_create_touchscreen` now always emits the Digitizers /
+  Touch Screen (`0x0d/0x04`) Application Collection.
+
+  Unlike Joystick, a Touchpad Application Collection is a real, distinct
+  Linux input property (`INPUT_PROP_POINTER` versus a touchscreen's
+  `INPUT_PROP_DIRECT`) and genuinely different Android products (external
+  trackpad accessories for tablets are a real, common product category).
+  It was removed for a narrower reason specific to this library's Input-only
+  AOA transport: this guide's own Touchpad section already documented that
+  Android converts touchpad contacts into ordinary mouse-source `MotionEvent`
+  cursor movement rather than exposing raw contacts, and that the touchpad's
+  own value-add over a plain mouse -- tap/click/gesture recognition -- "varies
+  by Android release and OEM" and is explicitly `[Unverified on hardware]`.
+  The already-existing, simpler, and portable-candidate Mouse profile reaches
+  the one reliable outcome (cursor motion, buttons, and scrolling) that a
+  Touchpad Application Collection was guaranteed to produce here, while the
+  Touchpad wire format costs substantially more complexity (absolute
+  fixed-slot multi-touch contact tracking versus plain relative deltas) for a
+  gesture capability this project's own documentation could not promise.
+
+  The fixed-slot Multi-Touch state machine itself, Contact ID/Count
+  handling, and every other Touchscreen behavior are unchanged.
+
+### Changed
+
+- Simplified the Gamepad Android-status classification and D-pad-manifest
+  conditions that previously included a redundant `dpad_representation ==
+  AOAHID_DPAD_BUTTONS` clause; that clause was already implied by the
+  adjacent `dpad_representation != AOAHID_DPAD_HAT` check and did not change
+  behavior for any of the three `aoahid_dpad_representation` values.
+
+### Verification status
+
+This release removes two struct fields, one enum type and its two
+constants, and one public function from the C ABI, and it changes the
+Gamepad and Touchscreen profiles' on-wire descriptor shape whenever a caller
+previously selected the Joystick or Touchpad form; it is a breaking-ABI
+change within the pre-1.0 line. Neither removed form ever completed the
+four-level physical-device gate (`getevent`, `dumpsys input`, application
+API, and kernel device), so this release does not retract a hardware
+verification claim -- both forms were already `[Unverified on hardware]`.
+The Android kernel/`EventHub`/`Generic.kl` source citations above establish
+which Application Collection Android's generic input stack favors; they are
+`[Specified Linux/AOSP implementation observation]`, not a claim that this
+library's own generated descriptors have been exercised through that code
+path on a physical device. See `TARGET_MATRIX.md`.
+
 ## [0.2.0] - 2026-09-14
 
 ### Changed

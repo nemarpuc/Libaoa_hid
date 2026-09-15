@@ -404,8 +404,8 @@ frequency. It is not an arbitrary frame sequence number. **[HUT 1.7 definition]*
 profile with Logical Minimum `0`, the first activity frame is zero. Later
 frames encode `std::chrono::steady_clock` elapsed time in 100-microsecond units
 modulo `logical_maximum + 1`. Every packet of one multi-packet frame keeps one
-value. When successful completion leaves both contacts and touchpad buttons
-inactive, it resets the inactivity epoch. The chosen host clock, modulo,
+value. When successful completion leaves every contact inactive, it resets
+the inactivity epoch. The chosen host clock, modulo,
 completion boundary, and reset rule are **[project policy]** implementing the
 HUT semantic.
 
@@ -923,7 +923,7 @@ Pad Application Collection with the canonical Hat and a contiguous Button Page
 range beginning at `1` with at least `5` fields, so A/B/X/Y are all present.
 The contiguity gate and the choice of value `1` as Up-right follow the generated
 descriptor form, the CDD's clockwise rule, and the pinned ACK mapping.
-Raw-D-pad, no-D-pad, Joystick, and other button-range forms remain conditional.
+Raw-D-pad, no-D-pad, and other button-range forms remain conditional.
 These choices are **[project policy]** and every controller profile remains
 **[unverified on hardware]**.
 
