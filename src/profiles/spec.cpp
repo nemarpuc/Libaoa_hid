@@ -886,24 +886,24 @@ const char* touch_field(const char* prefix, const char* suffix) noexcept {
 }
 
 static aoahid_result create_touch_spec_from_fields(const aoa::detail::TouchFields& fields,
-                                                    const char* prefix,
-                                                    const aoahid_profile_kind profile_kind,
-                                                    const std::uint16_t application_usage,
-                                                    const aoahid_android_status android_status,
-                                                    aoahid_spec** out_spec) {
+                                                   const char* prefix,
+                                                   const aoahid_profile_kind profile_kind,
+                                                   const std::uint16_t application_usage,
+                                                   const aoahid_android_status android_status,
+                                                   aoahid_spec** out_spec) {
     if (!validate_report_id(fields.report_id, touch_field(prefix, "report_id")) ||
         !validate_field(fields.x, touch_field(prefix, "x")) ||
-        !validate_field(fields.y, touch_field(prefix, "y")) ||
-        fields.x.logical_minimum > 0 || fields.x.logical_maximum < 0 ||
-        fields.y.logical_minimum > 0 || fields.y.logical_maximum < 0 ||
-        fields.maximum_contacts == 0U || fields.maximum_contacts > 16U ||
-        fields.contacts_per_report == 0U ||
+        !validate_field(fields.y, touch_field(prefix, "y")) || fields.x.logical_minimum > 0 ||
+        fields.x.logical_maximum < 0 || fields.y.logical_minimum > 0 ||
+        fields.y.logical_maximum < 0 || fields.maximum_contacts == 0U ||
+        fields.maximum_contacts > 16U || fields.contacts_per_report == 0U ||
         fields.contacts_per_report > fields.maximum_contacts ||
         !validate_option_boolean(fields.enable_pressure, touch_field(prefix, "enable_pressure")) ||
         !validate_option_boolean(fields.enable_width, touch_field(prefix, "enable_width")) ||
         !validate_option_boolean(fields.enable_height, touch_field(prefix, "enable_height")) ||
         !validate_option_boolean(fields.enable_azimuth, touch_field(prefix, "enable_azimuth")) ||
-        !validate_option_boolean(fields.enable_scan_time, touch_field(prefix, "enable_scan_time")) ||
+        !validate_option_boolean(fields.enable_scan_time,
+                                 touch_field(prefix, "enable_scan_time")) ||
         !validate_option_boolean(fields.scan_time_unit_100us,
                                  touch_field(prefix, "scan_time_unit_100us")) ||
         !validate_option_boolean(
@@ -923,8 +923,7 @@ static aoahid_result create_touch_spec_from_fields(const aoa::detail::TouchField
         return AOAHID_ERR_PARAM;
     }
     if (fields.contact_count.logical_minimum > 0 ||
-        fields.contact_count.logical_maximum <
-            static_cast<std::int32_t>(fields.maximum_contacts)) {
+        fields.contact_count.logical_maximum < static_cast<std::int32_t>(fields.maximum_contacts)) {
         set_error(AOAHID_ERR_PARAM, touch_field(prefix, "contact_count"),
                   "Contact Count must represent zero through maximum_contacts even though "
                   "fixed-slot output never emits an isolated zero frame.");
@@ -999,8 +998,7 @@ static aoahid_result create_touch_spec_from_fields(const aoa::detail::TouchField
     if (fields.enable_scan_time == 1U &&
         (!validate_field(fields.scan_time, touch_field(prefix, "scan_time")) ||
          fields.scan_time_unit_100us != 1U || fields.scan_time.logical_minimum != 0 ||
-         fields.scan_time.logical_maximum < 1 ||
-         !physical_is_zero(fields.scan_time.physical))) {
+         fields.scan_time.logical_maximum < 1 || !physical_is_zero(fields.scan_time.physical))) {
         set_error(
             AOAHID_ERR_PARAM, touch_field(prefix, "scan_time"),
             "The portable Linux profile requires an explicit 100-microsecond Scan Time counter.");
@@ -1065,21 +1063,21 @@ static aoahid_result create_touch_spec_from_fields(const aoa::detail::TouchField
                     return false;
                 }
                 if (fields.enable_width == 1U &&
-                    !builder.variable(
-                        aoa::hid::usage::page_digitizers, aoa::hid::usage::width,
-                        fields.width.logical_minimum, fields.width.logical_maximum,
-                        static_cast<std::uint8_t>(fields.width.bit_width), false, false,
-                        FieldSemantic::width, static_cast<std::uint16_t>(contact), false,
-                        &fields.width.physical)) {
+                    !builder.variable(aoa::hid::usage::page_digitizers, aoa::hid::usage::width,
+                                      fields.width.logical_minimum, fields.width.logical_maximum,
+                                      static_cast<std::uint8_t>(fields.width.bit_width), false,
+                                      false, FieldSemantic::width,
+                                      static_cast<std::uint16_t>(contact), false,
+                                      &fields.width.physical)) {
                     return false;
                 }
                 if (fields.enable_height == 1U &&
-                    !builder.variable(
-                        aoa::hid::usage::page_digitizers, aoa::hid::usage::height,
-                        fields.height.logical_minimum, fields.height.logical_maximum,
-                        static_cast<std::uint8_t>(fields.height.bit_width), false, false,
-                        FieldSemantic::height, static_cast<std::uint16_t>(contact), false,
-                        &fields.height.physical)) {
+                    !builder.variable(aoa::hid::usage::page_digitizers, aoa::hid::usage::height,
+                                      fields.height.logical_minimum, fields.height.logical_maximum,
+                                      static_cast<std::uint8_t>(fields.height.bit_width), false,
+                                      false, FieldSemantic::height,
+                                      static_cast<std::uint16_t>(contact), false,
+                                      &fields.height.physical)) {
                     return false;
                 }
                 if (fields.enable_azimuth == 1U &&

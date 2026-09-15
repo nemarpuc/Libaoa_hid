@@ -12,7 +12,8 @@ static const char* const k_send_sequence[] = {
     "aoahid_node_submit(node)                      button report",
     "aoahid_touchpad_button(node, 1, 0)            button released",
     "aoahid_touch(node, 0, 0, 500, 500, NULL)      tip up keeps the same stable id",
-    "aoahid_node_submit(node)                      closes the frame", NULL};
+    "aoahid_node_submit(node)                      closes the frame",
+    NULL};
 
 int main(void) {
     aoahid_touchpad_options options = {0};
@@ -42,6 +43,5 @@ int main(void) {
     options.button_count = 1U;
 
     result = aoahid_spec_create_touchpad(&options, &spec);
-    return aoahid_example_run("touchpad", AOAHID_PROFILE_TOUCHPAD, result, spec,
-                              k_send_sequence);
+    return aoahid_example_run("touchpad", AOAHID_PROFILE_TOUCHPAD, result, spec, k_send_sequence);
 }

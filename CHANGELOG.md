@@ -37,6 +37,15 @@ All notable changes to libaoahid are recorded here. This project follows
   This is a purely additive ABI change: every 0.3.0 struct, enum value, and
   function signature is unchanged.
 
+  As with every profile in this repository, the Touchpad profile is
+  **not hardware-verified**: it has not completed the four-level
+  physical-device gate (`getevent`, `dumpsys input`, application API, and
+  kernel device). Its `AOAHID_ANDROID_CONDITIONAL` status and the
+  mouse-source-motion rationale above are `[Specified Linux/AOSP
+  implementation observation]` and `[Android platform documentation]`, not a
+  claim that this library's generated Touchpad descriptor has been
+  exercised on a physical Android target. See `TARGET_MATRIX.md`.
+
 ## [0.3.0] - 2026-09-15
 
 ### Removed
