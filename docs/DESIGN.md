@@ -501,6 +501,8 @@ Configurable and *never* chosen by the library: resolution, contact count 1-16 *
 
 `PureSingleTouchTargetSpecific` requires the caller to set `target_verified = 1`, because pure ST is not guaranteed to be classified DIRECT *(guide §24)*.
 
+**Touchpad (`aoahid_spec_create_touchpad`)** is an independent public factory and profile kind from Touchscreen, but internally the two share one `TouchFields` representation: every contact field above (lifecycle, Contact Count derivation, coordinate retention, pressure clamp, slot compaction, Scan Time, multi-packet frames, explicit lift on close) applies identically to Touchpad. Only three things differ: the Application Collection Usage (Touch Pad `0x0d/0x05` instead of Touch Screen `0x0d/0x04`), an added `button_count` field (zero is valid — a buttonless clickpad), and the runtime `android_status`, which is always conditional for Touchpad regardless of `button_count` because Android surfaces Touchpad contacts as ordinary mouse-source motion (`FACT_AUDIT.md` A-14a). `button_count` buttons share the same one-based, edge-guarded state machine as Mouse and Gamepad buttons, exposed through `aoahid_touchpad_button`.
+
 ### 8.3 Keyboard and keypad
 
 - **Slot management.** The caller presses and releases usages; the library maintains a one-bit Variable field per declared key.

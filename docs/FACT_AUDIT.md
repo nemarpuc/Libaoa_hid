@@ -468,9 +468,13 @@ universal HUT direction-number rule, and is separately recorded in
 
 **Resolution:** The "reuse previous expected count" description does not apply unchanged to the singular one-contact path. It also does not make an empty report a portable lift. The one-contact MT profile uses the same Contact ID and sends one explicit report with Tip Switch clear before removing the contact.
 
-### A-14a - Touchpad application removed in 0.3.0
+### A-14a - Touchpad application: removed in 0.3.0, reintroduced independently in 0.4.0
 
-**Historical note:** Through 0.2.0, setting `touchpad_button_count` above zero on `aoahid_touch_options` selected the Digitizers Touch Pad Application Collection instead of Touch Screen and added caller-selected Button Page fields, reusing the same fixed-slot Multi-Touch contact engine. That option, its runtime `aoahid_touchpad_button` call, and the underlying button/button-transition state were removed in 0.3.0. `aoahid_spec_create_touchscreen` now always emits the Touch Screen Application Collection. This entry's number is kept for stable cross-referencing; it no longer describes live behavior.
+**Historical note:** Through 0.2.0, setting `touchpad_button_count` above zero on `aoahid_touch_options` selected the Digitizers Touch Pad Application Collection instead of Touch Screen and added caller-selected Button Page fields, reusing the same fixed-slot Multi-Touch contact engine. That option, its runtime `aoahid_touchpad_button` call, and the underlying button/button-transition state were removed in 0.3.0. `aoahid_spec_create_touchscreen` emitted only the Touch Screen Application Collection between 0.3.0 and 0.4.0.
+
+**Current behavior (0.4.0):** `AOAHID_PROFILE_TOUCHPAD` / `aoahid_spec_create_touchpad` / `aoahid_touchpad_options` / `aoahid_touchpad_button` reintroduce the Touch Pad Application Collection as its own independent profile, not as a field on `aoahid_touch_options`. `aoahid_touch_options` and `aoahid_spec_create_touchscreen` are unchanged from their 0.3.0 form; internally the two profiles share one `TouchFields` contact representation and one state machine (see `PROFILES.md` "Touchpad" and `DESIGN.md`). `button_count` may be zero for a buttonless clickpad, and `android_status` for Touchpad is always `AOAHID_ANDROID_CONDITIONAL` (see A-14a's classification rationale below), independent of `button_count`, unlike the 0.1.0-0.2.0 form where a Touchpad Spec's classification depended on `touchpad_button_count`.
+
+Digitizers Touch Pad is Usage `0x0d/0x05`. **[HUT 1.7 definition]** §16. Touchpad is a genuinely distinct Linux input property (`INPUT_PROP_POINTER`, versus a touchscreen's `INPUT_PROP_DIRECT`), but Android converts Touchpad contacts into ordinary mouse-source `MotionEvent` cursor motion, and the gesture value-add of a Touch Pad Application Collection over a plain Mouse profile varies by Android release and OEM and remains **[Unverified on hardware]** — the reason `android_status` is conditional rather than a portable candidate.
 
 ### A-14b - Azimuth full-turn endpoint differs from its sample domain
 
