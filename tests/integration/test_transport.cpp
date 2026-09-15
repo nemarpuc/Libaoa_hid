@@ -1876,7 +1876,7 @@ void open_public_touch_session(aoahid_context** context, aoahid_device** device,
     device_options.close_drain_timeout_ms = 2000U;
     AOAHID_CHECK(aoahid_device_open(*context, &selected, &device_options, device) == AOAHID_OK);
 
-    aoahid_touch_options touch{};
+    aoahid_touchscreen_options touch{};
     touch.struct_size = sizeof(touch);
     touch.maximum_contacts = 2U;
     touch.contacts_per_report = 1U;
@@ -2020,19 +2020,19 @@ void test_public_touch_scan_time_rejected_first_attempt_stays_zero() {
     aoahid_spec* raw_spec = nullptr;
     AOAHID_CHECK(aoahid_spec_create_raw(&raw_options, &raw_spec) == AOAHID_OK);
 
-    aoahid_touch_options touch_options{};
-    touch_options.struct_size = sizeof(touch_options);
-    touch_options.maximum_contacts = 1U;
-    touch_options.contacts_per_report = 1U;
-    touch_options.contact_identifier = {0, 15, 4U, {}};
-    touch_options.x = {0, 1000, 16U, {}};
-    touch_options.y = {0, 1000, 16U, {}};
-    touch_options.contact_count = {0, 1, 1U, {}};
-    touch_options.enable_scan_time = 1U;
-    touch_options.scan_time = {0, 65535, 16U, {}};
-    touch_options.scan_time_unit_100us = 1U;
+    aoahid_touchscreen_options touchscreen_options{};
+    touchscreen_options.struct_size = sizeof(touchscreen_options);
+    touchscreen_options.maximum_contacts = 1U;
+    touchscreen_options.contacts_per_report = 1U;
+    touchscreen_options.contact_identifier = {0, 15, 4U, {}};
+    touchscreen_options.x = {0, 1000, 16U, {}};
+    touchscreen_options.y = {0, 1000, 16U, {}};
+    touchscreen_options.contact_count = {0, 1, 1U, {}};
+    touchscreen_options.enable_scan_time = 1U;
+    touchscreen_options.scan_time = {0, 65535, 16U, {}};
+    touchscreen_options.scan_time_unit_100us = 1U;
     aoahid_spec* touch_spec = nullptr;
-    AOAHID_CHECK(aoahid_spec_create_touchscreen(&touch_options, &touch_spec) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_spec_create_touchscreen(&touchscreen_options, &touch_spec) == AOAHID_OK);
     const auto* scan_time = profile_field(touch_spec, aoa::hid::FieldSemantic::scan_time);
     AOAHID_CHECK(scan_time != nullptr);
 

@@ -82,8 +82,8 @@ foreach (var pair in Native.AbiStructs)
     {
         // SnakeCase() cannot recover the underscore SnakeCase-Options.ScanTimeUnit100us drops
         // before "100us" (no uppercase letter marks that boundary), so this field is special-cased
-        // by name rather than by declaring type; both TouchOptions and TouchpadOptions declare it.
-        var cField = field.Name == nameof(TouchOptions.ScanTimeUnit100us)
+        // by name rather than by declaring type; both TouchscreenOptions and TouchpadOptions declare it.
+        var cField = field.Name == nameof(TouchscreenOptions.ScanTimeUnit100us)
             ? "scan_time_unit_100us"
             : SnakeCase(field.Name);
         var key = $"{pair.Key}.{cField}";

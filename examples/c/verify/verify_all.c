@@ -241,22 +241,22 @@ int main(void) {
     if (verify_open_first_device(&context, &device) != 0)
         return 1;
 
-    aoahid_touch_options touch_options = {0};
-    touch_options.struct_size = (uint32_t)sizeof touch_options;
-    touch_options.maximum_contacts = 1U;
-    touch_options.contacts_per_report = 1U;
-    touch_options.contact_identifier.logical_minimum = 0;
-    touch_options.contact_identifier.logical_maximum = 1;
-    touch_options.contact_identifier.bit_width = 1U;
-    touch_options.x.logical_minimum = 0;
-    touch_options.x.logical_maximum = 32767;
-    touch_options.x.bit_width = 16U;
-    touch_options.y.logical_minimum = 0;
-    touch_options.y.logical_maximum = 32767;
-    touch_options.y.bit_width = 16U;
-    touch_options.contact_count.logical_minimum = 0;
-    touch_options.contact_count.logical_maximum = 1;
-    touch_options.contact_count.bit_width = 1U;
+    aoahid_touchscreen_options touchscreen_options = {0};
+    touchscreen_options.struct_size = (uint32_t)sizeof touchscreen_options;
+    touchscreen_options.maximum_contacts = 1U;
+    touchscreen_options.contacts_per_report = 1U;
+    touchscreen_options.contact_identifier.logical_minimum = 0;
+    touchscreen_options.contact_identifier.logical_maximum = 1;
+    touchscreen_options.contact_identifier.bit_width = 1U;
+    touchscreen_options.x.logical_minimum = 0;
+    touchscreen_options.x.logical_maximum = 32767;
+    touchscreen_options.x.bit_width = 16U;
+    touchscreen_options.y.logical_minimum = 0;
+    touchscreen_options.y.logical_maximum = 32767;
+    touchscreen_options.y.bit_width = 16U;
+    touchscreen_options.contact_count.logical_minimum = 0;
+    touchscreen_options.contact_count.logical_maximum = 1;
+    touchscreen_options.contact_count.bit_width = 1U;
 
     aoahid_keyboard_options keyboard_options = {0};
     keyboard_options.struct_size = (uint32_t)sizeof keyboard_options;
@@ -282,7 +282,7 @@ int main(void) {
     int exit_code = 0;
     aoahid_result result;
 
-    result = aoahid_spec_create_touchscreen(&touch_options, &touch_spec);
+    result = aoahid_spec_create_touchscreen(&touchscreen_options, &touch_spec);
     if (result != AOAHID_OK) {
         exit_code = verify_fail("touchscreen spec create", result);
         goto cleanup;

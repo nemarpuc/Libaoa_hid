@@ -718,8 +718,8 @@ void test_physical_properties_and_reset() {
     AOAHID_CHECK(aoahid_spec_create_mouse(&options, &spec) == AOAHID_ERR_PARAM);
 }
 
-aoahid_touch_options touch_options() {
-    aoahid_touch_options options{};
+aoahid_touchscreen_options touchscreen_options() {
+    aoahid_touchscreen_options options{};
     options.struct_size = static_cast<std::uint32_t>(sizeof(options));
     options.report_id = {0U, 0U, {0U, 0U, 0U}};
     options.maximum_contacts = 3U;
@@ -768,7 +768,7 @@ aoahid_touchpad_options touchpad_options() {
 }
 
 void test_touch_units_feature_and_manifest_status() {
-    aoahid_touch_options options = touch_options();
+    aoahid_touchscreen_options options = touchscreen_options();
     options.enable_contact_count_maximum_feature_declaration = 1U;
     aoahid_spec* spec = nullptr;
     AOAHID_CHECK(aoahid_spec_create_touchscreen(&options, &spec) == AOAHID_OK);
@@ -777,7 +777,7 @@ void test_touch_units_feature_and_manifest_status() {
         aoahid_spec_release(spec);
     }
 
-    options = touch_options();
+    options = touchscreen_options();
     options.x.physical = {1U, 0, 100, -2, 0x11U};
     options.enable_width = 1U;
     options.width = {0, 100, 8U, {1U, 0, 10, -2, 0x11U}};
@@ -787,19 +787,19 @@ void test_touch_units_feature_and_manifest_status() {
     options.width.physical.unit_exponent = -3;
     AOAHID_CHECK(aoahid_spec_create_touchscreen(&options, &spec) == AOAHID_ERR_PARAM);
 
-    options = touch_options();
+    options = touchscreen_options();
     options.y.physical = {1U, 0, 100, -2, 0x11U};
     options.enable_height = 1U;
     options.height = {0, 100, 8U, {1U, 0, 10, -2, 0x12U}};
     AOAHID_CHECK(aoahid_spec_create_touchscreen(&options, &spec) == AOAHID_ERR_PARAM);
 
-    options = touch_options();
+    options = touchscreen_options();
     options.scan_time.physical = {1U, 0, 65535, -4, 0x1001U};
     AOAHID_CHECK(aoahid_spec_create_touchscreen(&options, &spec) == AOAHID_ERR_PARAM);
 }
 
 void test_touch_azimuth() {
-    aoahid_touch_options options = touch_options();
+    aoahid_touchscreen_options options = touchscreen_options();
     options.enable_azimuth = 1U;
     options.azimuth = {0, 36000, 16U, {1U, 0, 360, 0, 0x14U}};
     aoahid_spec* spec = nullptr;
@@ -850,7 +850,7 @@ void test_touch_azimuth() {
 }
 
 void test_touch_packets() {
-    aoahid_touch_options options = touch_options();
+    aoahid_touchscreen_options options = touchscreen_options();
     aoahid_spec* spec = nullptr;
     AOAHID_CHECK(aoahid_spec_create_touchscreen(&options, &spec) == AOAHID_OK);
     if (spec == nullptr)
@@ -895,7 +895,7 @@ void test_touch_packets() {
 }
 
 void test_touch_lift_frame_and_idle_suppression() {
-    aoahid_touch_options options = touch_options();
+    aoahid_touchscreen_options options = touchscreen_options();
     aoahid_spec* spec = nullptr;
     AOAHID_CHECK(aoahid_spec_create_touchscreen(&options, &spec) == AOAHID_OK);
     if (spec == nullptr)
@@ -1334,7 +1334,7 @@ void test_profiles() {
     test_send_time_report_validation();
     test_cpp_wrapper_profile_pairing();
 
-    aoahid_touch_options invalid_touch = touch_options();
+    aoahid_touchscreen_options invalid_touch = touchscreen_options();
     invalid_touch.contact_identifier = {1, 15, 4U, {}};
     AOAHID_CHECK(aoahid_spec_create_touchscreen(&invalid_touch, &spec) == AOAHID_ERR_PARAM);
 

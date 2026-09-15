@@ -30,7 +30,7 @@ extern "C" {
 #endif
 
 #define AOAHID_VERSION_MAJOR 0
-#define AOAHID_VERSION_MINOR 4
+#define AOAHID_VERSION_MINOR 5
 #define AOAHID_VERSION_PATCH 0
 
 typedef struct aoahid_context aoahid_context;
@@ -379,7 +379,7 @@ typedef struct aoahid_gamepad_options {
  * Identifier and Contact Count fields, one packet per declared slot unless
  * enable_multi_packet_frames selects more) under the Touch Screen Application
  * Collection Usage. */
-typedef struct aoahid_touch_options {
+typedef struct aoahid_touchscreen_options {
     uint32_t struct_size;
     uint32_t reserved;
     aoahid_report_id_option report_id;
@@ -407,9 +407,9 @@ typedef struct aoahid_touch_options {
     uint32_t scan_time_unit_100us;
     uint32_t enable_contact_count_maximum_feature_declaration;
     uint32_t enable_multi_packet_frames;
-} aoahid_touch_options;
+} aoahid_touchscreen_options;
 
-/* Same fixed-slot Multi-Touch report shape as aoahid_touch_options, under the
+/* Same fixed-slot Multi-Touch report shape as aoahid_touchscreen_options, under the
  * Digitizers / Touch Pad Application Collection Usage instead of Touch Screen,
  * plus button_count physical click buttons. button_count may be zero for a
  * buttonless clickpad; only then does aoahid_touchpad_button stay inert. */
@@ -849,7 +849,7 @@ aoahid_spec_create_gamepad(const aoahid_gamepad_options* options, aoahid_spec** 
  * overflow; AOAHID_ERR_INTERNAL for allocation, generation inconsistency, or
  * unexpected exception. */
 AOAHID_API aoahid_result AOAHID_CALL
-aoahid_spec_create_touchscreen(const aoahid_touch_options* options, aoahid_spec** out_spec);
+aoahid_spec_create_touchscreen(const aoahid_touchscreen_options* options, aoahid_spec** out_spec);
 
 /* aoahid_spec_create_touchpad
  * Ownership: Borrows and copies options. On success, out_spec receives one
