@@ -16,6 +16,14 @@ All notable changes to libaoahid are recorded here. This project follows
   `aoahid_touch_contact` and `aoahid_touch_extra` (used by `aoahid_touch()`,
   which serves both Touchscreen and Touchpad Nodes) are unaffected.
 
+### Verification status
+
+This release only renames a struct type; it changes no on-wire descriptor
+shape and no runtime behavior, so it neither adds nor retracts any
+hardware-verification claim. Touchscreen remains **not hardware-verified**
+(a portable candidate; see `TARGET_MATRIX.md`), the same status it has had
+since it was introduced.
+
 ## [0.4.0] - 2026-09-15
 
 ### Added
