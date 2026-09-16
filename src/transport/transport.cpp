@@ -19,8 +19,27 @@
 #include <limits>
 #include <memory>
 #include <new>
+#include <thread>
 #include <utility>
 #include <vector>
+
+#if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
+    #if defined(_MSC_VER)
+        #include <intrin.h>
+    #else
+        #include <immintrin.h>
+    #endif
+    #define AOAHID_CPU_PAUSE() _mm_pause()
+#elif defined(__aarch64__) || defined(__arm__) || defined(_M_ARM64) || defined(_M_ARM)
+    #if defined(_MSC_VER)
+        #include <intrin.h>
+        #define AOAHID_CPU_PAUSE() __yield()
+    #else
+        #define AOAHID_CPU_PAUSE() __asm__ volatile("yield" ::: "memory")
+    #endif
+#else
+    #define AOAHID_CPU_PAUSE() do {} while(0)
+#endif
 
 namespace {
 
@@ -238,7 +257,14 @@ struct Device::Impl {
             // takes no device-state lock. Internal-thread mode pays this lock
             // only around the pool, inflight accounting, and error latch.
             if (lock_ != nullptr) {
+                int spin_count = 0;
                 while (lock_->test_and_set(std::memory_order_acquire)) {
+                    if (spin_count < 64) {
+                        AOAHID_CPU_PAUSE();
+                        ++spin_count;
+                    } else {
+                        std::this_thread::yield();
+                    }
                 }
             }
         }
@@ -385,8 +411,9 @@ struct Device::Impl {
             if (slot->state != SlotState::submitted) {
                 return;
             }
-            if (slot->transfer->status == LIBUSB_TRANSFER_STALL && slot->first_report &&
-                slot->retries_remaining > 0U && !closing) {
+            if ((slot->transfer->status == LIBUSB_TRANSFER_STALL ||
+                 slot->transfer->status == LIBUSB_TRANSFER_ERROR) &&
+                slot->first_report && slot->retries_remaining > 0U && !closing) {
                 // f_accessory registers the HID from a worker after the last
                 // descriptor fragment. Only this first report gets bounded
                 // caller-configured retries for that registration race.
