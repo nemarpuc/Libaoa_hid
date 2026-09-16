@@ -437,7 +437,7 @@ public static class Native
     private const CallingConvention Call = CallingConvention.Cdecl;
     public const uint AOAHID_VERSION_MAJOR = 0;
     public const uint AOAHID_VERSION_MINOR = 5;
-    public const uint AOAHID_VERSION_PATCH = 1;
+    public const uint AOAHID_VERSION_PATCH = 2;
 
     public static readonly IReadOnlyDictionary<string, int> AbiConstants =
         new Dictionary<string, int>

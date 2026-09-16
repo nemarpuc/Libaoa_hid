@@ -114,28 +114,6 @@ typedef struct libusb_version {
     const char* describe;
 } libusb_version;
 
-enum libusb_class_code {
-    LIBUSB_CLASS_PER_INTERFACE = 0x00,
-    LIBUSB_CLASS_AUDIO = 0x01,
-    LIBUSB_CLASS_COMM = 0x02,
-    LIBUSB_CLASS_HID = 0x03,
-    LIBUSB_CLASS_PHYSICAL = 0x05,
-    LIBUSB_CLASS_IMAGE = 0x06,
-    LIBUSB_CLASS_PRINTER = 0x07,
-    LIBUSB_CLASS_MASS_STORAGE = 0x08,
-    LIBUSB_CLASS_HUB = 0x09,
-    LIBUSB_CLASS_DATA = 0x0a,
-    LIBUSB_CLASS_SMART_CARD = 0x0b,
-    LIBUSB_CLASS_CONTENT_SECURITY = 0x0d,
-    LIBUSB_CLASS_VIDEO = 0x0e,
-    LIBUSB_CLASS_PERSONAL_HEALTHCARE = 0x0f,
-    LIBUSB_CLASS_DIAGNOSTIC_DEVICE = 0xdc,
-    LIBUSB_CLASS_WIRELESS = 0xe0,
-    LIBUSB_CLASS_MISCELLANEOUS = 0xef,
-    LIBUSB_CLASS_APPLICATION = 0xfe,
-    LIBUSB_CLASS_VENDOR_SPEC = 0xff
-};
-
 typedef struct libusb_device_descriptor {
     uint8_t bLength;
     uint8_t bDescriptorType;

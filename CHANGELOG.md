@@ -5,6 +5,45 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-09-17
+
+### Reverted
+
+- All four runtime behavior changes from 0.5.1 (the `store_bits()`
+  byte-aligned fast path, the `StateGuard` CPU-pause/yield spin backoff, the
+  `LIBUSB_TRANSFER_ERROR` first-report retry, and the Hub/Mass
+  Storage/Printer discovery filter) were reverted. None of them were
+  measured against a benchmark or a real device before landing; they were
+  implemented from a plan document's claims about where the bottlenecks
+  were, not from profiling this codebase. The `store_bits()` and
+  `StateGuard` changes in particular added real code complexity (four extra
+  branch cases, a two-stage backoff) without evidence they were worth it.
+  0.5.1 remains published as-is; this release reverts to the prior runtime
+  behavior on top of it.
+
+### Added
+
+- `tools/release/sync_version.py`: a single command
+  (`python tools/release/sync_version.py X.Y.Z`) that writes a new release
+  version into every file that must carry it (`CMakeLists.txt`,
+  `include/aoahid.h`, `vcpkg.json`, `tools/docs/Doxyfile`, the three binding
+  manifests and their embedded version constants, and the ABI golden
+  oracle's expected constants), instead of hand-editing eleven places.
+  `tools/release/version_files.py` holds the single list of where the
+  version lives; `validate_release.py` now reads that same list rather than
+  duplicating it.
+- Renamed `tests/abi/check_v0_5_1_golden.py` to `check_abi_golden.py`. Only
+  its three `GOLDEN_CONSTANTS` version entries change across releases now,
+  and `sync_version.py` updates those in place, so the file no longer needs
+  a rename on every release.
+
+### Verification status
+
+This release only reverts 0.5.1's runtime changes and adds release
+tooling; it changes no on-wire descriptor shape and no public ABI. It
+neither adds nor retracts any hardware-verification claim. Every profile
+remains **not hardware-verified** (see `TARGET_MATRIX.md`).
+
 ## [0.5.1] - 2026-09-17
 
 ### Changed
