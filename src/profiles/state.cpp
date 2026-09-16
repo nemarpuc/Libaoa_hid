@@ -93,6 +93,28 @@ bool store_bits(std::uint8_t* report, const std::size_t capacity, const FieldLay
     const std::uint64_t mask = field.bit_width == 32U ? std::numeric_limits<std::uint32_t>::max()
                                                       : (std::uint64_t{1} << field.bit_width) - 1U;
     const std::uint64_t encoded = static_cast<std::uint64_t>(value) & mask;
+    if ((field.bit_offset & 7U) == 0U) {
+        const std::size_t byte_pos = field.bit_offset / 8U;
+        if (field.bit_width == 8U) {
+            report[byte_pos] = static_cast<std::uint8_t>(encoded);
+            return true;
+        } else if (field.bit_width == 16U) {
+            report[byte_pos] = static_cast<std::uint8_t>(encoded & 0xFFU);
+            report[byte_pos + 1] = static_cast<std::uint8_t>((encoded >> 8U) & 0xFFU);
+            return true;
+        } else if (field.bit_width == 24U) {
+            report[byte_pos] = static_cast<std::uint8_t>(encoded & 0xFFU);
+            report[byte_pos + 1] = static_cast<std::uint8_t>((encoded >> 8U) & 0xFFU);
+            report[byte_pos + 2] = static_cast<std::uint8_t>((encoded >> 16U) & 0xFFU);
+            return true;
+        } else if (field.bit_width == 32U) {
+            report[byte_pos] = static_cast<std::uint8_t>(encoded & 0xFFU);
+            report[byte_pos + 1] = static_cast<std::uint8_t>((encoded >> 8U) & 0xFFU);
+            report[byte_pos + 2] = static_cast<std::uint8_t>((encoded >> 16U) & 0xFFU);
+            report[byte_pos + 3] = static_cast<std::uint8_t>((encoded >> 24U) & 0xFFU);
+            return true;
+        }
+    }
     for (std::uint8_t bit = 0U; bit < field.bit_width; ++bit) {
         const std::size_t position = field.bit_offset + bit;
         const std::uint8_t bit_mask = static_cast<std::uint8_t>(1U << (position & 7U));

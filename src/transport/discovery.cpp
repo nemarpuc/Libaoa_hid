@@ -291,6 +291,11 @@ aoahid_result Runtime::discover(const std::uint32_t timeout_ms, std::vector<Cand
                 libusb_get_device_descriptor(device, &descriptor) != LIBUSB_SUCCESS) {
                 continue;
             }
+            if (descriptor.bDeviceClass == LIBUSB_CLASS_HUB ||
+                descriptor.bDeviceClass == LIBUSB_CLASS_MASS_STORAGE ||
+                descriptor.bDeviceClass == LIBUSB_CLASS_PRINTER) {
+                continue;
+            }
 
             libusb_device_handle* handle = nullptr;
             if (libusb_open(device, &handle) != LIBUSB_SUCCESS || handle == nullptr) {
