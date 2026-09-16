@@ -16,7 +16,7 @@ All notable changes to libaoahid are recorded here. This project follows
   non-byte-aligned or irregular-width field.
 - The internal-thread `StateGuard` spinlock now backs off with an
   architecture-specific pause instruction before falling back to
-  `std::this_thread::yield()`, instead of spinning a pure busy-wait. This
+  `std::this_thread::yield`, instead of spinning a pure busy-wait. This
   avoids starving sibling hardware threads and reduces power draw under lock
   contention without adding syscall latency to the hot path.
 - The first-report registration-race retry (for `f_accessory`'s delayed HID
