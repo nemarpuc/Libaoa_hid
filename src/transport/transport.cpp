@@ -24,21 +24,21 @@
 #include <vector>
 
 #if defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86)
-    #if defined(_MSC_VER)
-        #include <intrin.h>
-    #else
-        #include <immintrin.h>
-    #endif
-    #define AOAHID_CPU_PAUSE() _mm_pause()
-#elif defined(__aarch64__) || defined(__arm__) || defined(_M_ARM64) || defined(_M_ARM)
-    #if defined(_MSC_VER)
-        #include <intrin.h>
-        #define AOAHID_CPU_PAUSE() __yield()
-    #else
-        #define AOAHID_CPU_PAUSE() __asm__ volatile("yield" ::: "memory")
-    #endif
+#if defined(_MSC_VER)
+#include <intrin.h>
 #else
-    #define AOAHID_CPU_PAUSE() do {} while(0)
+#include <immintrin.h>
+#endif
+#define AOAHID_CPU_PAUSE() _mm_pause()
+#elif defined(__aarch64__) || defined(__arm__) || defined(_M_ARM64) || defined(_M_ARM)
+#if defined(_MSC_VER)
+#include <intrin.h>
+#define AOAHID_CPU_PAUSE() __yield()
+#else
+#define AOAHID_CPU_PAUSE() __asm__ volatile("yield" ::: "memory")
+#endif
+#else
+#define AOAHID_CPU_PAUSE() static_cast<void>(0)
 #endif
 
 namespace {
