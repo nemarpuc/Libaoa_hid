@@ -179,10 +179,12 @@ class VersionSyncTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             self._copy_tracked_files(root)
+            current = next(iter(version_files.assembled_versions(root).values()))
+            mismatched = "9.9.8" if current != "9.9.8" else "9.9.9"
             rust_manifest = root / "bindings/rust/aoahid/Cargo.toml"
             text = rust_manifest.read_text(encoding="utf-8")
             rust_manifest.write_text(
-                text.replace('version = "0.5.1"', 'version = "0.5.2"', 1),
+                text.replace(f'version = "{current}"', f'version = "{mismatched}"', 1),
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(version_files.VersionFileError, "disagree"):
