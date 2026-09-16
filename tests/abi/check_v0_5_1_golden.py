@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 libaoahid contributors
-"""Compare the compiler-observed public C ABI with the v0.5.0 golden schema."""
+"""Compare the compiler-observed public C ABI with the v0.5.1 golden schema."""
 
 from __future__ import annotations
 
@@ -411,7 +411,7 @@ GOLDEN_STRUCTS = {
 GOLDEN_CONSTANTS = {
     "AOAHID_VERSION_MAJOR": 0,
     "AOAHID_VERSION_MINOR": 5,
-    "AOAHID_VERSION_PATCH": 0,
+    "AOAHID_VERSION_PATCH": 1,
     "AOAHID_OK": 0,
     "AOAHID_ERR_PARAM": 1,
     "AOAHID_ERR_UNSET_FIELD": 2,
@@ -506,7 +506,7 @@ def parse_observed(output: str) -> dict[str, int]:
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("usage: check_v0_5_0_golden.py LAYOUT_ORACLE", file=sys.stderr)
+        print("usage: check_v0_5_1_golden.py LAYOUT_ORACLE", file=sys.stderr)
         return 2
     executable = Path(sys.argv[1])
     completed = subprocess.run(
@@ -516,15 +516,15 @@ def main() -> int:
     expected = expected_values()
     failed = False
     for key in sorted(expected.keys() - observed.keys()):
-        print(f"v0.5.0 ABI oracle omitted {key}", file=sys.stderr)
+        print(f"v0.5.1 ABI oracle omitted {key}", file=sys.stderr)
         failed = True
     for key in sorted(observed.keys() - expected.keys()):
-        print(f"v0.5.0 ABI oracle added unknown entry {key}", file=sys.stderr)
+        print(f"v0.5.1 ABI oracle added unknown entry {key}", file=sys.stderr)
         failed = True
     for key in sorted(expected.keys() & observed.keys()):
         if observed[key] != expected[key]:
             print(
-                f"v0.5.0 ABI drift: {key}: observed {observed[key]}, "
+                f"v0.5.1 ABI drift: {key}: observed {observed[key]}, "
                 f"expected {expected[key]}",
                 file=sys.stderr,
             )
@@ -532,7 +532,7 @@ def main() -> int:
     if failed:
         return 1
     print(
-        f"v0.5.0 C ABI matches: {len(GOLDEN_STRUCTS)} structures, "
+        f"v0.5.1 C ABI matches: {len(GOLDEN_STRUCTS)} structures, "
         f"{len(GOLDEN_CONSTANTS)} constants"
     )
     return 0

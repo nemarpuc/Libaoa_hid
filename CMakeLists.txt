@@ -2,7 +2,7 @@
 # Copyright (c) 2026 libaoahid contributors
 cmake_minimum_required(VERSION 3.20)
 
-project(libaoahid VERSION 0.5.0
+project(libaoahid VERSION 0.5.1
     DESCRIPTION "Explicit host-side Android Open Accessory HID input library"
     HOMEPAGE_URL "https://github.com/nemarpuc/Libaoa_hid"
     LANGUAGES C CXX)
@@ -406,7 +406,7 @@ if(AOAHID_BUILD_TESTS)
   add_test(
       NAME aoahid.abi-layout-oracle
       COMMAND ${Python3_EXECUTABLE}
-          ${CMAKE_CURRENT_SOURCE_DIR}/tests/abi/check_v0_5_0_golden.py
+          ${CMAKE_CURRENT_SOURCE_DIR}/tests/abi/check_v0_5_1_golden.py
           $<TARGET_FILE:aoahid_abi_layout_oracle>)
 
   add_executable(aoahid_c_abi_test tests/abi/test_c_abi.c)

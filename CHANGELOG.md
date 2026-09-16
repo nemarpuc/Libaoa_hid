@@ -5,6 +5,37 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-17
+
+### Changed
+
+- `store_bits()` (the wire-report serializer used by every profile) now
+  writes byte-aligned 8/16/24/32-bit fields directly instead of iterating
+  bit-by-bit, which is the primary CPU cost for high-frequency multi-touch
+  reports. The existing bit-by-bit path is unchanged and still handles every
+  non-byte-aligned or irregular-width field.
+- The internal-thread `StateGuard` spinlock now backs off with an
+  architecture-specific pause instruction before falling back to
+  `std::this_thread::yield()`, instead of spinning a pure busy-wait. This
+  avoids starving sibling hardware threads and reduces power draw under lock
+  contention without adding syscall latency to the hot path.
+- The first-report registration-race retry (for `f_accessory`'s delayed HID
+  registration) now also triggers on `LIBUSB_TRANSFER_ERROR`, not only
+  `LIBUSB_TRANSFER_STALL`. WinUSB commonly surfaces that same race as a
+  generic pipe error rather than a stall.
+- `aoahid_discover()` now skips USB Hub, Mass Storage, and Printer class
+  devices before opening them, since AOA accessories never expose those
+  classes on their primary descriptor. This avoids probing devices that can
+  require elevation or trigger stricter host-controller behavior on Windows.
+
+### Verification status
+
+This release changes no on-wire descriptor shape, no public ABI, and no
+Node-visible behavior; it is an internal performance and retry-robustness
+release. It neither adds nor retracts any hardware-verification claim. Every
+profile remains **not hardware-verified** (see `TARGET_MATRIX.md`), the same
+status held since each profile was introduced.
+
 ## [0.5.0] - 2026-09-16
 
 ### Changed
