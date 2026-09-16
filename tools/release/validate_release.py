@@ -12,6 +12,7 @@ import re
 import sys
 
 import package_source
+import version_files
 
 VERSION_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 REPOSITORY_URL = package_source.REPOSITORY_URL
@@ -54,27 +55,21 @@ def validate_abi_namespace(
 
 
 def source_versions(root: Path) -> dict[str, str]:
-    cmake = (root / "CMakeLists.txt").read_text(encoding="utf-8")
-    cmake_config = (root / "cmake/aoahid-config.cmake.in").read_text(
-        encoding="utf-8"
-    )
-    version_script = (root / "cmake/aoahid.map").read_text(encoding="utf-8")
-    header = (root / "include/aoahid.h").read_text(encoding="utf-8")
-    doxygen = (root / "tools/docs/Doxyfile").read_text(encoding="utf-8")
-    python_manifest = (root / "bindings/python/pyproject.toml").read_text(encoding="utf-8")
-    csharp_manifest = (root / "bindings/csharp/AoaHid/AoaHid.csproj").read_text(
-        encoding="utf-8"
-    )
-    rust_safe = (root / "bindings/rust/aoahid/Cargo.toml").read_text(encoding="utf-8")
-    rust_sys = (root / "bindings/rust/aoahid-sys/Cargo.toml").read_text(encoding="utf-8")
-    manifest = json.loads((root / "vcpkg.json").read_text(encoding="utf-8"))
+    """Every file version_files.py tracks, plus the ABI namespace check.
 
-    cmake_version = require_match(
-        r"project\s*\(\s*libaoahid\s+VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)",
-        cmake,
-        "CMake project version",
-        re.IGNORECASE,
-    ).group(1)
+    version_files.py is the single list of sites; sync_version.py writes it
+    and this function reads it, so adding a new site (a new binding, a new
+    generated file) only means editing that one module.
+    """
+    cmake = (root / "CMakeLists.txt").read_text(encoding="utf-8")
+    version_script = (root / "cmake/aoahid.map").read_text(encoding="utf-8")
+
+    try:
+        assembled = version_files.assembled_versions(root)
+    except version_files.VersionFileError as error:
+        raise ValidationError(str(error)) from error
+
+    cmake_version = assembled["CMakeLists.txt"]
     soversion = require_match(
         r"^\s*SOVERSION\s+([0-9]+)\s*$",
         cmake,
@@ -88,51 +83,8 @@ def source_versions(root: Path) -> dict[str, str]:
         re.MULTILINE,
     ).group(1)
     validate_abi_namespace(cmake_version, soversion, abi_namespace)
-    components = []
-    for component in ("MAJOR", "MINOR", "PATCH"):
-        components.append(
-            require_match(
-                rf"^\s*#define\s+AOAHID_VERSION_{component}\s+([0-9]+)\s*$",
-                header,
-                f"AOAHID_VERSION_{component}",
-                re.MULTILINE,
-            ).group(1)
-        )
-    header_version = ".".join(components)
-    vcpkg_version = manifest.get("version-semver")
-    if not isinstance(vcpkg_version, str):
-        raise ValidationError("vcpkg.json must contain string version-semver")
-    doxygen_version = require_match(
-        r"^\s*PROJECT_NUMBER\s*=\s*([0-9]+\.[0-9]+\.[0-9]+)\s*$",
-        doxygen,
-        "Doxygen project version",
-        re.MULTILINE,
-    ).group(1)
 
-    def package_version(text: str, label: str) -> str:
-        return require_match(
-            r"^\s*version\s*=\s*[\"']([0-9]+\.[0-9]+\.[0-9]+)[\"']\s*$",
-            text,
-            f"{label} package version",
-            re.MULTILINE,
-        ).group(1)
-
-    csharp_version = require_match(
-        r"<Version>\s*([0-9]+\.[0-9]+\.[0-9]+)\s*</Version>",
-        csharp_manifest,
-        "C# package version",
-    ).group(1)
-
-    return {
-        "CMakeLists.txt": cmake_version,
-        "aoahid.h": header_version,
-        "vcpkg.json": vcpkg_version,
-        "tools/docs/Doxyfile": doxygen_version,
-        "bindings/python/pyproject.toml": package_version(python_manifest, "Python"),
-        "bindings/csharp/AoaHid/AoaHid.csproj": csharp_version,
-        "bindings/rust/aoahid/Cargo.toml": package_version(rust_safe, "Rust safe"),
-        "bindings/rust/aoahid-sys/Cargo.toml": package_version(rust_sys, "Rust sys"),
-    }
+    return assembled
 
 
 def validate_repository_identity(root: Path) -> None:
