@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 libaoahid contributors
-"""Compare the compiler-observed public C ABI with the v0.5.1 golden schema."""
+"""Compare the compiler-observed public C ABI with the golden schema.
+
+The AOAHID_VERSION_* entries in GOLDEN_CONSTANTS track the version recorded
+in include/aoahid.h and are the only part of this file that changes across
+releases; tools/release/sync_version.py keeps them in sync.
+"""
 
 from __future__ import annotations
 
@@ -506,7 +511,7 @@ def parse_observed(output: str) -> dict[str, int]:
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("usage: check_v0_5_1_golden.py LAYOUT_ORACLE", file=sys.stderr)
+        print("usage: check_abi_golden.py LAYOUT_ORACLE", file=sys.stderr)
         return 2
     executable = Path(sys.argv[1])
     completed = subprocess.run(
@@ -516,15 +521,15 @@ def main() -> int:
     expected = expected_values()
     failed = False
     for key in sorted(expected.keys() - observed.keys()):
-        print(f"v0.5.1 ABI oracle omitted {key}", file=sys.stderr)
+        print(f"ABI oracle omitted {key}", file=sys.stderr)
         failed = True
     for key in sorted(observed.keys() - expected.keys()):
-        print(f"v0.5.1 ABI oracle added unknown entry {key}", file=sys.stderr)
+        print(f"ABI oracle added unknown entry {key}", file=sys.stderr)
         failed = True
     for key in sorted(expected.keys() & observed.keys()):
         if observed[key] != expected[key]:
             print(
-                f"v0.5.1 ABI drift: {key}: observed {observed[key]}, "
+                f"ABI drift: {key}: observed {observed[key]}, "
                 f"expected {expected[key]}",
                 file=sys.stderr,
             )
@@ -532,7 +537,7 @@ def main() -> int:
     if failed:
         return 1
     print(
-        f"v0.5.1 C ABI matches: {len(GOLDEN_STRUCTS)} structures, "
+        f"C ABI matches: {len(GOLDEN_STRUCTS)} structures, "
         f"{len(GOLDEN_CONSTANTS)} constants"
     )
     return 0

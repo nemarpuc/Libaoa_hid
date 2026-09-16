@@ -406,7 +406,7 @@ if(AOAHID_BUILD_TESTS)
   add_test(
       NAME aoahid.abi-layout-oracle
       COMMAND ${Python3_EXECUTABLE}
-          ${CMAKE_CURRENT_SOURCE_DIR}/tests/abi/check_v0_5_1_golden.py
+          ${CMAKE_CURRENT_SOURCE_DIR}/tests/abi/check_abi_golden.py
           $<TARGET_FILE:aoahid_abi_layout_oracle>)
 
   add_executable(aoahid_c_abi_test tests/abi/test_c_abi.c)

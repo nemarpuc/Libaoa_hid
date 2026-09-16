@@ -35,7 +35,9 @@ import generate_spdx  # noqa: E402
 import package_release  # noqa: E402
 import package_source  # noqa: E402
 import pkg_config_metadata  # noqa: E402
+import sync_version  # noqa: E402
 import validate_release  # noqa: E402
+import version_files  # noqa: E402
 import symbol_lint  # noqa: E402
 
 
@@ -126,6 +128,83 @@ class AbiNamespacePolicyTests(unittest.TestCase):
             "no ELF ABI namespace policy is defined",
         ):
             validate_release.validate_abi_namespace("1.0.0", "1", "1.0")
+
+
+class VersionSyncTests(unittest.TestCase):
+    """sync_version.py / version_files.py: the single-command version bump.
+
+    These copy only the files version_files.SITES names, into a scratch
+    directory, so the round trip can rewrite them without touching the real
+    tree the rest of this test run still depends on.
+    """
+
+    def _copy_tracked_files(self, root: Path) -> None:
+        for relative in sorted({site.path for site in version_files.SITES}):
+            source = REPOSITORY / relative
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(source.read_bytes())
+
+    def test_write_all_rewrites_every_site_to_the_same_new_version(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._copy_tracked_files(root)
+            before = version_files.assembled_versions(root)
+            self.assertEqual(len(set(before.values())), 1, before)
+
+            changed = version_files.write_all(root, "9.9.9")
+
+            self.assertEqual(set(changed), {site.path for site in version_files.SITES})
+            after = version_files.assembled_versions(root)
+            self.assertTrue(all(value == "9.9.9" for value in after.values()), after)
+
+    def test_write_all_is_a_no_op_when_the_version_is_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._copy_tracked_files(root)
+            current = next(iter(version_files.assembled_versions(root).values()))
+
+            changed = version_files.write_all(root, current)
+
+            self.assertEqual(changed, [])
+
+    def test_write_all_rejects_a_malformed_version(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._copy_tracked_files(root)
+            with self.assertRaises(version_files.VersionFileError):
+                version_files.write_all(root, "not-a-version")
+
+    def test_assembled_versions_reports_disagreement_within_one_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._copy_tracked_files(root)
+            rust_manifest = root / "bindings/rust/aoahid/Cargo.toml"
+            text = rust_manifest.read_text(encoding="utf-8")
+            rust_manifest.write_text(
+                text.replace('version = "0.5.1"', 'version = "0.5.2"', 1),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(version_files.VersionFileError, "disagree"):
+                version_files.assembled_versions(root)
+
+    def test_sync_version_cli_writes_files_and_reports_success(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._copy_tracked_files(root)
+            with mock.patch("sys.argv", ["sync_version.py", "1.2.3", "--root", str(root)]):
+                exit_code = sync_version.main()
+            self.assertEqual(exit_code, 0)
+            after = version_files.assembled_versions(root)
+            self.assertTrue(all(value == "1.2.3" for value in after.values()), after)
+
+    def test_sync_version_cli_rejects_a_malformed_version(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._copy_tracked_files(root)
+            with mock.patch("sys.argv", ["sync_version.py", "not-a-version", "--root", str(root)]):
+                exit_code = sync_version.main()
+            self.assertEqual(exit_code, 1)
 
 
 class SourcePackageTests(unittest.TestCase):
