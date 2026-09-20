@@ -134,6 +134,7 @@ limited to the explicit field-priority relation. All runtime behavior remains
 - A portable bidirectional field has a signed range containing negative and positive values. A range that cannot encode one direction is rejected for this profile. **[Guide policy]**
 - Buttons use Button Page Usages selected by the caller-supplied count.
 - Wheel is Generic Desktop Wheel (`0x38`). Horizontal pan is Consumer AC Pan (`0x0c/0x0238`). **[HUT 1.7 definition]**
+- X, Y, Wheel, and Pan widths are each caller-declared (1-32 bits); the descriptor realigns to a byte boundary between them so a wide field cannot inherit a nonzero bit offset from the one before it. See `LIMITS.md`, "Field ordering inside generated profiles". **[Guide policy]**
 
 ### Delta handling
 
@@ -188,6 +189,7 @@ Every entry still carries an expected Linux event type and code. Audited mapping
 - D-pad alternatives: Hat switch `0x39`, or D-pad Up/Down/Right/Left `0x90..0x93`. **[HUT 1.7 definition]**
 - Simulation axes admitted by this profile include Rudder `0xba`, Throttle `0xbb`, Accelerator `0xc4`, Brake `0xc5`, and Steering `0xc8` on Simulation Controls Page `0x02`. **[HUT 1.7 definition]**
 - Every configured axis includes an exact Usage Page, Usage, logical range, bit width, neutral value, expected Linux code, and expected Android axis. **[Guide policy]**
+- The descriptor realigns to a byte boundary after the Hat Switch/raw D-pad group and again after every axis, so a caller-declared axis width (1-32 bits) never inherits a nonzero bit offset from the D-pad or from a prior axis of the same width. See `LIMITS.md`, "Field ordering inside generated profiles". **[Guide policy]**
 
 ### Factory constraints and classification boundary
 
@@ -298,6 +300,8 @@ On close, buttons clear, the hat uses its Null encoding, and each axis uses its 
 
 Multitouch records use Tip Switch `0x42`, Contact Identifier `0x51`, X/Y `0x01/0x30,0x31`, and Contact Count `0x54`. Optional fields are Tip Pressure `0x30`, Width `0x48`, Height `0x49`, Scan Time `0x56`, and a declarative Contact Count Maximum `0x55`. Usage identifiers are **[HUT 1.7 definition]** §16. Contact Count Maximum is emitted as Constant Feature metadata; it does not imply a Feature-response operation, and the manifest continues to report Feature transport as unsupported. **[Guide policy]**
 
+Contact Identifier, X, Y, Pressure, Width, Height, and Azimuth are each independently caller-declared (Contact Identifier is fixed at 4 bits; the rest are 1-32 bits), and Scan Time/Contact Count follow the same rule after the last contact. The descriptor realigns to a byte boundary between each of these so a wide field never inherits a nonzero bit offset from the one before it. See `LIMITS.md`, "Field ordering inside generated profiles". **[Guide policy]**
+
 ### Contact lifecycle
 
 The state machine is **[Guide policy]**, driven entirely through `aoahid_touch(node, contact_id, down, x, y, extra)`:
@@ -376,6 +380,7 @@ Unlike Touchscreen, `android_status` is always `AOAHID_ANDROID_CONDITIONAL`, ind
 - Core fields are Generic Desktop X/Y, Digitizers Tip Switch `0x42`, and In Range `0x32`.
 - Optional fields are Tip Pressure `0x30`, X Tilt `0x3d`, Y Tilt `0x3e`, Twist `0x41`, caller-selected barrel controls including Barrel Switch `0x44` and Secondary Barrel Switch `0x5a`, and Invert `0x3c` for eraser-end selection. **[HUT 1.7 definition]**
 - X Tilt and Y Tilt are separate HUT Usages. Requiring the pair together is **[Guide policy]**, not a HUT rule.
+- X, Y, Pressure, Tilt X/Y, and Twist widths are each caller-declared (1-32 bits); the descriptor realigns to a byte boundary between them so a wide field never inherits a nonzero bit offset from the one before it. See `LIMITS.md`, "Field ordering inside generated profiles". **[Guide policy]**
 - When eraser-end selection is enabled, the descriptor emits its Variable
   fields in the order Invert, Tip Switch, In Range. At commit
   `35556bed836f8dc07ac55f69c8d17dce3e7f0e25`, the generic HID path processes

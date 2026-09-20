@@ -43,6 +43,38 @@ The field is valid only when `bytes_touched <= 4`. If `w == 32`, `o mod 8` must 
 
 The calculation is performed with checked arithmetic before adding a field to a report layout.
 
+### Field ordering inside generated profiles
+
+The field-span rule above is checked against the position each field actually
+lands at, and that position depends on every field emitted before it in the
+same report. A short Boolean/Hat/D-pad group (1-4 bits) does not by itself
+violate the rule, but it can leave the *next* field starting at a nonzero bit
+offset. If that next field is itself close to the 32-bit ceiling (see
+"Generated scalar field width" below) and is not byte-aligned first, it can
+be pushed into a fifth byte and rejected — even though every individual field
+width, taken alone, is within the documented per-field maximum.
+
+Starting with the release that added this note, every generated profile
+inserts an explicit byte-boundary pad between such chained, independently
+caller-declared fields, specifically:
+
+- Gamepad: after the Hat Switch/raw D-pad OOC group, and again after each
+  axis (axis count and width are both caller-declared; the same width is
+  reused for every axis).
+- Mouse: between X/Y, Wheel, and AC Pan.
+- Pen: between X/Y, Pressure, Tilt X/Y, and Twist.
+- Touchscreen/Touchpad: between Contact Identifier, X, Y, Pressure, Width,
+  Height, and Azimuth within each contact, and again between Scan Time and
+  Contact Count after the last contact.
+
+This costs at most a few constant padding bits per boundary (never a whole
+extra report or transfer) and keeps every field's own span calculation
+independent of what a caller chose for the fields before it. **[Guide
+policy]**, adopted specifically to keep the USB HID 1.11 section 8.4
+requirement above satisfied for every caller-reachable combination of field
+widths, not only the combinations exercised by this project's own examples
+and golden descriptors.
+
 ### Representable domains
 
 For bit width `w`, where `1 <= w <= 32`:
