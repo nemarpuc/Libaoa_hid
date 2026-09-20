@@ -667,6 +667,10 @@ static aoahid_result aoahid_spec_create_mouse_impl(const aoahid_mouse_options* o
                                   FieldSemantic::y, 0U, false, &options->y.physical)) {
                 return false;
             }
+            // X and Y widths are caller-declared (1-32 bits, see LIMITS.md);
+            // realign to a byte boundary before Wheel/Pan so a wide,
+            // misaligned field can never cross a fifth byte (HID 1.11 8.4).
+            pad_report(builder, layout);
             if (options->enable_wheel == 1U &&
                 !builder.variable(aoa::hid::usage::page_generic_desktop, aoa::hid::usage::wheel,
                                   options->wheel.logical_minimum, options->wheel.logical_maximum,
@@ -674,6 +678,7 @@ static aoahid_result aoahid_spec_create_mouse_impl(const aoahid_mouse_options* o
                                   FieldSemantic::wheel, 0U, false, &options->wheel.physical)) {
                 return false;
             }
+            pad_report(builder, layout);
             if (options->enable_pan == 1U &&
                 !builder.variable(aoa::hid::usage::page_consumer, aoa::hid::usage::ac_pan,
                                   options->pan.logical_minimum, options->pan.logical_maximum,
@@ -850,6 +855,12 @@ static aoahid_result create_controller_spec(const aoahid_gamepad_options* option
                     }
                 }
             }
+            // The Hat Switch and the raw D-pad OOC bits above are 4 bits wide
+            // and are not byte-aligned on their own; without realigning here,
+            // an axis width in HUT 1.7's full 1-32 bit range (see LIMITS.md)
+            // could start at a nonzero bit offset and cross a fifth byte,
+            // which HID 1.11 section 8.4 forbids for a single field.
+            pad_report(builder, layout);
             for (std::size_t index = 0; index < options->axis_count; ++index) {
                 const aoahid_gamepad_axis& axis = options->axes[index];
                 if (!builder.variable(
@@ -859,6 +870,13 @@ static aoahid_result create_controller_spec(const aoahid_gamepad_options* option
                         static_cast<std::uint16_t>(index), false, &axis.value.physical)) {
                     return false;
                 }
+                // Every axis shares one caller-declared width (LIMITS.md
+                // "Generated scalar field width", 1-32 bits). A width that is
+                // not a multiple of eight leaves the next axis at a nonzero
+                // bit offset; realigning after each axis keeps that drift
+                // from ever compounding into a fifth-byte span two or more
+                // axes in, regardless of the declared width.
+                pad_report(builder, layout);
             }
             pad_report(builder, layout);
             return builder.end_collection();
@@ -1058,6 +1076,12 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
                                       &fields.y.physical)) {
                     return false;
                 }
+                // Contact Identifier is a fixed 4 bits, and X, Y, Pressure,
+                // Width, Height, and Azimuth are each an independently
+                // caller-declared 1-32 bit field (see LIMITS.md); realigning
+                // between them keeps any one of them from starting at a
+                // nonzero bit offset and crossing a fifth byte (HID 1.11 8.4).
+                pad_report(builder, layout);
                 if (fields.enable_pressure == 1U &&
                     !builder.variable(
                         aoa::hid::usage::page_digitizers, aoa::hid::usage::tip_pressure,
@@ -1067,6 +1091,7 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
                         &fields.pressure.physical)) {
                     return false;
                 }
+                pad_report(builder, layout);
                 if (fields.enable_width == 1U &&
                     !builder.variable(aoa::hid::usage::page_digitizers, aoa::hid::usage::width,
                                       fields.width.logical_minimum, fields.width.logical_maximum,
@@ -1076,6 +1101,7 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
                                       &fields.width.physical)) {
                     return false;
                 }
+                pad_report(builder, layout);
                 if (fields.enable_height == 1U &&
                     !builder.variable(aoa::hid::usage::page_digitizers, aoa::hid::usage::height,
                                       fields.height.logical_minimum, fields.height.logical_maximum,
@@ -1085,6 +1111,7 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
                                       &fields.height.physical)) {
                     return false;
                 }
+                pad_report(builder, layout);
                 if (fields.enable_azimuth == 1U &&
                     !builder.variable(
                         aoa::hid::usage::page_digitizers, aoa::hid::usage::azimuth,
@@ -1098,6 +1125,12 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
                     return false;
                 }
             }
+            // Scan Time and Contact Count are each an independently
+            // caller-declared 1-32 bit field (see LIMITS.md), following the
+            // last enabled per-contact field above; realigning between them
+            // keeps any one of them from starting at a nonzero bit offset
+            // and crossing a fifth byte (HID 1.11 8.4).
+            pad_report(builder, layout);
             if (fields.enable_scan_time == 1U &&
                 !builder.variable(
                     aoa::hid::usage::page_digitizers, aoa::hid::usage::scan_time,
@@ -1106,6 +1139,7 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
                     FieldSemantic::scan_time, 0U, false, &fields.scan_time.physical)) {
                 return false;
             }
+            pad_report(builder, layout);
             if (!builder.variable(
                     aoa::hid::usage::page_digitizers, aoa::hid::usage::contact_count,
                     fields.contact_count.logical_minimum, fields.contact_count.logical_maximum,
@@ -1297,6 +1331,11 @@ static aoahid_result aoahid_spec_create_pen_impl(const aoahid_pen_options* optio
                                   FieldSemantic::y, 0U, false, &options->y.physical)) {
                 return false;
             }
+            // Each of X, Y, Pressure, Tilt X/Y, and Twist below is an
+            // independently caller-declared 1-32 bit field (see LIMITS.md);
+            // realigning between them keeps any one of them from starting at
+            // a nonzero bit offset and crossing a fifth byte (HID 1.11 8.4).
+            pad_report(builder, layout);
             if (options->enable_pressure == 1U &&
                 !builder.variable(
                     aoa::hid::usage::page_digitizers, aoa::hid::usage::tip_pressure,
@@ -1305,6 +1344,7 @@ static aoahid_result aoahid_spec_create_pen_impl(const aoahid_pen_options* optio
                     FieldSemantic::pressure, 0U, false, &options->pressure.physical)) {
                 return false;
             }
+            pad_report(builder, layout);
             if (options->enable_tilt == 1U &&
                 (!builder.variable(aoa::hid::usage::page_digitizers, aoa::hid::usage::x_tilt,
                                    options->tilt_x.logical_minimum, options->tilt_x.logical_maximum,
@@ -1318,6 +1358,7 @@ static aoahid_result aoahid_spec_create_pen_impl(const aoahid_pen_options* optio
                                    &options->tilt_y.physical))) {
                 return false;
             }
+            pad_report(builder, layout);
             if (options->enable_twist_target_specific == 1U &&
                 !builder.variable(aoa::hid::usage::page_digitizers, aoa::hid::usage::twist,
                                   options->twist.logical_minimum, options->twist.logical_maximum,

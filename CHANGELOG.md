@@ -5,6 +5,49 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-09-20
+
+### Fixed
+
+- Four generated profiles (Gamepad, Mouse, Pen, Touchscreen/Touchpad) could
+  reject an otherwise-valid caller configuration with
+  `AOAHID_ERR_PARAM`/"HID 1.11 section 8.4 forbids one field from spanning
+  more than four bytes" even though every individual field width was within
+  its own documented 1-32 bit maximum. The rejection depended on the bit
+  offset a field happened to land at, which depended in turn on whether
+  earlier, unrelated fields in the same report left a nonzero bit offset
+  behind:
+  - Gamepad: any axis width of 25-32 bits, after the Hat Switch or the raw
+    D-pad OOC group (both 4 bits), or after a same-width axis before it in a
+    multi-axis configuration (axis count 2 or more).
+  - Mouse: a Wheel or AC Pan width of 25-32 bits after a non-byte-aligned
+    X/Y or Wheel width.
+  - Pen: a Pressure, Tilt X/Y, or Twist width of 25-32 bits after a
+    non-byte-aligned X/Y or Pressure width.
+  - Touchscreen/Touchpad: a Pressure, Width, Height, Azimuth, Scan Time, or
+    Contact Count width of 25-32 bits after a non-byte-aligned Contact
+    Identifier, X, or Y width.
+
+  Each generator now inserts an explicit byte-boundary pad between these
+  chained, independently caller-declared fields, so a field's own span
+  calculation no longer depends on what a caller chose for the fields
+  before it. See `LIMITS.md`, "Field ordering inside generated profiles",
+  which documents this for the first time.
+
+### Verification status
+
+This release changes only the internal bit/byte layout of the four affected
+profiles' generated descriptors where a caller's field widths previously hit
+the byte-span rejection above or left unnecessary mid-report padding; it
+adds no new public API and removes none. The publicly shipped example/golden
+descriptors for Gamepad and Pen keep the exact same descriptor byte length
+(the padding relocates rather than growing); Touchscreen and Touchpad grow
+by a few descriptor bytes and a few report-data bits per contact, because
+their golden fixtures exercise field widths that previously left mid-report
+padding gaps this release now closes. No profile gains or loses a
+hardware-verification claim; every profile remains **not hardware-verified**
+(see `TARGET_MATRIX.md`).
+
 ## [0.5.2] - 2026-09-17
 
 ### Reverted
