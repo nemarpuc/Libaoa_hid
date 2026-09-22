@@ -5,6 +5,54 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-22
+
+### Added
+
+- `examples/c/verify/verify_toggle.c` and `verify_battery.c`, joining
+  `verify_keyboard`/`verify_touch`/`verify_mouse`/`verify_all` as
+  human-observable real-device verification programs (see
+  `docs/QUICKSTART.md`). `verify_toggle` fires four Consumer Control Usages
+  in turn (Play/Pause, Volume Increment, Mute, "AC New") for a media app to
+  react to, deliberately excluding System Control Usages that could suspend
+  or power off the phone mid-test. `verify_battery` sends a low/mid/high
+  Battery Strength sequence and the explicit unknown (Null) state; unlike
+  every other program here it produces no `getevent` output by design, so
+  confirming it means checking `adb shell dumpsys battery` and
+  `/sys/class/power_supply` instead.
+
+### Fixed
+
+- `aoahid_toggle(node, usage, 0)` (release) silently ignored `usage`
+  entirely, always releasing whichever Usage was currently pressed
+  regardless of what was passed. A caller that lost track of which Usage it
+  had pressed could release the wrong one -- or release nothing, if nothing
+  was pressed -- with no indication anything was wrong. `usage` on release
+  must now be either `0` (release whichever Usage is pressed, for a caller
+  that never tracked it -- the prior behavior, kept as an explicit opt-in)
+  or the Usage actually pressed; a different nonzero Usage is rejected with
+  `AOAHID_ERR_PARAM` instead of silently doing the wrong thing.
+- `examples/c/verify/verify_toggle.c` did not set
+  `aoahid_toggle_options.expected_linux_event_types`/`expected_linux_codes`,
+  two of the four required parallel arrays (see `examples/c/profiles/toggle.c`
+  for the reference shape), so `aoahid_spec_create_toggle` always failed with
+  `AOAHID_ERR_UNSET_FIELD` and the program could never run.
+
+### Verification status
+
+`verify_toggle` and `verify_battery` were each run once against one physical
+Samsung Android target after the fixes above, confirming both now run to
+completion without error; `verify_toggle`'s Play/Pause, Volume Increment, and
+Mute were also each observed changing that target's foreground media app.
+This falls well short of `TARGET_MATRIX.md`'s "Minimum per-profile cases" for
+either profile (every allowed Usage under foreground/background/screen-off,
+zero re-arm, and -- for Battery -- the declared minimum/midpoint/maximum plus
+`power_supply`/application-API association), so this release changes no
+profile's status in `TARGET_MATRIX.md`: Toggle and Battery Strength remain
+**not hardware-verified**, same as every other profile. The `usage`-on-release
+fix and both new example programs touch neither the wire format nor the
+generated descriptor of any profile.
+
 ## [0.5.3] - 2026-09-20
 
 ### Fixed

@@ -108,6 +108,11 @@ class AbiNamespacePolicyTests(unittest.TestCase):
             with self.subTest(version=version):
                 validate_release.validate_abi_namespace(version, "0", "0.1")
 
+    def test_major_one_minor_bumps_keep_the_1_0_namespace(self) -> None:
+        for version in ("1.0.0", "1.1.0", "1.99.7"):
+            with self.subTest(version=version):
+                validate_release.validate_abi_namespace(version, "1", "1.0")
+
     def test_project_minor_is_not_an_abi_namespace(self) -> None:
         with self.assertRaisesRegex(
             validate_release.ValidationError,
@@ -123,11 +128,13 @@ class AbiNamespacePolicyTests(unittest.TestCase):
             validate_release.validate_abi_namespace("0.2.0", "1", "0.1")
 
     def test_new_abi_major_requires_an_explicit_namespace_policy(self) -> None:
+        # "99" stands in for a hypothetical next major with no policy entry
+        # yet; "1" is now a real, registered major (see ABI_NAMESPACE_BY_SOVERSION).
         with self.assertRaisesRegex(
             validate_release.ValidationError,
             "no ELF ABI namespace policy is defined",
         ):
-            validate_release.validate_abi_namespace("1.0.0", "1", "1.0")
+            validate_release.validate_abi_namespace("99.0.0", "99", "99.0")
 
 
 class VersionSyncTests(unittest.TestCase):
