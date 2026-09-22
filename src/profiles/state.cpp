@@ -836,12 +836,8 @@ static aoahid_result aoahid_toggle_impl(aoahid_node* node, const std::uint16_t u
         set_error(AOAHID_ERR_BUSY, "toggle", "The node has one report in flight.");
         return AOAHID_ERR_BUSY;
     }
-    const std::uint16_t next_usage = [&]() -> std::uint16_t {
-        if (down != 1U) {
-            return 0U;
-        }
-        return usage;
-    }();
+    auto* consumer = state<aoa::detail::ConsumerState>(node);
+    std::uint16_t next_usage = 0U;
     if (down == 1U) {
         const auto* spec = config<aoa::detail::ConsumerConfig>(node);
         if (std::find(spec->allowed_usages.begin(), spec->allowed_usages.end(), usage) ==
@@ -850,8 +846,16 @@ static aoahid_result aoahid_toggle_impl(aoahid_node* node, const std::uint16_t u
                       "The Usage is not in the caller allow-list.");
             return AOAHID_ERR_PARAM;
         }
+        next_usage = usage;
+    } else if (usage != 0U && usage != consumer->usage) {
+        // 0 releases whichever Usage is currently pressed, so a caller that
+        // never tracked it can still release; a nonzero usage here must name
+        // that same Usage, catching a caller that has lost track of what it
+        // pressed instead of silently releasing the wrong (or no) Usage.
+        set_error(AOAHID_ERR_PARAM, "toggle.usage",
+                  "usage on release must be 0 or the Usage currently pressed.");
+        return AOAHID_ERR_PARAM;
     }
-    auto* consumer = state<aoa::detail::ConsumerState>(node);
     const bool changed = consumer->usage != next_usage;
     if (changed && consumer->transition_pending) {
         return pending_transition("toggle");

@@ -29,9 +29,9 @@
 extern "C" {
 #endif
 
-#define AOAHID_VERSION_MAJOR 0
-#define AOAHID_VERSION_MINOR 5
-#define AOAHID_VERSION_PATCH 3
+#define AOAHID_VERSION_MAJOR 1
+#define AOAHID_VERSION_MINOR 0
+#define AOAHID_VERSION_PATCH 0
 
 typedef struct aoahid_context aoahid_context;
 typedef struct aoahid_discovery aoahid_discovery;
@@ -1103,10 +1103,14 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_mouse_button(aoahid_node* node, uint
  * Synchronization: Belongs to the parent Context domain; serialize mutation and
  * submission calls. It is rejected while one report is in flight.
  * down must be exactly zero or one: one presses usage, which must be in the
- * Spec allow-list, matching the prior press; zero releases whichever Usage is
- * currently pressed, matching the prior release, and ignores usage.
- * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid Node/profile/down or a
- * Usage outside the Spec allow-list; AOAHID_ERR_BUSY for an in-flight report;
+ * Spec allow-list, matching the prior press; zero releases the currently
+ * pressed Usage, and usage must then be either 0 (release whichever Usage is
+ * pressed, for a caller that never tracked it) or that same Usage -- a
+ * different nonzero Usage is rejected instead of silently releasing the
+ * wrong one.
+ * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid Node/profile/down, a
+ * Usage outside the Spec allow-list, or a release Usage that is neither 0 nor
+ * the one currently pressed; AOAHID_ERR_BUSY for an in-flight report;
  * AOAHID_ERR_NO_DEVICE for sticky loss; AOAHID_ERR_INTERNAL for an unexpected
  * ABI-boundary failure. */
 AOAHID_API aoahid_result AOAHID_CALL aoahid_toggle(aoahid_node* node, uint16_t usage,

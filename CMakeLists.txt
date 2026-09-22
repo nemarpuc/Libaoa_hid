@@ -554,7 +554,7 @@ if(AOAHID_BUILD_EXAMPLES)
   # Human-observable real-device verification programs (docs/QUICKSTART.md).
   # These need an actual phone and are meant to be watched, so unlike the
   # examples above they are never registered as ctest cases.
-  set(AOAHID_VERIFY_EXAMPLES keyboard touch mouse all)
+  set(AOAHID_VERIFY_EXAMPLES keyboard touch mouse toggle battery all)
   foreach(aoahid_verify_example IN LISTS AOAHID_VERIFY_EXAMPLES)
     add_executable(aoahid_verify_${aoahid_verify_example}
         examples/c/verify/verify_${aoahid_verify_example}.c)
