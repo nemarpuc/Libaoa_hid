@@ -131,6 +131,11 @@ SITES: tuple[VersionSite, ...] = (
         r'"AOAHID_VERSION_PATCH": (\d+),',
         "patch",
     ),
+    VersionSite("examples/rust/Cargo.toml", r'^version = "(\d+\.\d+\.\d+)"$'),
+    VersionSite(
+        "examples/rust/Cargo.toml",
+        r'aoahid-sys = \{ path = "\.\./\.\./bindings/rust/aoahid-sys", version = "(\d+\.\d+\.\d+)" \}',
+    ),
 )
 
 

@@ -45,7 +45,12 @@ static const toggle_case k_cases[] = {
     {0x0201U, AOAHID_USAGE_SELECTOR_BITMAP, "AC New (Consumer 0x0C/0x0201, Sel)", "EV_KEY",
      "KEY_NEW"},
 };
-static const size_t k_case_count = sizeof k_cases / sizeof k_cases[0];
+/* A macro, not a `static const size_t`: MSVC's C front end does not treat a
+ * named const object as an integer constant expression, so using one as an
+ * array bound below would fail to compile there (unlike GCC/Clang, which
+ * accept it). A macro expands to the literal sizeof-division at each use, so
+ * every compiler sees the same ordinary constant expression. */
+#define TOGGLE_CASE_COUNT (sizeof k_cases / sizeof k_cases[0])
 
 static int run_case(aoahid_node* node, const toggle_case* c) {
     printf("\n-- sending: %s --\n", c->label);
@@ -79,18 +84,18 @@ int main(void) {
     options.application_usage = 0x01U;
     options.field_page = 0x0CU;
 
-    uint16_t usages[k_case_count];
-    aoahid_usage_semantic semantics[k_case_count];
-    const char* expected_types[k_case_count];
-    const char* expected_codes[k_case_count];
-    for (size_t i = 0; i < k_case_count; ++i) {
+    uint16_t usages[TOGGLE_CASE_COUNT];
+    aoahid_usage_semantic semantics[TOGGLE_CASE_COUNT];
+    const char* expected_types[TOGGLE_CASE_COUNT];
+    const char* expected_codes[TOGGLE_CASE_COUNT];
+    for (size_t i = 0; i < TOGGLE_CASE_COUNT; ++i) {
         usages[i] = k_cases[i].usage;
         semantics[i] = k_cases[i].semantic;
         expected_types[i] = k_cases[i].expected_type;
         expected_codes[i] = k_cases[i].expected_code;
     }
     options.allowed_usages = usages;
-    options.allowed_usage_count = k_case_count;
+    options.allowed_usage_count = TOGGLE_CASE_COUNT;
     options.usage_semantics = semantics;
     options.expected_linux_event_types = expected_types;
     options.expected_linux_codes = expected_codes;
@@ -121,7 +126,7 @@ int main(void) {
     verify_sleep_ms(3000);
 
     int exit_code = 0;
-    for (size_t i = 0; i < k_case_count && exit_code == 0; ++i)
+    for (size_t i = 0; i < TOGGLE_CASE_COUNT && exit_code == 0; ++i)
         exit_code = run_case(node, &k_cases[i]);
 
     if (exit_code == 0) {
