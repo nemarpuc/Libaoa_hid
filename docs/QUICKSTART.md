@@ -50,6 +50,8 @@ For a quick test, you can skip the udev setup and run the programs with sudo:
     sudo ./aoahid_verify_keyboard
     sudo ./aoahid_verify_touch
     sudo ./aoahid_verify_mouse
+    sudo ./aoahid_verify_toggle
+    sudo ./aoahid_verify_battery
 
 If `aoahid_device_open` fails with `AOAHID_ERR_ACCESS`, try running the
 program with `sudo` first. If that works, the problem is likely USB
@@ -111,7 +113,7 @@ correctness evidence, not a demo you are meant to watch.
 
 ## 8. Run the human-observable verification programs
 
-`examples/c/verify/` contains three small, heavily commented programs built
+`examples/c/verify/` contains five small, heavily commented programs built
 specifically to be watched, each printing what to do before it starts and
 pausing so you have time to react:
 
@@ -120,11 +122,15 @@ pausing so you have time to react:
 | `aoahid_verify_keyboard` | Open a text field (Notes, a search box, anything with a text cursor) | The literal text `hello from libaoahid` typed out, three times |
 | `aoahid_verify_mouse` | Nothing required | The cursor moves in a circle for a few seconds -- many phones do not show a visible cursor at all without an accessibility/DeX-style pointer mode enabled; a clean exit with no error is still useful evidence even with nothing visible |
 | `aoahid_verify_touch` | Have any screen open | The screen shows a left-right dragging motion, repeated five times |
+| `aoahid_verify_toggle` | Unlock the phone and put a media app in the foreground (ideally a paused track) | Play/Pause, Volume Increment, Mute, and "AC New" each fire in turn; watch the media app and/or `adb shell getevent -lt` for the accessory's `/dev/input/eventN` (only Consumer Control Usages are sent -- see the comment at the top of the file for why System Control is deliberately excluded) |
+| `aoahid_verify_battery` | Nothing required | Nothing shows in `getevent` by design (Battery Strength is kernel `power_supply` metadata, not an input event); check `adb shell dumpsys battery` and `/sys/class/power_supply` instead, as printed by the program and detailed in the comment at the top of the file |
 
 ```sh
 sudo ./aoahid_verify_keyboard
 sudo ./aoahid_verify_touch
 sudo ./aoahid_verify_mouse
+sudo ./aoahid_verify_toggle
+sudo ./aoahid_verify_battery
 ```
 
 Each one prints a clear error (with the field/reason from

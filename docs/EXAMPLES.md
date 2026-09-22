@@ -105,16 +105,21 @@ API observation; no Android-support claim]**
 `multi_profile.c` (an automated, CI-registered correctness exercise fired
 once and gone in milliseconds) and `examples/c/profiles/` (Spec-only, never
 opens a device), each program under `verify/` opens a real device and
-produces a sustained, sighted effect a person watching the phone can actually
-confirm -- typing a message repeatedly (`verify_keyboard.c`), dragging across
-the screen five times (`verify_touch.c`), and moving the cursor in a circle
-for several seconds (`verify_mouse.c`). They print what to do before they
-start (for example, focus a text field) and print a plain-language error
-instead of failing silently. `docs/QUICKSTART.md` is the full walkthrough
-these programs are built for; `CMakeLists.txt` builds all three whenever
-`AOAHID_BUILD_EXAMPLES` is on, but never registers them as `ctest` cases,
-since they need a physical phone and are meant to be watched rather than run
-unattended.
+produces a sustained effect a person can actually confirm -- typing a message
+repeatedly (`verify_keyboard.c`), dragging across the screen five times
+(`verify_touch.c`), moving the cursor in a circle for several seconds
+(`verify_mouse.c`), and firing four Consumer Control Usages in turn --
+Play/Pause, Volume Increment, Mute, "AC New" -- for a media app to react to
+(`verify_toggle.c`). `verify_battery.c` is the one exception to "sighted on
+the phone's screen": Battery Strength is kernel `power_supply` metadata, not
+an input event, so confirming it means checking `adb shell dumpsys battery`
+and `/sys/class/power_supply` instead, as its own comment header explains.
+They print what to do before they start (for example, focus a text field)
+and print a plain-language error instead of failing silently.
+`docs/QUICKSTART.md` is the full walkthrough these programs are built for;
+`CMakeLists.txt` builds all five whenever `AOAHID_BUILD_EXAMPLES` is on, but
+never registers them as `ctest` cases, since they need a physical phone and
+are meant to be watched rather than run unattended.
 
 ## Example value ledger
 

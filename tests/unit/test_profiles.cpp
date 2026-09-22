@@ -315,6 +315,20 @@ void test_usage_control_semantics() {
         AOAHID_CHECK(report[0] == 0U);
         AOAHID_CHECK(aoahid_toggle(&node, 0x00E0U, 1U) == AOAHID_ERR_PARAM);
 
+        // Release must name 0 (whichever Usage is pressed) or that same
+        // Usage; a different pressed Usage's number is rejected instead of
+        // silently releasing the wrong (or no) Usage.
+        aoa::detail::transfer_complete(&node, AOAHID_OK, 0);
+        AOAHID_CHECK(aoahid_toggle(&node, 0x00CDU, 1U) == AOAHID_OK);
+        AOAHID_CHECK(aoahid_toggle(&node, 0x00E9U, 0U) == AOAHID_ERR_PARAM);
+        aoa::detail::transfer_complete(&node, AOAHID_OK, 0);
+        AOAHID_CHECK(aoahid_toggle(&node, 0x00CDU, 0U) == AOAHID_OK);
+        aoa::detail::transfer_complete(&node, AOAHID_OK, 0);
+        AOAHID_CHECK(aoahid_toggle(&node, 0x00CDU, 1U) == AOAHID_OK);
+        aoa::detail::transfer_complete(&node, AOAHID_OK, 0);
+        AOAHID_CHECK(aoahid_toggle(&node, 0U, 0U) == AOAHID_OK);
+        aoa::detail::transfer_complete(&node, AOAHID_OK, 0);
+
         // The state object enforces the same accepted 1->0 lifecycle for each
         // caller-declared HUT semantic. Semantic flags stay descriptor policy;
         // the caller never hand-crafts an impossible re-trigger sequence.
