@@ -24,6 +24,7 @@ opaque!(
 
 pub type aoahid_result = i32;
 pub type aoahid_event_mode = i32;
+pub type aoahid_channel_read_mode = i32;
 pub type aoahid_startup_mode = i32;
 pub type aoahid_interface_claim_policy = i32;
 pub type aoahid_log_level = i32;
@@ -34,9 +35,9 @@ pub type aoahid_axis_role = i32;
 pub type aoahid_dpad_representation = i32;
 pub type aoahid_usage_semantic = i32;
 
-pub const AOAHID_VERSION_MAJOR: u32 = 2;
+pub const AOAHID_VERSION_MAJOR: u32 = 3;
 pub const AOAHID_VERSION_MINOR: u32 = 0;
-pub const AOAHID_VERSION_PATCH: u32 = 1;
+pub const AOAHID_VERSION_PATCH: u32 = 0;
 pub const AOAHID_OK: i32 = 0;
 pub const AOAHID_ERR_PARAM: i32 = 1;
 pub const AOAHID_ERR_UNSET_FIELD: i32 = 2;
@@ -57,6 +58,8 @@ pub const AOAHID_ERR_INTERNAL: i32 = 16;
 
 pub const AOAHID_EVENT_CALLER_POLL: i32 = 1;
 pub const AOAHID_EVENT_INTERNAL_THREAD: i32 = 2;
+pub const AOAHID_CHANNEL_READ_STREAM: i32 = 0;
+pub const AOAHID_CHANNEL_READ_REQUEST: i32 = 1;
 pub const AOAHID_START_CURRENT_USB_MODE: i32 = 1;
 #[deprecated(note = "Mode B is an ABI tombstone; device_open returns AOAHID_ERR_UNSUPPORTED")]
 pub const AOAHID_START_ACCESSORY_MODE: i32 = 2;
@@ -187,6 +190,7 @@ c_struct!(aoahid_channel_options {
     out_transfers: u32,
     transfer_bytes: u32,
     zero_length_termination: u32,
+    read_mode: aoahid_channel_read_mode,
 });
 c_struct!(aoahid_node_options {
     struct_size: u32,

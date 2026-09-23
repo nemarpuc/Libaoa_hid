@@ -408,6 +408,9 @@ void aoahid_fake_libusb_add_bulk_interface(size_t device_index,
 /* Delivers bytes as one Bulk IN transfer, now if one is pending, else later. */
 void aoahid_fake_libusb_push_bulk_in(size_t device_index, uint8_t endpoint, const uint8_t* data,
                                      size_t length);
+/* Every submitted Bulk IN transfer length, in submission order. */
+size_t aoahid_fake_libusb_bulk_in_submit_count(void);
+int aoahid_fake_libusb_bulk_in_submit_length(size_t index);
 size_t aoahid_fake_libusb_bulk_out_count(void);
 /* Returns the recorded length of one Bulk OUT transfer (zero for a ZLP). */
 size_t aoahid_fake_libusb_copy_bulk_out(size_t index, uint8_t* output, size_t capacity);

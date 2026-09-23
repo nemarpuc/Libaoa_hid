@@ -29,9 +29,9 @@
 extern "C" {
 #endif
 
-#define AOAHID_VERSION_MAJOR 2
+#define AOAHID_VERSION_MAJOR 3
 #define AOAHID_VERSION_MINOR 0
-#define AOAHID_VERSION_PATCH 1
+#define AOAHID_VERSION_PATCH 0
 
 typedef struct aoahid_context aoahid_context;
 typedef struct aoahid_discovery aoahid_discovery;
@@ -276,6 +276,20 @@ typedef struct aoahid_accessory_options {
     uint32_t control_timeout_ms;
 } aoahid_accessory_options;
 
+typedef int32_t aoahid_channel_read_mode;
+enum {
+    /* in_transfers IN transfers of transfer_bytes stay submitted and reads
+     * return their bytes as one stream. A transfer ends only when full or on a
+     * short packet, so a device that ends a packet-aligned message without a
+     * zero-length packet leaves those bytes waiting for more data. */
+    AOAHID_CHANNEL_READ_STREAM = 0,
+    /* No read-ahead: a read with nothing buffered submits one IN transfer of
+     * its capacity rounded up to wMaxPacketSize (at most transfer_bytes), as
+     * AOSP adb does for a length-prefixed payload. It completes as soon as it
+     * is full, with no zero-length packet needed. in_transfers is ignored. */
+    AOAHID_CHANNEL_READ_REQUEST = 1
+};
+
 typedef struct aoahid_channel_options {
     uint32_t struct_size;
     uint32_t reserved;
@@ -296,6 +310,8 @@ typedef struct aoahid_channel_options {
     /* Exactly zero or one. One ends every write whose length is a nonzero
      * multiple of wMaxPacketSize with an explicit zero-length packet. */
     uint32_t zero_length_termination;
+    /* AOAHID_CHANNEL_READ_STREAM (zero) or AOAHID_CHANNEL_READ_REQUEST. */
+    aoahid_channel_read_mode read_mode;
 } aoahid_channel_options;
 
 typedef struct aoahid_node_options {
@@ -904,9 +920,14 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_channel_write(aoahid_channel* channe
 /* aoahid_channel_read
  * Ownership: Borrows buffer; out_received receives the bytes copied on every
  * return.
- * Blocking: Waits at most timeout_ms (zero never waits) for received data. The
- * Channel is a byte stream: one call may return part of a USB transfer or stop
- * at a transfer boundary. In caller-poll mode a wait drives libusb events.
+ * Blocking: Waits at most timeout_ms (zero never waits) for received data. One
+ * call may return part of a USB transfer or stop at a transfer boundary. In
+ * AOAHID_CHANNEL_READ_REQUEST mode a call with nothing buffered first submits
+ * one IN transfer sized from capacity; a timeout leaves it pending, and the
+ * next call keeps waiting for it, so no byte is lost. Bytes beyond a smaller
+ * later capacity stay buffered for the following calls. A zero-length packet
+ * carries no data and is waited past. In caller-poll mode a wait drives libusb
+ * events.
  * Synchronization: Same rule as aoahid_channel_write; at most one thread reads
  * a Channel at a time. The call takes no lock and allocates nothing.
  * Returns: AOAHID_OK with at least one byte; AOAHID_ERR_PARAM for invalid

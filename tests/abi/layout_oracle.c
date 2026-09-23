@@ -37,6 +37,8 @@ int main(void) {
     AOAHID_CONSTANT(AOAHID_ERR_INTERNAL);
     AOAHID_CONSTANT(AOAHID_EVENT_CALLER_POLL);
     AOAHID_CONSTANT(AOAHID_EVENT_INTERNAL_THREAD);
+    AOAHID_CONSTANT(AOAHID_CHANNEL_READ_STREAM);
+    AOAHID_CONSTANT(AOAHID_CHANNEL_READ_REQUEST);
     AOAHID_CONSTANT(AOAHID_START_CURRENT_USB_MODE);
     AOAHID_CONSTANT(AOAHID_START_ACCESSORY_MODE);
     AOAHID_CONSTANT(AOAHID_INTERFACE_CLAIM_NONE);
@@ -172,6 +174,7 @@ int main(void) {
     AOAHID_FIELD(aoahid_channel_options, out_transfers);
     AOAHID_FIELD(aoahid_channel_options, transfer_bytes);
     AOAHID_FIELD(aoahid_channel_options, zero_length_termination);
+    AOAHID_FIELD(aoahid_channel_options, read_mode);
 
     AOAHID_BEGIN(aoahid_node_options);
     AOAHID_FIELD(aoahid_node_options, struct_size);

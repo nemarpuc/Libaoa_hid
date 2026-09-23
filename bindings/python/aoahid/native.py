@@ -15,9 +15,9 @@ from typing import Union
 
 
 # All public enum domains in aoahid.h are exactly int32_t.
-AOAHID_VERSION_MAJOR = 2
+AOAHID_VERSION_MAJOR = 3
 AOAHID_VERSION_MINOR = 0
-AOAHID_VERSION_PATCH = 1
+AOAHID_VERSION_PATCH = 0
 AOAHID_OK = 0
 AOAHID_ERR_PARAM = 1
 AOAHID_ERR_UNSET_FIELD = 2
@@ -38,6 +38,8 @@ AOAHID_ERR_INTERNAL = 16
 
 AOAHID_EVENT_CALLER_POLL = 1
 AOAHID_EVENT_INTERNAL_THREAD = 2
+AOAHID_CHANNEL_READ_STREAM = 0
+AOAHID_CHANNEL_READ_REQUEST = 1
 AOAHID_START_CURRENT_USB_MODE = 1
 # Legacy ABI value only; device_open returns AOAHID_ERR_UNSUPPORTED.
 AOAHID_START_ACCESSORY_MODE = 2
@@ -236,6 +238,7 @@ class ChannelOptions(c.Structure):
         ("out_transfers", c.c_uint32),
         ("transfer_bytes", c.c_uint32),
         ("zero_length_termination", c.c_uint32),
+        ("read_mode", c.c_int32),
     ]
 
 

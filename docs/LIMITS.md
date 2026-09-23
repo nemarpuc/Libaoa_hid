@@ -186,9 +186,9 @@ by an explicit nonzero value.
 | `maximum_report_bytes` | 1024 bytes | Payload allocation and public report-length policy per pool slot. |
 | `close_drain_timeout_ms` | 1000 ms | Bounded Device close/drain budget. |
 | `aoahid_accessory_options.control_timeout_ms` | 500 ms | Failure deadline for each of requests 51, 52, and 53. |
-| `aoahid_channel_options.in_transfers` | 4 | IN transfers kept submitted for reading ahead. |
+| `aoahid_channel_options.in_transfers` | 4 | IN transfers kept submitted for reading ahead (stream read mode only). |
 | `aoahid_channel_options.out_transfers` | 4 | OUT transfer pool per Channel. |
-| `aoahid_channel_options.transfer_bytes` | 65536 bytes | Buffer per Bulk transfer, rounded up to `wMaxPacketSize`. |
+| `aoahid_channel_options.transfer_bytes` | 65536 bytes | Buffer per Bulk transfer, rounded up to `wMaxPacketSize`; the largest IN request in request read mode. |
 | Node reservation `0/0` | no reservation | Use shared pool capacity without reserving a slot for that Node. |
 
 Every row is **[Project policy]**. Neither the USB specifications nor libusb

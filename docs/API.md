@@ -194,8 +194,8 @@ accessory endpoints; libusb documents re-selecting the active configuration as
 a lightweight device reset, so a configured device is left alone). It then
 selects the first interface (alternate setting 0) whose class, subclass, and
 protocol match and that has one Bulk IN and one Bulk OUT endpoint, claims it on
-the Device's handle, and starts `in_transfers` read-ahead
-IN transfers. HID and Bulk share one handle, so a composite device never needs a
+the Device's handle, and, in the default stream read mode, starts
+`in_transfers` read-ahead IN transfers. HID and Bulk share one handle, so a composite device never needs a
 second open (WinUSB refuses one). Examples: ADB `0xFF/0x42/0x01` (**[AOSP
 source]** `packages/modules/adb/adb.h` `ADB_CLASS`/`ADB_SUBCLASS`/`ADB_PROTOCOL`,
 main at `4516d3cbfb9aafa2fb1c1be0949b8b866cc7801f`, retrieved 2026-09-23); the AOA
@@ -203,9 +203,30 @@ accessory interface of a `0x2D00`/`0x2D01` device, which exists only when the
 manufacturer and model strings were sent. Channel transfers use their own pool,
 so Bulk traffic never takes a HID transfer slot.
 
-- `aoahid_channel_read` returns a byte stream: one call may return part of a USB
-  transfer. The caller reassembles its own framing (for ADB, the 24-byte
+- `aoahid_channel_read` returns bytes in order: one call may return part of a
+  USB transfer. The caller reassembles its own framing (for ADB, the 24-byte
   message header's length field).
+- `read_mode` chooses how IN transfers are sized:
+
+  | `read_mode` | IN transfers | Use when |
+  |---|---|---|
+  | `AOAHID_CHANNEL_READ_STREAM` (zero) | `in_transfers` transfers of `transfer_bytes` stay submitted (read-ahead). | The device ends every message with a short packet or a zero-length packet, or `transfer_bytes` is one `wMaxPacketSize`. |
+  | `AOAHID_CHANNEL_READ_REQUEST` | A read with nothing buffered submits one transfer of its `capacity` rounded up to `wMaxPacketSize`, at most `transfer_bytes`. `in_transfers` is ignored. | The protocol states each length up front, as ADB does. |
+
+  A Bulk IN transfer completes only when its buffer is full or a short packet
+  arrives. So in stream mode, a message whose length is a multiple of
+  `wMaxPacketSize` and that ends without a zero-length packet waits in an
+  unfinished transfer until the device sends more. adbd sends no such
+  zero-length packet, and host adb instead reads the 24-byte header, then
+  exactly `data_length` bytes (**[AOSP source]**
+  `packages/modules/adb` at `1cf2f017d312f73b3dc53bda85ef2610e35a80e9`:
+  `client/usb_libusb_device.cpp` `LibUsbDevice::Read`, and
+  `client/transport_usb.cpp` `UsbReadPayload`, whose comment reads "The device
+  won't send a zero packet for packet size aligned payloads"; read
+  2026-09-24). Request mode reads the same way. A request completes as soon as
+  it is full, and a timeout leaves it pending for the next read, so no byte is
+  lost. Bytes beyond a later, smaller `capacity` stay buffered. A zero-length
+  packet carries no data and is waited past in both modes.
 - `aoahid_channel_write` copies data into free OUT transfers and returns once
   every byte is submitted; a full pool waits at most `timeout_ms` and then
   reports `AOAHID_ERR_TIMEOUT` with the queued byte count. A failed OUT
@@ -235,9 +256,9 @@ allocate nothing.
 | Public field | Zero selects | Scope |
 |---|---:|---|
 | `aoahid_accessory_options.control_timeout_ms` | 500 ms | Failure deadline for each of requests 51, 52, and 53. |
-| `aoahid_channel_options.in_transfers` | 4 transfers | IN transfers kept submitted for reading ahead. |
+| `aoahid_channel_options.in_transfers` | 4 transfers | IN transfers kept submitted for reading ahead (stream read mode only). |
 | `aoahid_channel_options.out_transfers` | 4 transfers | OUT transfer pool; a full pool makes a write wait (back-pressure). |
-| `aoahid_channel_options.transfer_bytes` | 65536 bytes | Buffer per transfer, rounded up to a multiple of `wMaxPacketSize`. |
+| `aoahid_channel_options.transfer_bytes` | 65536 bytes | Buffer per transfer, rounded up to a multiple of `wMaxPacketSize`; in request read mode, the largest IN request. |
 
 Every value in this table is **[project policy]**, not a USB, Android, or ADB
 requirement. `aoahid_channel_close` uses the Device's `close_drain_timeout_ms`.

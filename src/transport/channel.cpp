@@ -150,6 +150,7 @@ struct Channel::Impl {
     std::uint32_t max_packet{};
     std::uint32_t transfer_bytes{};
     bool zero_length_termination{};
+    bool request_reads{};
     // Caller-poll mode: waits drive libusb events on the calling thread.
     Runtime* pump{};
     std::vector<Slot> in_slots;
@@ -164,6 +165,8 @@ struct Channel::Impl {
     // Reader-owned.
     std::uint32_t current{no_slot};
     std::size_t offset{};
+    // Request mode: the single IN transfer is submitted and not yet consumed.
+    bool request_pending{};
     // Writer-owned: a slot whose submit failed is reused before the ring.
     std::uint32_t spare{no_slot};
 
@@ -217,11 +220,11 @@ struct Channel::Impl {
         return AOAHID_OK;
     }
 
-    aoahid_result submit_in(Slot& slot) noexcept {
+    aoahid_result submit_in(Slot& slot, const std::uint32_t length) noexcept {
         if (lost.load(std::memory_order_acquire)) {
             return AOAHID_ERR_NO_DEVICE;
         }
-        const aoahid_result result = submit(slot, static_cast<int>(transfer_bytes), endpoint_in);
+        const aoahid_result result = submit(slot, static_cast<int>(length), endpoint_in);
         if (result != AOAHID_OK) {
             mark_lost();
         }
@@ -367,12 +370,14 @@ aoahid_result Channel::open(Port* port, const ChannelConfig& config, Channel** o
     impl->max_packet = bulk.max_packet;
     impl->transfer_bytes = static_cast<std::uint32_t>(rounded);
     impl->zero_length_termination = config.zero_length_termination;
+    impl->request_reads = config.request_reads;
     impl->pump = config.pump;
     channel->impl_ = impl;
     try {
-        impl->in_slots.resize(config.in_transfers);
+        const std::uint32_t in_count = config.request_reads ? 1U : config.in_transfers;
+        impl->in_slots.resize(in_count);
         impl->out_slots.resize(config.out_transfers);
-        impl->ready_in.init(config.in_transfers);
+        impl->ready_in.init(in_count);
         impl->free_out.init(config.out_transfers);
         std::uint32_t index = 0U;
         for (auto* slots : {&impl->in_slots, &impl->out_slots}) {
@@ -397,8 +402,12 @@ aoahid_result Channel::open(Port* port, const ChannelConfig& config, Channel** o
     for (const Impl::Slot& slot : impl->out_slots) {
         static_cast<void>(impl->free_out.push(slot.index));
     }
+    // Request mode submits nothing until the first read sizes the transfer.
     for (Impl::Slot& slot : impl->in_slots) {
-        const aoahid_result submitted = impl->submit_in(slot);
+        if (impl->request_reads) {
+            break;
+        }
+        const aoahid_result submitted = impl->submit_in(slot, impl->transfer_bytes);
         if (submitted != AOAHID_OK) {
             if (impl->in_flight.load(std::memory_order_acquire) == 0U) {
                 // Nothing is in flight yet, so the Channel can be freed now.
@@ -473,20 +482,38 @@ aoahid_result Channel::read(std::uint8_t* buffer, const std::size_t capacity, st
             *received = copied;
             if (copied == available) {
                 impl.current = no_slot;
-                static_cast<void>(impl.submit_in(slot));
+                if (!impl.request_reads) {
+                    static_cast<void>(impl.submit_in(slot, impl.transfer_bytes));
+                }
             }
             return AOAHID_OK;
+        }
+        if (impl.request_reads && !impl.request_pending) {
+            // Rounding to whole packets keeps a full last packet from
+            // overflowing; transfer_bytes is already a packet multiple.
+            const std::size_t wanted = std::min<std::size_t>(capacity, impl.transfer_bytes);
+            const auto length = static_cast<std::uint32_t>((wanted + impl.max_packet - 1U) /
+                                                           impl.max_packet * impl.max_packet);
+            const aoahid_result submitted = impl.submit_in(impl.in_slots[0], length);
+            if (submitted != AOAHID_OK) {
+                record_error(submitted);
+                return submitted;
+            }
+            impl.request_pending = true;
         }
         std::uint32_t index = 0U;
         if (impl.ready_in.pop(&index)) {
             Impl::Slot& slot = impl.in_slots[index];
+            impl.request_pending = false;
             const libusb_transfer_status status = slot.transfer->status;
             if (status == LIBUSB_TRANSFER_COMPLETED) {
                 if (slot.transfer->actual_length > 0) {
                     impl.current = index;
                     impl.offset = 0U;
-                } else {
-                    static_cast<void>(impl.submit_in(slot));
+                } else if (!impl.request_reads) {
+                    // A zero-length packet carries no data; request mode
+                    // resubmits at the top of the loop.
+                    static_cast<void>(impl.submit_in(slot, impl.transfer_bytes));
                 }
                 continue;
             }

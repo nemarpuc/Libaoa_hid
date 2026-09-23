@@ -217,7 +217,8 @@ fn rust_layout() -> BTreeMap<String, usize> {
             in_transfers,
             out_transfers,
             transfer_bytes,
-            zero_length_termination
+            zero_length_termination,
+            read_mode
         ]
     );
     layout!(
