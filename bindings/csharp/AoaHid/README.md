@@ -12,3 +12,11 @@ corresponding GitHub Release. Every C option remains explicit; this binding
 does not choose tuning overrides. Callers provide every product/target field;
 the native C API applies the documented bounded fallback when a Device
 transport-tuning field is zero.
+
+## Callback lifetime
+
+`ContextOptions.LogSink` holds a native function pointer, typically obtained
+with `Marshal.GetFunctionPointerForDelegate(sink)`. The garbage collector does
+not know that native code still uses it: keep the `LogSink` delegate instance
+referenced, for example in a field, until `ContextDestroy` has returned, or a
+later log call may run freed code and crash the process.

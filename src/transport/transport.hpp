@@ -21,6 +21,7 @@
 namespace aoa::transport {
 
 class Device;
+class Port;
 
 struct Candidate {
     std::uint8_t bus{};
@@ -40,8 +41,6 @@ struct DeviceConfig {
     std::uint32_t descriptor_fragment_bytes{};
     std::uint32_t pool_slots{};
     std::uint32_t maximum_report_bytes{};
-    std::uint32_t first_report_attempts{};
-    std::uint32_t first_report_backoff_us{};
     aoahid_interface_claim_policy claim_policy{};
     std::int32_t interface_number{};
 };
@@ -88,32 +87,73 @@ class Runtime final {
     aoahid_result discover(std::uint32_t timeout_ms, std::vector<Candidate>* out);
     void* native_context() const noexcept;
 
-    /* First-report STALL retries are the only source of deferred transport
-     * work, and they arise solely from the registration race. Counting the
-     * armed retries lets every poll skip the device registry and the per-slot
-     * scan in the overwhelmingly common case of none.
-     *
-     * Device::Impl calls these, so they are public rather than relying on the
-     * access a nested class inherits from its enclosing friend. This header is
-     * internal and is never installed. */
-    void note_retry_armed() noexcept;
-    void note_retry_disarmed() noexcept;
-    bool any_retry_armed() const noexcept;
+    /* Opens the candidate's original device as a new Port with one reference.
+     * On failure the libusb status is recorded and *out stays null. */
+    aoahid_result acquire_port(const Candidate& candidate, Port** out);
+
+    /* Sends AOA requests 51, 52 (for each non-null string), and 53 to the
+     * candidate and closes it again; the device then re-enumerates in
+     * accessory mode. It does not wait for that and never retries. A device
+     * already in accessory mode receives nothing. strings holds manufacturer,
+     * model, description, version, URI, and serial in AOA string-ID order. */
+    aoahid_result start_accessory(const Candidate& candidate, const char* const strings[6],
+                                  std::uint32_t control_timeout_ms);
 
   private:
     Runtime() noexcept = default;
 
     friend class Device;
-    void register_device(Device* device);
-    void unregister_device(Device* device) noexcept;
-    std::uint64_t next_retry_delay_us(std::uint64_t maximum_us) noexcept;
-    void service_retries() noexcept;
+    friend class Port;
+    void unregister_port(Port* port) noexcept;
+    // Returns a retained Port already open for bus/address, or null.
+    Port* retain_port(std::uint8_t bus, std::uint8_t address) noexcept;
 
     void* context_{};
     aoahid_event_mode event_mode_{};
-    std::atomic<std::uint32_t> retries_armed_{0U};
-    std::mutex devices_mutex_;
-    std::vector<Device*> devices_;
+    // Cold path only: acquire/release happen at open/close, never per report.
+    std::mutex ports_mutex_;
+    std::vector<Port*> ports_;
+};
+
+/* One opened physical USB device: the only owner of its libusb handle and of
+ * its claimed interfaces. A Device and its Channels borrow it through a
+ * reference count; the handle closes when the last reference is released,
+ * which each borrower does only after its own transfers have drained.
+ * Discovery probes an already open device through its Port instead of opening
+ * a second handle. */
+class Port final {
+  public:
+    Port(const Port&) = delete;
+    Port& operator=(const Port&) = delete;
+
+    void retain() noexcept;
+    void release() noexcept;
+    void* native_handle() const noexcept;
+    std::size_t references() const noexcept;
+
+    /* Claims are counted per interface, so a Device and a Channel may claim
+     * different interfaces on one handle. */
+    std::int32_t claim_interface(std::int32_t interface_number) noexcept;
+    void release_interface(std::int32_t interface_number) noexcept;
+
+  private:
+    friend class Runtime;
+    Port() noexcept = default;
+    ~Port() noexcept = default;
+    bool try_retain() noexcept;
+
+    struct Claim {
+        std::int32_t interface_number{};
+        std::uint32_t count{};
+    };
+
+    Runtime* runtime_{};
+    void* handle_{};
+    std::uint8_t bus_{};
+    std::uint8_t address_{};
+    std::atomic<std::size_t> references_{0U};
+    std::mutex claims_mutex_;
+    std::vector<Claim> claims_;
 };
 
 class Device final {
@@ -136,21 +176,57 @@ class Device final {
                           PreparedTransfer* out) noexcept;
     aoahid_result submit(PreparedTransfer prepared, std::size_t report_length,
                          std::uint16_t report_id) noexcept;
-    aoahid_result submit_first(PreparedTransfer prepared, std::size_t report_length,
-                               std::uint16_t report_id) noexcept;
     void abandon(PreparedTransfer prepared) noexcept;
     aoahid_result cancel_all() noexcept;
     bool drained() const noexcept;
     bool present() const noexcept;
     aoahid_result latched_error(ErrorInfo* detail = nullptr) noexcept;
+    // The Port a Channel on this Device borrows.
+    Port* port() const noexcept;
 
   private:
     Device() noexcept = default;
 
-    friend class Runtime;
-    std::uint64_t next_retry_delay_us(std::uint64_t maximum_us) noexcept;
-    void service_retries() noexcept;
+    struct Impl;
+    Impl* impl_{};
+};
 
+struct ChannelConfig {
+    std::uint8_t interface_class{};
+    std::uint8_t interface_subclass{};
+    std::uint8_t interface_protocol{};
+    std::uint32_t in_transfers{};
+    std::uint32_t out_transfers{};
+    std::uint32_t transfer_bytes{};
+    bool zero_length_termination{};
+    // Caller-poll mode only: the Runtime a blocking read/write pumps.
+    Runtime* pump{};
+};
+
+/* A Bulk IN/OUT pair on a Device's Port. IN transfers stay submitted (read
+ * ahead) and completions reach the reader through a single-producer,
+ * single-consumer ring; OUT slots return to the writer the same way. The
+ * libusb callback only publishes, counts, and wakes a waiting thread. */
+class Channel final {
+  public:
+    static aoahid_result open(Port* port, const ChannelConfig& config, Channel** out);
+    ~Channel() noexcept;
+
+    Channel(const Channel&) = delete;
+    Channel& operator=(const Channel&) = delete;
+
+    aoahid_result read(std::uint8_t* buffer, std::size_t capacity, std::size_t* received,
+                       std::uint32_t timeout_ms) noexcept;
+    aoahid_result write(const std::uint8_t* data, std::size_t length, std::size_t* written,
+                        std::uint32_t timeout_ms) noexcept;
+    /* Marks the Channel lost and cancels every transfer; reads and writes then
+     * fail with AOAHID_ERR_NO_DEVICE. */
+    void lose() noexcept;
+    bool lost() const noexcept;
+    bool drained() const noexcept;
+
+  private:
+    Channel() noexcept = default;
     struct Impl;
     Impl* impl_{};
 };

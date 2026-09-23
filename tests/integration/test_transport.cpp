@@ -17,8 +17,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <limits>
 #include <new>
+#include <string>
 #include <string_view>
 #include <thread>
 #include <utility>
@@ -158,6 +160,7 @@ namespace {
 using aoa::transport::Candidate;
 using aoa::transport::Device;
 using aoa::transport::DeviceConfig;
+using aoa::transport::Port;
 using aoa::transport::PreparedTransfer;
 using aoa::transport::Runtime;
 
@@ -204,8 +207,6 @@ DeviceConfig current_mode_config() {
     config.descriptor_fragment_bytes = 64U;
     config.pool_slots = 2U;
     config.maximum_report_bytes = 64U;
-    config.first_report_attempts = 2U;
-    config.first_report_backoff_us = 1U;
     config.claim_policy = AOAHID_INTERFACE_CLAIM_NONE;
     config.interface_number = -1;
     return config;
@@ -393,28 +394,30 @@ void test_registration_reservations_and_async_results() {
     AOAHID_CHECK(device->clear_reservation(reservation7) == AOAHID_OK);
     AOAHID_CHECK(device->clear_reservation(reservation8) == AOAHID_OK);
 
-    CompletionState retry{};
-    PreparedTransfer retry_transfer{};
-    AOAHID_CHECK(device->acquire(7U, {}, 3U, &retry, &completed, &retry_transfer) == AOAHID_OK);
-    retry_transfer.payload[0] = 1U;
-    retry_transfer.payload[1] = 2U;
-    retry_transfer.payload[2] = 3U;
+    // Since 2.0.0 a STALL, even on a Node's first report, is returned as is:
+    // exactly one request 57 goes out and the caller decides what to do.
+    CompletionState stalled{};
+    PreparedTransfer stalled_transfer{};
+    AOAHID_CHECK(device->acquire(7U, {}, 3U, &stalled, &completed, &stalled_transfer) == AOAHID_OK);
+    stalled_transfer.payload[0] = 1U;
+    stalled_transfer.payload[1] = 2U;
+    stalled_transfer.payload[2] = 3U;
     aoahid_fake_libusb_queue_async_completion(LIBUSB_TRANSFER_STALL, 0, 0U);
-    aoahid_fake_libusb_queue_async_completion(LIBUSB_TRANSFER_COMPLETED, 3, 0U);
-    AOAHID_CHECK(device->submit_first(retry_transfer, 3U, 11U) == AOAHID_OK);
-    poll_until(runtime, &retry);
-    AOAHID_CHECK(retry.result == AOAHID_OK);
-    const auto retried_events = controls_for(57U);
-    AOAHID_CHECK(retried_events.size() == 2U);
-    for (const aoahid_fake_libusb_control_record event : retried_events) {
+    AOAHID_CHECK(device->submit(stalled_transfer, 3U, 11U) == AOAHID_OK);
+    poll_until(runtime, &stalled);
+    AOAHID_CHECK(stalled.result == AOAHID_ERR_STALL);
+    const auto stalled_events = controls_for(57U);
+    AOAHID_CHECK(stalled_events.size() == 1U);
+    for (const aoahid_fake_libusb_control_record event : stalled_events) {
         AOAHID_CHECK(event.request_type == 0x40U && event.value == 7U && event.index == 0U &&
                      event.length == 3U && event.asynchronous == 1);
     }
-    const auto retried_payloads = control_payloads_for(57U);
-    AOAHID_CHECK(retried_payloads.size() == 2U);
-    for (const auto& payload : retried_payloads) {
+    const auto stalled_payloads = control_payloads_for(57U);
+    AOAHID_CHECK(stalled_payloads.size() == 1U);
+    for (const auto& payload : stalled_payloads) {
         AOAHID_CHECK(payload == std::vector<std::uint8_t>({1U, 2U, 3U}));
     }
+    AOAHID_CHECK(device->latched_error() == AOAHID_ERR_STALL);
 
     CompletionState short_transfer{};
     PreparedTransfer short_prepared{};
@@ -686,8 +689,537 @@ void test_current_mode_open_and_explicit_claim() {
     aoahid_fake_libusb_reset();
 }
 
+void test_port_ownership_and_discovery_reuse() {
+    aoahid_fake_libusb_reset();
+    const auto candidate = add_candidate(5U, {1U, 6U}, 0x1234U, 0x5678U);
+
+    Runtime* runtime = nullptr;
+    AOAHID_CHECK(Runtime::create(AOAHID_EVENT_INTERNAL_THREAD, &runtime) == AOAHID_OK);
+
+    // Each Device open owns one handle through its own Port.
+    DeviceConfig config = current_mode_config();
+    config.event_mode = AOAHID_EVENT_INTERNAL_THREAD;
+    Device* first = nullptr;
+    Device* second = nullptr;
+    std::uint16_t protocol = 0U;
+    AOAHID_CHECK(Device::open(runtime, candidate, config, &first, &protocol) == AOAHID_OK);
+    AOAHID_CHECK(Device::open(runtime, candidate, config, &second, &protocol) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_fake_libusb_open_handle_count() == 2U);
+    AOAHID_CHECK(first->port() != nullptr && first->port() != second->port());
+
+    // Discovery probes an open device through its existing handle.
+    const std::size_t opens_before = aoahid_fake_libusb_open_call_count();
+    std::vector<Candidate> found;
+    AOAHID_CHECK(runtime->discover(20U, &found) == AOAHID_OK);
+    AOAHID_CHECK(found.size() == 1U);
+    AOAHID_CHECK(aoahid_fake_libusb_open_call_count() == opens_before);
+    AOAHID_CHECK(aoahid_fake_libusb_open_handle_count() == 2U);
+    delete first;
+    delete second;
+    AOAHID_CHECK(aoahid_fake_libusb_open_handle_count() == 0U);
+    found.clear();
+    AOAHID_CHECK(runtime->discover(20U, &found) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_fake_libusb_open_call_count() == opens_before + 1U);
+    AOAHID_CHECK(aoahid_fake_libusb_open_handle_count() == 0U);
+
+    // A Port closes only with its last reference; claims are counted.
+    Port* port = nullptr;
+    AOAHID_CHECK(runtime->acquire_port(candidate, &port) == AOAHID_OK);
+    AOAHID_CHECK(port != nullptr && port->references() == 1U);
+    port->retain();
+    AOAHID_CHECK(port->claim_interface(3) == LIBUSB_SUCCESS);
+    AOAHID_CHECK(port->claim_interface(3) == LIBUSB_SUCCESS);
+    AOAHID_CHECK(aoahid_fake_libusb_claim_count() == 1U);
+    port->release_interface(3);
+    AOAHID_CHECK(aoahid_fake_libusb_claim_count() == 1U);
+    port->release_interface(3);
+    AOAHID_CHECK(aoahid_fake_libusb_claim_count() == 2U);
+    aoahid_fake_libusb_claim_record claim{};
+    AOAHID_CHECK(aoahid_fake_libusb_get_claim(1U, &claim) == LIBUSB_SUCCESS);
+    AOAHID_CHECK(claim.interface_number == 3 && claim.release == 1);
+    // A claim still held at the last release is released before close.
+    AOAHID_CHECK(port->claim_interface(4) == LIBUSB_SUCCESS);
+    port->release();
+    AOAHID_CHECK(aoahid_fake_libusb_open_handle_count() == 1U);
+    port->release();
+    AOAHID_CHECK(aoahid_fake_libusb_open_handle_count() == 0U);
+    AOAHID_CHECK(aoahid_fake_libusb_claim_count() == 4U);
+    AOAHID_CHECK(aoahid_fake_libusb_get_claim(3U, &claim) == LIBUSB_SUCCESS);
+    AOAHID_CHECK(claim.interface_number == 4 && claim.release == 1);
+
+    // Opening an absent device leaves nothing behind.
+    aoahid_fake_libusb_set_present(0U, 0);
+    Port* missing = nullptr;
+    AOAHID_CHECK(runtime->acquire_port(candidate, &missing) == AOAHID_ERR_NO_DEVICE);
+    AOAHID_CHECK(missing == nullptr && aoahid_fake_libusb_open_handle_count() == 0U);
+
+    delete runtime;
+    aoahid_fake_libusb_reset();
+}
+
 aoahid_context_options public_context_options();
 aoahid_device_options public_device_options();
+
+aoahid_device_info public_info(const Candidate& candidate) {
+    return aoahid_device_info{candidate.bus,
+                              candidate.address,
+                              candidate.port_path.data(),
+                              candidate.port_path.size(),
+                              candidate.vendor_id,
+                              candidate.product_id,
+                              candidate.serial.c_str(),
+                              candidate.product.c_str()};
+}
+
+aoahid_accessory_options accessory_options(const char* manufacturer, const char* model) {
+    aoahid_accessory_options options{};
+    options.struct_size = static_cast<std::uint32_t>(sizeof(options));
+    options.strings.manufacturer = manufacturer;
+    options.strings.model = model;
+    return options;
+}
+
+std::vector<std::uint8_t> nul_terminated(const char* text) {
+    return {reinterpret_cast<const std::uint8_t*>(text),
+            reinterpret_cast<const std::uint8_t*>(text) + std::char_traits<char>::length(text) +
+                1U};
+}
+
+void test_accessory_start_sends_51_52_53_and_closes() {
+    aoahid_fake_libusb_reset();
+    const Candidate phone = add_candidate(4U, {2U, 3U}, 0x04E8U, 0x6860U);
+    aoahid_context* context = nullptr;
+    aoahid_context_options context_options = public_context_options();
+    AOAHID_CHECK(aoahid_context_create(&context_options, &context) == AOAHID_OK);
+    const aoahid_device_info selected = public_info(phone);
+
+    aoahid_accessory_options options = accessory_options("Maker", "Model");
+    options.strings.version = "1.0";
+    AOAHID_CHECK(aoahid_accessory_start(context, &selected, &options) == AOAHID_OK);
+    AOAHID_CHECK(controls_for(51U).size() == 1U);
+    const auto strings = controls_for(52U);
+    const auto payloads = control_payloads_for(52U);
+    // Only non-null strings are sent, each with its AOA string ID and NUL.
+    AOAHID_CHECK(strings.size() == 3U && payloads.size() == 3U);
+    if (strings.size() == 3U && payloads.size() == 3U) {
+        AOAHID_CHECK(strings[0].index == 0U && payloads[0] == nul_terminated("Maker"));
+        AOAHID_CHECK(strings[1].index == 1U && payloads[1] == nul_terminated("Model"));
+        AOAHID_CHECK(strings[2].index == 3U && payloads[2] == nul_terminated("1.0"));
+        for (const aoahid_fake_libusb_control_record& record : strings) {
+            AOAHID_CHECK(record.request_type == 0x40U && record.value == 0U &&
+                         record.timeout == 500U && record.asynchronous == 0);
+        }
+    }
+    const auto start = controls_for(53U);
+    AOAHID_CHECK(start.size() == 1U);
+    if (!start.empty()) {
+        AOAHID_CHECK(start[0].request_type == 0x40U && start[0].value == 0U &&
+                     start[0].index == 0U && start[0].length == 0U);
+    }
+    // Nothing is left open and nothing waits for re-enumeration.
+    AOAHID_CHECK(aoahid_fake_libusb_open_handle_count() == 0U);
+    AOAHID_CHECK(controls_for(54U).empty());
+
+    // The phone re-enumerates as an accessory on the same port; the ordinary
+    // discover/open/node sequence takes over from here.
+    aoahid_fake_libusb_unplug(0U);
+    const Candidate accessory = add_candidate(9U, {2U, 3U}, 0x18D1U, 0x2D00U);
+    aoahid_discovery* discovery = nullptr;
+    AOAHID_CHECK(aoahid_discover(context, 100U, &discovery) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_discovery_count(discovery) == 1U);
+    const aoahid_device_info* found = aoahid_discovery_get(discovery, 0U);
+    AOAHID_CHECK(found != nullptr && found->vendor_id == 0x18D1U && found->product_id == 0x2D00U &&
+                 found->port_path_length == 2U && found->port_path[0] == 2U);
+    aoahid_device_options device_options = public_device_options();
+    aoahid_device* device = nullptr;
+    AOAHID_CHECK(found != nullptr &&
+                 aoahid_device_open(context, found, &device_options, &device) == AOAHID_OK);
+    aoahid_discovery_destroy(discovery);
+    // A second start on an accessory-mode device sends nothing.
+    const std::size_t before = aoahid_fake_libusb_control_count();
+    const aoahid_device_info accessory_info = public_info(accessory);
+    AOAHID_CHECK(aoahid_accessory_start(context, &accessory_info, &options) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_fake_libusb_control_count() == before);
+    AOAHID_CHECK(aoahid_device_close(device) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_context_destroy(context) == AOAHID_OK);
+    aoahid_fake_libusb_reset();
+}
+
+void test_accessory_start_rejects_and_reports_failures() {
+    aoahid_fake_libusb_reset();
+    const Candidate phone = add_candidate(4U, {2U, 3U}, 0x04E8U, 0x6860U);
+    aoahid_context* context = nullptr;
+    aoahid_context_options context_options = public_context_options();
+    AOAHID_CHECK(aoahid_context_create(&context_options, &context) == AOAHID_OK);
+    const aoahid_device_info selected = public_info(phone);
+
+    aoahid_accessory_options options = accessory_options("Maker", nullptr);
+    AOAHID_CHECK(aoahid_accessory_start(context, &selected, &options) == AOAHID_ERR_UNSET_FIELD);
+    options = accessory_options("", "Model");
+    AOAHID_CHECK(aoahid_accessory_start(context, &selected, &options) == AOAHID_ERR_UNSET_FIELD);
+    options = accessory_options("Maker", "Model");
+    options.reserved = 1U;
+    AOAHID_CHECK(aoahid_accessory_start(context, &selected, &options) == AOAHID_ERR_UNSET_FIELD);
+    options = accessory_options("Maker", "Model");
+    options.struct_size -= 1U;
+    AOAHID_CHECK(aoahid_accessory_start(context, &selected, &options) == AOAHID_ERR_PARAM);
+    options = accessory_options("Maker", "Model");
+    AOAHID_CHECK(aoahid_accessory_start(nullptr, &selected, &options) == AOAHID_ERR_PARAM);
+    AOAHID_CHECK(aoahid_accessory_start(context, nullptr, &options) == AOAHID_ERR_PARAM);
+    AOAHID_CHECK(aoahid_accessory_start(context, &selected, nullptr) == AOAHID_ERR_PARAM);
+    // AOA 1.0 caps each string at 256 bytes with its NUL; an oversized one is
+    // rejected before any request, and exactly 256 bytes is accepted later.
+    const std::string longest(255U, 'x');
+    const std::string too_long(256U, 'x');
+    options = accessory_options("Maker", "Model");
+    options.strings.description = too_long.c_str();
+    AOAHID_CHECK(aoahid_accessory_start(context, &selected, &options) == AOAHID_ERR_OVERFLOW);
+    const aoahid_error_detail* overflow = aoahid_last_error();
+    AOAHID_CHECK(overflow != nullptr && overflow->aoa_request == 52 && overflow->offset == 2U);
+    AOAHID_CHECK(aoahid_fake_libusb_control_count() == 0U);
+    options = accessory_options(longest.c_str(), "Model");
+    AOAHID_CHECK(aoahid_accessory_start(context, &selected, &options) == AOAHID_OK);
+    const auto longest_payloads = control_payloads_for(52U);
+    AOAHID_CHECK(!longest_payloads.empty() && longest_payloads[0].size() == 256U);
+    aoahid_fake_libusb_reset();
+    static_cast<void>(add_candidate(4U, {2U, 3U}, 0x04E8U, 0x6860U));
+    options = accessory_options("Maker", "Model");
+
+    // A device without AOA support gets neither strings nor START.
+    aoahid_fake_libusb_set_protocol(0U, 0U);
+    AOAHID_CHECK(aoahid_accessory_start(context, &selected, &options) == AOAHID_ERR_NOT_AOA);
+    AOAHID_CHECK(controls_for(52U).empty() && controls_for(53U).empty());
+    aoahid_fake_libusb_set_protocol(0U, 2U);
+
+    // A failed string request stops the sequence; nothing is retried.
+    aoahid_fake_libusb_queue_control_result(2);
+    aoahid_fake_libusb_queue_control_result(LIBUSB_ERROR_PIPE);
+    AOAHID_CHECK(aoahid_accessory_start(context, &selected, &options) == AOAHID_ERR_STALL);
+    const aoahid_error_detail* detail = aoahid_last_error();
+    AOAHID_CHECK(detail != nullptr && detail->aoa_request == 52 && detail->offset == 0U);
+    AOAHID_CHECK(controls_for(52U).size() == 1U && controls_for(53U).empty());
+    AOAHID_CHECK(aoahid_fake_libusb_open_handle_count() == 0U);
+
+    // An open Device lends its handle instead of a second libusb_open.
+    aoahid_device_options device_options = public_device_options();
+    aoahid_device* device = nullptr;
+    AOAHID_CHECK(aoahid_device_open(context, &selected, &device_options, &device) == AOAHID_OK);
+    const std::size_t opens = aoahid_fake_libusb_open_call_count();
+    AOAHID_CHECK(aoahid_accessory_start(context, &selected, &options) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_fake_libusb_open_call_count() == opens);
+    AOAHID_CHECK(aoahid_fake_libusb_open_handle_count() == 1U);
+    AOAHID_CHECK(aoahid_device_close(device) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_context_destroy(context) == AOAHID_OK);
+    aoahid_fake_libusb_reset();
+}
+
+constexpr std::uint8_t kAdbEndpointIn = 0x81U;
+constexpr std::uint8_t kAdbEndpointOut = 0x01U;
+constexpr std::uint16_t kAdbMaxPacket = 512U;
+
+// An Android device exposing the ADB interface (AOSP adb.h: 0xFF/0x42/0x01).
+Candidate add_adb_phone() {
+    const Candidate phone = add_candidate(4U, {2U, 3U}, 0x18D1U, 0x4EE7U);
+    const aoahid_fake_libusb_bulk_interface adb{
+        1U, 0xFFU, 0x42U, 0x01U, kAdbEndpointIn, kAdbEndpointOut, kAdbMaxPacket};
+    aoahid_fake_libusb_add_bulk_interface(0U, &adb);
+    return phone;
+}
+
+aoahid_channel_options adb_channel_options() {
+    aoahid_channel_options options{};
+    options.struct_size = static_cast<std::uint32_t>(sizeof(options));
+    options.interface_class = 0xFFU;
+    options.interface_subclass = 0x42U;
+    options.interface_protocol = 0x01U;
+    options.in_transfers = 2U;
+    options.out_transfers = 2U;
+    options.transfer_bytes = 512U;
+    options.zero_length_termination = 1U;
+    return options;
+}
+
+bool wait_until_true(const std::function<bool()>& ready) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (!ready()) {
+        if (std::chrono::steady_clock::now() >= deadline)
+            return false;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return true;
+}
+
+void test_channel_shares_the_device_handle_internal_thread() {
+    aoahid_fake_libusb_reset();
+    const Candidate phone = add_adb_phone();
+    aoahid_context_options context_options = public_context_options();
+    context_options.event_mode = AOAHID_EVENT_INTERNAL_THREAD;
+    aoahid_context* context = nullptr;
+    AOAHID_CHECK(aoahid_context_create(&context_options, &context) == AOAHID_OK);
+    const aoahid_device_info selected = public_info(phone);
+    aoahid_device_options device_options = public_device_options();
+    aoahid_device* device = nullptr;
+    AOAHID_CHECK(aoahid_device_open(context, &selected, &device_options, &device) == AOAHID_OK);
+    const std::size_t opens = aoahid_fake_libusb_open_call_count();
+
+    aoahid_channel* channel = nullptr;
+    aoahid_channel_options options = adb_channel_options();
+    options.interface_subclass = 0xFFU;
+    AOAHID_CHECK(aoahid_channel_open(device, &options, &channel) == AOAHID_ERR_UNSUPPORTED);
+    AOAHID_CHECK(channel == nullptr);
+    options = adb_channel_options();
+    options.zero_length_termination = 2U;
+    AOAHID_CHECK(aoahid_channel_open(device, &options, &channel) == AOAHID_ERR_UNSET_FIELD);
+    options = adb_channel_options();
+    options.reserved8 = 1U;
+    AOAHID_CHECK(aoahid_channel_open(device, &options, &channel) == AOAHID_ERR_UNSET_FIELD);
+    options = adb_channel_options();
+    options.struct_size += 1U;
+    AOAHID_CHECK(aoahid_channel_open(device, &options, &channel) == AOAHID_ERR_PARAM);
+    options = adb_channel_options();
+    AOAHID_CHECK(aoahid_channel_open(nullptr, &options, &channel) == AOAHID_ERR_PARAM);
+    AOAHID_CHECK(aoahid_channel_open(device, &options, &channel) == AOAHID_OK);
+    // An already configured device gets no SET_CONFIGURATION (it would act as
+    // a lightweight reset).
+    AOAHID_CHECK(aoahid_fake_libusb_set_configuration_count() == 0U);
+    // One handle for HID and Bulk; the Bulk interface is claimed on it.
+    AOAHID_CHECK(aoahid_fake_libusb_open_call_count() == opens);
+    AOAHID_CHECK(aoahid_fake_libusb_open_handle_count() == 1U);
+    aoahid_fake_libusb_claim_record claim{};
+    AOAHID_CHECK(aoahid_fake_libusb_claim_count() == 1U &&
+                 aoahid_fake_libusb_get_claim(0U, &claim) == LIBUSB_SUCCESS &&
+                 claim.interface_number == 1 && claim.release == 0);
+
+    std::array<std::uint8_t, 64> buffer{};
+    std::size_t received = 7U;
+    AOAHID_CHECK(aoahid_channel_read(channel, buffer.data(), buffer.size(), &received, 0U) ==
+                 AOAHID_ERR_TIMEOUT);
+    AOAHID_CHECK(received == 0U);
+    AOAHID_CHECK(aoahid_channel_read(channel, buffer.data(), 0U, &received, 0U) ==
+                 AOAHID_ERR_PARAM);
+
+    // An ADB CNXN message: 24-byte header plus "host::".
+    const std::array<std::uint8_t, 30> cnxn{
+        'C',  'N',  'X',  'N',  0x01, 0x00, 0x00, 0x01, 0x00, 0x10, 0x00, 0x00, 0x06, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0xBC, 0xB1, 0xA7, 0xB1, 'h',  'o',  's',  't',  ':',  ':'};
+    std::size_t written = 0U;
+    AOAHID_CHECK(aoahid_channel_write(channel, cnxn.data(), cnxn.size(), &written, 1000U) ==
+                 AOAHID_OK);
+    AOAHID_CHECK(written == cnxn.size());
+    std::array<std::uint8_t, 64> sent{};
+    AOAHID_CHECK(aoahid_fake_libusb_bulk_out_count() == 1U &&
+                 aoahid_fake_libusb_copy_bulk_out(0U, sent.data(), sent.size()) == cnxn.size() &&
+                 std::equal(cnxn.begin(), cnxn.end(), sent.begin()));
+
+    // The reply arrives in two USB transfers; the reader sees one stream.
+    aoahid_fake_libusb_push_bulk_in(0U, kAdbEndpointIn, cnxn.data(), 24U);
+    aoahid_fake_libusb_push_bulk_in(0U, kAdbEndpointIn, cnxn.data() + 24U, cnxn.size() - 24U);
+    std::vector<std::uint8_t> stream;
+    while (stream.size() < cnxn.size()) {
+        std::array<std::uint8_t, 16> part{};
+        const aoahid_result read =
+            aoahid_channel_read(channel, part.data(), part.size(), &received, 1000U);
+        AOAHID_CHECK(read == AOAHID_OK && received != 0U);
+        if (read != AOAHID_OK)
+            break;
+        stream.insert(stream.end(), part.begin(),
+                      part.begin() + static_cast<std::ptrdiff_t>(received));
+    }
+    AOAHID_CHECK(stream == std::vector<std::uint8_t>(cnxn.begin(), cnxn.end()));
+
+    // One max packet exactly: data, then an explicit zero-length packet.
+    const std::vector<std::uint8_t> packet(kAdbMaxPacket, 0x5AU);
+    AOAHID_CHECK(aoahid_channel_write(channel, packet.data(), packet.size(), &written, 1000U) ==
+                 AOAHID_OK);
+    AOAHID_CHECK(wait_until_true([]() { return aoahid_fake_libusb_bulk_out_count() == 3U; }));
+    AOAHID_CHECK(aoahid_fake_libusb_copy_bulk_out(1U, nullptr, 0U) == kAdbMaxPacket);
+    AOAHID_CHECK(aoahid_fake_libusb_copy_bulk_out(2U, nullptr, 0U) == 0U);
+
+    // HID on the same handle keeps working next to the Channel.
+    aoahid_keyboard_options keyboard{};
+    keyboard.struct_size = sizeof(keyboard);
+    keyboard.usage_minimum = 0x04U;
+    keyboard.usage_maximum = 0x65U;
+    aoahid_spec* spec = nullptr;
+    AOAHID_CHECK(aoahid_spec_create_keyboard(&keyboard, &spec) == AOAHID_OK);
+    const aoahid_node_options node_options{sizeof(aoahid_node_options), 0U, 0U, 0U};
+    aoahid_node* node = nullptr;
+    AOAHID_CHECK(aoahid_node_open(device, spec, &node_options, &node) == AOAHID_OK);
+    aoahid_spec_release(spec);
+    AOAHID_CHECK(aoahid_kbd(node, 0x04U, 1U) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_node_submit_blocking(node, 1000U) == AOAHID_OK);
+
+    // Unplugging loses the Channel: it reports NO_DEVICE and must be closed.
+    aoahid_fake_libusb_unplug(0U);
+    AOAHID_CHECK(aoahid_channel_read(channel, buffer.data(), buffer.size(), &received, 1000U) ==
+                 AOAHID_ERR_NO_DEVICE);
+    AOAHID_CHECK(aoahid_channel_write(channel, cnxn.data(), cnxn.size(), &written, 0U) ==
+                 AOAHID_ERR_NO_DEVICE);
+    AOAHID_CHECK(aoahid_channel_close(channel) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_channel_close(nullptr) == AOAHID_ERR_PARAM);
+    static_cast<void>(aoahid_node_close(node));
+    static_cast<void>(aoahid_device_close(device));
+    AOAHID_CHECK(aoahid_context_destroy(context) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_fake_libusb_open_handle_count() == 0U);
+    aoahid_fake_libusb_reset();
+}
+
+void test_channel_configures_an_unconfigured_device() {
+    aoahid_fake_libusb_reset();
+    const Candidate phone = add_adb_phone();
+    aoahid_fake_libusb_set_active_configuration(0U, 0);
+    aoahid_context_options context_options = public_context_options();
+    aoahid_context* context = nullptr;
+    AOAHID_CHECK(aoahid_context_create(&context_options, &context) == AOAHID_OK);
+    const aoahid_device_info selected = public_info(phone);
+    aoahid_device_options device_options = public_device_options();
+    aoahid_device* device = nullptr;
+    AOAHID_CHECK(aoahid_device_open(context, &selected, &device_options, &device) == AOAHID_OK);
+    const aoahid_channel_options options = adb_channel_options();
+    aoahid_channel* channel = nullptr;
+    // AOA 1.0: the host selects configuration 1 before using the endpoints.
+    AOAHID_CHECK(aoahid_channel_open(device, &options, &channel) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_fake_libusb_set_configuration_count() == 1U);
+    AOAHID_CHECK(aoahid_channel_close(channel) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_device_close(device) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_context_destroy(context) == AOAHID_OK);
+    aoahid_fake_libusb_reset();
+}
+
+void test_hid_adb_and_accessory_bulk_run_together() {
+    aoahid_fake_libusb_reset();
+    // AOA 1.0: 0x2D01 has the accessory interface first and ADB second.
+    const Candidate phone = add_candidate(9U, {2U, 3U}, 0x18D1U, 0x2D01U);
+    const aoahid_fake_libusb_bulk_interface accessory{0U, 0xFFU, 0xFFU, 0x00U, 0x81U, 0x01U, 512U};
+    const aoahid_fake_libusb_bulk_interface adb{1U, 0xFFU, 0x42U, 0x01U, 0x82U, 0x02U, 512U};
+    aoahid_fake_libusb_add_bulk_interface(0U, &accessory);
+    aoahid_fake_libusb_add_bulk_interface(0U, &adb);
+    aoahid_context_options context_options = public_context_options();
+    context_options.event_mode = AOAHID_EVENT_INTERNAL_THREAD;
+    aoahid_context* context = nullptr;
+    AOAHID_CHECK(aoahid_context_create(&context_options, &context) == AOAHID_OK);
+    const aoahid_device_info selected = public_info(phone);
+    aoahid_device_options device_options = public_device_options();
+    aoahid_device* device = nullptr;
+    AOAHID_CHECK(aoahid_device_open(context, &selected, &device_options, &device) == AOAHID_OK);
+
+    aoahid_keyboard_options keyboard{};
+    keyboard.struct_size = sizeof(keyboard);
+    keyboard.usage_minimum = 0x04U;
+    keyboard.usage_maximum = 0x65U;
+    aoahid_spec* spec = nullptr;
+    AOAHID_CHECK(aoahid_spec_create_keyboard(&keyboard, &spec) == AOAHID_OK);
+    const aoahid_node_options node_options{sizeof(aoahid_node_options), 0U, 0U, 0U};
+    aoahid_node* node = nullptr;
+    AOAHID_CHECK(aoahid_node_open(device, spec, &node_options, &node) == AOAHID_OK);
+    aoahid_spec_release(spec);
+
+    aoahid_channel_options accessory_options = adb_channel_options();
+    accessory_options.interface_subclass = 0xFFU;
+    accessory_options.interface_protocol = 0x00U;
+    aoahid_channel* app = nullptr;
+    aoahid_channel* shell = nullptr;
+    AOAHID_CHECK(aoahid_channel_open(device, &accessory_options, &app) == AOAHID_OK);
+    const aoahid_channel_options adb_options = adb_channel_options();
+    AOAHID_CHECK(aoahid_channel_open(device, &adb_options, &shell) == AOAHID_OK);
+    // One handle; interfaces 0 and 1 claimed on it.
+    AOAHID_CHECK(aoahid_fake_libusb_open_handle_count() == 1U);
+    AOAHID_CHECK(aoahid_fake_libusb_claim_count() == 2U);
+
+    // Each Channel reads on its own thread while HID reports go out.
+    const std::array<std::uint8_t, 5> app_data{'A', 'P', 'P', '!', '\n'};
+    const std::array<std::uint8_t, 4> adb_data{'O', 'K', 'A', 'Y'};
+    std::vector<std::uint8_t> app_stream;
+    std::vector<std::uint8_t> adb_stream;
+    const auto reader = [](aoahid_channel* channel, std::size_t expected,
+                           std::vector<std::uint8_t>* out) {
+        while (out->size() < expected) {
+            std::array<std::uint8_t, 16> part{};
+            std::size_t received = 0U;
+            if (aoahid_channel_read(channel, part.data(), part.size(), &received, 2000U) !=
+                AOAHID_OK)
+                return;
+            out->insert(out->end(), part.begin(),
+                        part.begin() + static_cast<std::ptrdiff_t>(received));
+        }
+    };
+    std::thread app_reader(reader, app, app_data.size(), &app_stream);
+    std::thread adb_reader(reader, shell, adb_data.size(), &adb_stream);
+    aoahid_fake_libusb_push_bulk_in(0U, 0x81U, app_data.data(), app_data.size());
+    aoahid_fake_libusb_push_bulk_in(0U, 0x82U, adb_data.data(), adb_data.size());
+    std::size_t written = 0U;
+    AOAHID_CHECK(aoahid_channel_write(app, app_data.data(), app_data.size(), &written, 1000U) ==
+                 AOAHID_OK);
+    AOAHID_CHECK(aoahid_channel_write(shell, adb_data.data(), adb_data.size(), &written, 1000U) ==
+                 AOAHID_OK);
+    for (std::uint16_t usage = 0x04U; usage < 0x0CU; ++usage) {
+        AOAHID_CHECK(aoahid_kbd(node, usage, 1U) == AOAHID_OK);
+        AOAHID_CHECK(aoahid_node_submit_blocking(node, 1000U) == AOAHID_OK);
+        AOAHID_CHECK(aoahid_kbd(node, usage, 0U) == AOAHID_OK);
+        AOAHID_CHECK(aoahid_node_submit_blocking(node, 1000U) == AOAHID_OK);
+    }
+    app_reader.join();
+    adb_reader.join();
+    // Data stays on its own interface: nothing crosses between Channels.
+    AOAHID_CHECK(app_stream == std::vector<std::uint8_t>(app_data.begin(), app_data.end()));
+    AOAHID_CHECK(adb_stream == std::vector<std::uint8_t>(adb_data.begin(), adb_data.end()));
+    AOAHID_CHECK(controls_for(57U).size() == 16U);
+    AOAHID_CHECK(aoahid_fake_libusb_bulk_out_count() == 2U);
+
+    AOAHID_CHECK(aoahid_channel_close(app) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_node_close(node) == AOAHID_OK);
+    // The Device close also consumes the still-open ADB Channel.
+    AOAHID_CHECK(aoahid_device_close(device) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_fake_libusb_open_handle_count() == 0U);
+    AOAHID_CHECK(aoahid_context_destroy(context) == AOAHID_OK);
+    aoahid_fake_libusb_reset();
+}
+
+void test_channel_caller_poll_and_device_close() {
+    aoahid_fake_libusb_reset();
+    const Candidate phone = add_adb_phone();
+    aoahid_context_options context_options = public_context_options();
+    aoahid_context* context = nullptr;
+    AOAHID_CHECK(aoahid_context_create(&context_options, &context) == AOAHID_OK);
+    const aoahid_device_info selected = public_info(phone);
+    aoahid_device_options device_options = public_device_options();
+    aoahid_device* device = nullptr;
+    AOAHID_CHECK(aoahid_device_open(context, &selected, &device_options, &device) == AOAHID_OK);
+    const aoahid_channel_options options = adb_channel_options();
+    aoahid_channel* channel = nullptr;
+    AOAHID_CHECK(aoahid_channel_open(device, &options, &channel) == AOAHID_OK);
+
+    // A waiting read drives libusb events itself in caller-poll mode.
+    const std::array<std::uint8_t, 4> okay{'O', 'K', 'A', 'Y'};
+    aoahid_fake_libusb_push_bulk_in(0U, kAdbEndpointIn, okay.data(), okay.size());
+    std::array<std::uint8_t, 8> buffer{};
+    std::size_t received = 0U;
+    AOAHID_CHECK(aoahid_channel_read(channel, buffer.data(), buffer.size(), &received, 100U) ==
+                 AOAHID_OK);
+    AOAHID_CHECK(received == okay.size() && std::equal(okay.begin(), okay.end(), buffer.begin()));
+
+    // Without a pump, a zero timeout never waits: two OUT transfers fill the
+    // pool and the third chunk reports TIMEOUT with the queued byte count.
+    const std::vector<std::uint8_t> data(3U * kAdbMaxPacket + 1U, 0x11U);
+    std::size_t written = 0U;
+    AOAHID_CHECK(aoahid_channel_write(channel, data.data(), data.size(), &written, 0U) ==
+                 AOAHID_ERR_TIMEOUT);
+    AOAHID_CHECK(written == 2U * kAdbMaxPacket);
+    // With a timeout the same call pumps completions and finishes.
+    AOAHID_CHECK(aoahid_channel_write(channel, data.data() + written, data.size() - written,
+                                      &written, 100U) == AOAHID_OK);
+    AOAHID_CHECK(written == kAdbMaxPacket + 1U);
+
+    // Closing the Device consumes the still-open Channel and its handle.
+    AOAHID_CHECK(aoahid_device_close(device) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_fake_libusb_open_handle_count() == 0U);
+    aoahid_fake_libusb_claim_record claim{};
+    AOAHID_CHECK(aoahid_fake_libusb_claim_count() == 2U &&
+                 aoahid_fake_libusb_get_claim(1U, &claim) == LIBUSB_SUCCESS &&
+                 claim.interface_number == 1 && claim.release == 1);
+    AOAHID_CHECK(aoahid_context_destroy(context) == AOAHID_OK);
+    aoahid_fake_libusb_reset();
+}
 
 void test_legacy_accessory_options_are_unsupported_before_io() {
     aoahid_fake_libusb_reset();
@@ -994,8 +1526,6 @@ void test_zero_tuning_fallbacks_and_zero_reservation() {
         AOAHID_CHECK(device->config.pool_slots == 8U);
         AOAHID_CHECK(device->config.maximum_report_bytes == 1024U);
         AOAHID_CHECK(device->close_drain_timeout_ms == 1000U);
-        AOAHID_CHECK(device->config.first_report_attempts == 20U);
-        AOAHID_CHECK(device->config.first_report_backoff_us == 1000U);
     }
     // Normalization is applied to a private copy, never to caller memory.
     AOAHID_CHECK(options.control_timeout_ms == 0U && options.maximum_report_bytes == 0U);
@@ -1448,39 +1978,43 @@ void open_public_keyboard_session(aoahid_context** context, aoahid_device** devi
     aoahid_spec_release(spec);
 }
 
-void test_first_report_retry_is_consumed_by_accepted_terminal_failure() {
+void test_first_report_stall_is_returned_without_retry() {
     aoahid_fake_libusb_reset();
     aoahid_context* context = nullptr;
     aoahid_device* device = nullptr;
     aoahid_node* node = nullptr;
     open_public_keyboard_session(&context, &device, &node);
 
+    // A first report that races Android's HID registration and stalls goes
+    // out once; the STALL reaches the caller, who decides whether to resend.
     AOAHID_CHECK(aoahid_kbd(node, 0x04U, 1U) == AOAHID_OK);
     aoahid_fake_libusb_queue_async_completion(LIBUSB_TRANSFER_STALL, 0, 0U);
-    aoahid_fake_libusb_queue_async_completion(LIBUSB_TRANSFER_STALL, 0, 0U);
     AOAHID_CHECK(aoahid_node_submit(node) == AOAHID_OK);
     for (std::size_t attempt = 0U;
          attempt < 10U && node->transfer_inflight.load(std::memory_order_acquire); ++attempt) {
         AOAHID_CHECK(aoahid_context_poll(context, 1U) == AOAHID_OK);
     }
     AOAHID_CHECK(!node->transfer_inflight.load(std::memory_order_acquire));
-    AOAHID_CHECK(controls_for(57U).size() == 2U);
+    AOAHID_CHECK(controls_for(57U).size() == 1U);
 
-    // Consume the first event's exhausted STALL after recording another
-    // explicit state transition. That transition remains dirty for the next
-    // submit, but it is no longer registration-race eligible.
-    AOAHID_CHECK(aoahid_kbd(node, 0x05U, 1U) == AOAHID_OK);
+    // The STALL is reported once; the refused state stays pending, so the
+    // caller's explicit resend is an ordinary submit of the same report.
     AOAHID_CHECK(aoahid_node_submit(node) == AOAHID_ERR_STALL);
-    const std::size_t before_later_event = controls_for(57U).size();
-    aoahid_fake_libusb_queue_async_completion(LIBUSB_TRANSFER_STALL, 0, 0U);
+    AOAHID_CHECK(controls_for(57U).size() == 1U);
+    AOAHID_CHECK(aoahid_node_submit_blocking(node, 100U) == AOAHID_OK);
+    const auto payloads = control_payloads_for(57U);
+    AOAHID_CHECK(payloads.size() == 2U && payloads[0] == payloads[1]);
+    // A timeout may have been delivered, so it is not resent automatically.
+    AOAHID_CHECK(aoahid_kbd(node, 0x05U, 1U) == AOAHID_OK);
+    aoahid_fake_libusb_queue_async_completion(LIBUSB_TRANSFER_TIMED_OUT, 0, 0U);
     AOAHID_CHECK(aoahid_node_submit(node) == AOAHID_OK);
     for (std::size_t attempt = 0U;
          attempt < 10U && node->transfer_inflight.load(std::memory_order_acquire); ++attempt) {
         AOAHID_CHECK(aoahid_context_poll(context, 1U) == AOAHID_OK);
     }
-    AOAHID_CHECK(!node->transfer_inflight.load(std::memory_order_acquire));
-    AOAHID_CHECK(controls_for(57U).size() == before_later_event + 1U);
-    AOAHID_CHECK(aoahid_node_submit(node) == AOAHID_ERR_STALL);
+    AOAHID_CHECK(aoahid_node_submit(node) == AOAHID_ERR_TIMEOUT);
+    AOAHID_CHECK(aoahid_node_submit(node) == AOAHID_OK);
+    AOAHID_CHECK(controls_for(57U).size() == 3U);
 
     AOAHID_CHECK(aoahid_node_close(node) == AOAHID_OK);
     AOAHID_CHECK(aoahid_device_close(device) == AOAHID_OK);
@@ -1727,6 +2261,50 @@ void test_caller_poll_hot_path_is_lock_and_allocation_free() {
     AOAHID_CHECK(hot_allocations == 0U);
 
     AOAHID_CHECK(aoahid_node_close(node) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_device_close(device) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_context_destroy(context) == AOAHID_OK);
+    aoahid_fake_libusb_reset();
+}
+
+void test_channel_hot_path_is_lock_and_allocation_free() {
+    aoahid_fake_libusb_reset();
+    const Candidate phone = add_adb_phone();
+    aoahid_context_options context_options = public_context_options();
+    aoahid_context* context = nullptr;
+    AOAHID_CHECK(aoahid_context_create(&context_options, &context) == AOAHID_OK);
+    const aoahid_device_info selected = public_info(phone);
+    aoahid_device_options device_options = public_device_options();
+    aoahid_device* device = nullptr;
+    AOAHID_CHECK(aoahid_device_open(context, &selected, &device_options, &device) == AOAHID_OK);
+    const aoahid_channel_options options = adb_channel_options();
+    aoahid_channel* channel = nullptr;
+    AOAHID_CHECK(aoahid_channel_open(device, &options, &channel) == AOAHID_OK);
+    AOAHID_CHECK(context->active_state_mutex == nullptr);
+
+    const std::array<std::uint8_t, 24> header{'O', 'K', 'A', 'Y'};
+    aoahid_fake_libusb_push_bulk_in(0U, kAdbEndpointIn, header.data(), header.size());
+    AOAHID_CHECK(aoahid_context_poll(context, 0U) == AOAHID_OK);
+    aoahid_fake_libusb_set_control_recording(0);
+    std::array<std::uint8_t, 32> buffer{};
+    std::size_t received = 0U;
+    std::size_t written = 0U;
+    allocation_probe::begin();
+    const aoahid_result read =
+        aoahid_channel_read(channel, buffer.data(), buffer.size(), &received, 0U);
+    const aoahid_result write =
+        aoahid_channel_write(channel, header.data(), header.size(), &written, 0U);
+    const aoahid_result polled = aoahid_context_poll(context, 0U);
+    const aoahid_result empty =
+        aoahid_channel_read(channel, buffer.data(), buffer.size(), &received, 0U);
+    const std::size_t hot_allocations = allocation_probe::finish();
+    aoahid_fake_libusb_set_control_recording(1);
+
+    AOAHID_CHECK(read == AOAHID_OK && written == header.size());
+    AOAHID_CHECK(write == AOAHID_OK && polled == AOAHID_OK);
+    AOAHID_CHECK(empty == AOAHID_ERR_TIMEOUT);
+    AOAHID_CHECK(hot_allocations == 0U);
+
+    AOAHID_CHECK(aoahid_channel_close(channel) == AOAHID_OK);
     AOAHID_CHECK(aoahid_device_close(device) == AOAHID_OK);
     AOAHID_CHECK(aoahid_context_destroy(context) == AOAHID_OK);
     aoahid_fake_libusb_reset();
@@ -2175,6 +2753,13 @@ void test_transport() {
     test_protocol_short_response_preserves_not_aoa_diagnostic();
     test_error_report_id_is_published_before_user_callback_returns();
     test_current_mode_open_and_explicit_claim();
+    test_port_ownership_and_discovery_reuse();
+    test_accessory_start_sends_51_52_53_and_closes();
+    test_accessory_start_rejects_and_reports_failures();
+    test_channel_shares_the_device_handle_internal_thread();
+    test_channel_configures_an_unconfigured_device();
+    test_hid_adb_and_accessory_bulk_run_together();
+    test_channel_caller_poll_and_device_close();
     test_legacy_accessory_options_are_unsupported_before_io();
     test_required_device_policies_precede_usb_io();
     test_zero_tuning_fallbacks_and_zero_reservation();
@@ -2187,12 +2772,13 @@ void test_transport() {
     test_public_touch_scan_time_rejected_first_attempt_stays_zero();
     test_close_drains_touch_frame_before_neutral();
     test_public_error_contract_and_raw_padding();
-    test_first_report_retry_is_consumed_by_accepted_terminal_failure();
+    test_first_report_stall_is_returned_without_retry();
     test_submit_rejection_retains_state_and_close_releases();
     test_node_open_host_policy_failure_precedes_request54();
     test_node_close_timeout_distinction_and_loss_freeze();
     test_node_close_retains_terminal_link_loss();
     test_caller_poll_hot_path_is_lock_and_allocation_free();
+    test_channel_hot_path_is_lock_and_allocation_free();
     test_accepted_submit_defers_opportunistic_poll_error();
     test_context_destroy_aggregates_unregister_error();
     test_context_destroy_never_returns_terminal_pending();

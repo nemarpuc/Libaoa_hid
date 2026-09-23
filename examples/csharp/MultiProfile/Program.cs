@@ -15,8 +15,6 @@ internal static class Program
     private const uint HostReportPolicyBytes = 4088;
     private const uint PoolSlots = 8;
     private const uint ReservedSlotsPerNode = 1;
-    private const uint FirstReportAttempts = 20;
-    private const uint FirstReportBackoffUs = 1000;
     private const uint CloseDrainTimeoutMs = 1000;
     private const ushort KeyboardAUsage = 0x04; // HUT 1.7 section 10; see FACT_AUDIT.md.
     private const ushort KeyboardApplicationUsage = 0x65; // HUT 1.7 section 10.
@@ -91,8 +89,6 @@ internal static class Program
         TransferPoolSlots = PoolSlots,
         MaximumReportBytes = HostReportPolicyBytes,
         CloseDrainTimeoutMs = CloseDrainTimeoutMs,
-        FirstReportAttempts = FirstReportAttempts,
-        FirstReportBackoffUs = FirstReportBackoffUs,
         ValidateReports = 1,
         AoaDescriptorWirePolicyBytes = DescriptorPolicyBytes,
         LinuxDescriptorPolicyBytes = DescriptorPolicyBytes,

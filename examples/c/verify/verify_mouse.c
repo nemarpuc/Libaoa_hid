@@ -78,7 +78,7 @@ int main(void) {
                     aoahid_context_destroy(context);
                     return verify_fail("mouse move", result);
                 }
-                result = aoahid_node_submit_blocking(node, 500U);
+                result = verify_submit(node);
                 if (result != AOAHID_OK) {
                     aoahid_node_close(node);
                     aoahid_device_close(device);

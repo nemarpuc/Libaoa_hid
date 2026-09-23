@@ -538,8 +538,13 @@ void transfer_complete(void* user, const aoahid_result result,
     // the transfer. In that case no completion will follow, and the synthetic
     // completion used to recover the pool must not consume caller state.
     const bool accepted_by_libusb = native_status >= 0;
+    // A STALL is the target refusing request 57 (f_accessory stalls when the
+    // HID ID is not registered yet), so nothing was applied. Like a submit
+    // rejection it keeps the state pending: the caller's next submit resends
+    // it. Timeouts and cancellations stay consumed because delivery is unknown.
+    const bool may_have_applied = accepted_by_libusb && result != AOAHID_ERR_STALL;
     bool lifecycle_report_complete = true;
-    if (!accepted_by_libusb) {
+    if (!may_have_applied) {
         node->dirty = true;
     } else if (auto* mouse = state<MouseState>(node); mouse != nullptr) {
         // A timed-out/cancelled control transfer may have reached the device.
@@ -602,13 +607,13 @@ void transfer_complete(void* user, const aoahid_result result,
         }
         node->dirty = false;
     }
-    if (accepted_by_libusb && (result != AOAHID_OK || lifecycle_report_complete)) {
+    if (may_have_applied && (result != AOAHID_OK || lifecycle_report_complete)) {
         // An accepted terminal transfer may have reached the target even when
         // completion is uncertain. Consume its edge baseline so a later
         // opposite transition can release any state the target may hold.
         consume_lifecycle_transitions(node);
     }
-    if (accepted_by_libusb) {
+    if (may_have_applied) {
         if (result == AOAHID_OK) {
             node->emitted_non_neutral = node->submitted_non_neutral;
         } else {
@@ -623,13 +628,6 @@ void transfer_complete(void* user, const aoahid_result result,
     node->submitted_wheel = 0;
     node->submitted_pan = 0;
     node->submitted_non_neutral = false;
-    if (accepted_by_libusb) {
-        // Registration-race retries belong to the first transfer accepted by
-        // libusb, not to the first successful transfer. Every terminal error
-        // after acceptance still consumes that one-event eligibility; only a
-        // synchronous submit rejection leaves it available.
-        node->first_report = false;
-    }
     // A callback may run on the Context's internal event thread. Publish every
     // diagnostic component with the completion result so the application
     // caller can reconstruct its own thread-local error record later.

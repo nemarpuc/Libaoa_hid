@@ -40,6 +40,7 @@ cc -std=c17 -O2 -Iinclude examples/c/verify/verify_mouse.c    lib/libaoahid.a -l
 cc -std=c17 -O2 -Iinclude examples/c/verify/verify_toggle.c   lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o verify_toggle
 cc -std=c17 -O2 -Iinclude examples/c/verify/verify_battery.c  lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o verify_battery
 cc -std=c17 -O2 -Iinclude examples/c/verify/verify_all.c      lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -lm -o verify_all
+cc -std=c17 -O2 -Iinclude examples/c/verify/verify_accessory.c lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o verify_accessory
 ```
 
 If you downloaded the **shared** package instead (`lib/libaoahid.so` /

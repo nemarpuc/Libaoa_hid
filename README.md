@@ -125,7 +125,7 @@ latency number or a proof that every possible execution is data-race-free. See
 
 New to a real device? [docs/QUICKSTART.md](docs/QUICKSTART.md) is a practical,
 step-by-step walkthrough covering cables/hubs, Linux udev permissions, the
-Windows `adb`-conflict gotcha, and three small programs under
+Windows `adb`-conflict gotcha, and small programs under
 [examples/c/verify/](examples/c/verify) built specifically to be watched
 (typing text, dragging on the touchscreen, moving the mouse in circles) so you
 can confirm a real phone reacts before writing product code.
@@ -138,11 +138,15 @@ outline:
 
 1. Create a context and explicitly select caller-poll or internal-thread mode.
 2. Discover and select a physical USB device.
-3. Open in current-USB Mode A. This path is target-conditional: the library
-   never sends `ACCESSORY_START` and does not fall back to re-enumeration.
+3. Open the device in its current USB mode (Mode A, target-conditional), or
+   first switch it with `aoahid_accessory_start`, rediscover the re-enumerated
+   accessory-mode device, and open that. The library never waits for
+   re-enumeration and never retries; each step is an explicit call.
 4. Build immutable specs, register each as its own AOA HID ID, update state,
    then submit reports.
-5. Close nodes/device so neutral state is completed before request 55.
+5. Optionally open a Bulk `aoahid_channel` (for example ADB) on the same USB
+   handle; HID and Bulk never need a second open of the device.
+6. Close nodes/channels/device so neutral state is completed before request 55.
 
 The C header is [include/aoahid.h](include/aoahid.h). The optional C++ header
 adds typed node references without changing policy. Python ctypes, C# P/Invoke,
@@ -152,8 +156,8 @@ zero-value transport fallbacks for every language binding.
 
 The device-option fallbacks are 500 ms for control and report transfers, 64
 bytes per descriptor fragment, 8 pool slots, a 1024-byte maximum report buffer,
-a 1000 ms close-drain budget, and 20 total first-report attempts with 1000
-microseconds between retry attempts. These numbers are **[project policy]**, not
+and a 1000 ms close-drain budget. The library never retries a transfer; a
+STALLed report stays pending for the caller's resend. These numbers are **[project policy]**, not
 USB/AOA requirements or libusb recommendations. A timeout is the failure
 deadline passed to the backend; it does not add delay to a successful transfer.
 Explicit nonzero values remain unchanged. Node reservation `0/0` means no
@@ -162,11 +166,12 @@ policies remain mandatory and are never guessed.
 
 For binary compatibility, `AOAHID_START_ACCESSORY_MODE` and the former Mode-B
 members of `aoahid_device_options` remain in the public layout as legacy ABI
-tombstones. Selecting that mode returns `AOAHID_ERR_UNSUPPORTED` before USB I/O;
-the retained members do not restore the removed requests 52, 53, or 58 path.
-Devices whose firmware accepts AOA HID requests only after `ACCESSORY_START`
-cannot be opened by this release. This source-backed limitation is not a
-hardware result; see `SOURCE_CONFLICTS.md` T-07 and `TARGET_MATRIX.md`.
+tombstones; `aoahid_device_open` itself never switches modes. Devices whose
+firmware accepts AOA HID requests only after `ACCESSORY_START` are reached with
+`aoahid_accessory_start` instead (requests 51, 52, and 53; request 58 audio is
+never sent). There is no call that leaves accessory mode: unplug the device or
+use `svc usb setFunctions` through ADB. Hardware behavior of either path is not
+yet recorded; see `SOURCE_CONFLICTS.md` T-07 and `TARGET_MATRIX.md`.
 
 ## Releases
 

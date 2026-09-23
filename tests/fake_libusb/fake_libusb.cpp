@@ -9,6 +9,7 @@
 #include "libusb.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
@@ -41,6 +42,9 @@ struct libusb_device {
     int open_status{LIBUSB_SUCCESS};
     int claim_status{LIBUSB_SUCCESS};
     bool present{true};
+    int configuration{1};
+    std::vector<aoahid_fake_libusb_bulk_interface> bulk_interfaces;
+    std::vector<std::pair<std::uint8_t, std::deque<std::vector<std::uint8_t>>>> bulk_in;
 };
 
 struct libusb_device_handle {
@@ -51,6 +55,18 @@ namespace {
 
 struct RecordedControl {
     aoahid_fake_libusb_control_record record{};
+    std::vector<std::uint8_t> data;
+};
+
+struct FakeConfig {
+    libusb_config_descriptor config{};
+    std::vector<libusb_interface> interfaces;
+    std::vector<libusb_interface_descriptor> settings;
+    std::vector<std::array<libusb_endpoint_descriptor, 2>> endpoints;
+};
+
+struct BulkOut {
+    std::size_t device_index{};
     std::vector<std::uint8_t> data;
 };
 
@@ -72,8 +88,14 @@ std::vector<RecordedControl> controls;
 std::vector<aoahid_fake_libusb_claim_record> claims;
 std::vector<aoahid_fake_libusb_init_option_record> init_options;
 std::vector<libusb_transfer*> allocated_transfers;
+std::vector<std::unique_ptr<FakeConfig>> configs;
+std::vector<BulkOut> bulk_out;
+constexpr std::uint64_t never_ready = std::numeric_limits<std::uint64_t>::max();
 std::uint64_t poll_number{};
 std::size_t cancel_count{};
+std::size_t open_handle_count{};
+std::size_t open_call_count{};
+std::size_t set_configuration_count{};
 std::size_t event_handle_count{};
 aoahid_fake_libusb_event_stats event_stats{};
 std::uint64_t event_notification_generation{};
@@ -141,9 +163,157 @@ bool completion_ready_next_poll_locked() noexcept {
     return false;
 }
 
+std::deque<std::vector<std::uint8_t>>* bulk_queue_locked(libusb_device* device,
+                                                         const std::uint8_t endpoint) {
+    for (auto& entry : device->bulk_in) {
+        if (entry.first == endpoint) {
+            return &entry.second;
+        }
+    }
+    device->bulk_in.emplace_back(endpoint, std::deque<std::vector<std::uint8_t>>{});
+    return &device->bulk_in.back().second;
+}
+
+void fill_bulk_in_locked(libusb_transfer* transfer, const std::vector<std::uint8_t>& chunk) {
+    const std::size_t copied =
+        std::min(chunk.size(), static_cast<std::size_t>(std::max(transfer->length, 0)));
+    if (copied != 0U) {
+        std::memcpy(transfer->buffer, chunk.data(), copied);
+    }
+    transfer->fake_completion_status =
+        chunk.size() > copied ? LIBUSB_TRANSFER_OVERFLOW : LIBUSB_TRANSFER_COMPLETED;
+    transfer->fake_completion_length = static_cast<int>(copied);
+    transfer->fake_ready_poll = poll_number + 1U;
+}
+
+int submit_bulk_locked(libusb_transfer* transfer) {
+    libusb_device* device = transfer->dev_handle->device;
+    AsyncOutcome outcome{};
+    transfer->fake_submitted = 1;
+    transfer->fake_cancel_requested = 0;
+    if ((transfer->endpoint & LIBUSB_ENDPOINT_IN) != 0U) {
+        auto* queue = bulk_queue_locked(device, transfer->endpoint);
+        if (queue->empty()) {
+            transfer->fake_completion_status = LIBUSB_TRANSFER_COMPLETED;
+            transfer->fake_completion_length = 0;
+            transfer->fake_ready_poll = never_ready;
+        } else {
+            fill_bulk_in_locked(transfer, queue->front());
+            queue->pop_front();
+        }
+    } else {
+        // Allocation probes turn recording off, as they do for control data.
+        if (control_recording_enabled) {
+            BulkOut record{};
+            record.device_index = device->index;
+            if (transfer->length > 0) {
+                record.data.assign(transfer->buffer, transfer->buffer + transfer->length);
+            }
+            bulk_out.push_back(std::move(record));
+        }
+        if (!async_outcomes.empty()) {
+            outcome = async_outcomes.front();
+            async_outcomes.pop_front();
+        }
+        transfer->fake_completion_status = outcome.status;
+        transfer->fake_completion_length =
+            outcome.actual_length < 0 ? transfer->length : outcome.actual_length;
+        transfer->fake_ready_poll =
+            poll_number + static_cast<std::uint64_t>(outcome.delay_polls) + 1U;
+    }
+    ++event_stats.successful_submits;
+    notify_event_locked(EventNotification::submit);
+    return LIBUSB_SUCCESS;
+}
+
 } // namespace
 
 extern "C" {
+
+libusb_device* libusb_get_device(libusb_device_handle* handle) {
+    return handle == nullptr ? nullptr : handle->device;
+}
+
+int libusb_get_configuration(libusb_device_handle* handle, int* config) {
+    if (handle == nullptr || handle->device == nullptr || config == nullptr) {
+        return LIBUSB_ERROR_INVALID_PARAM;
+    }
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    if (!handle->device->present) {
+        return LIBUSB_ERROR_NO_DEVICE;
+    }
+    *config = handle->device->configuration;
+    return LIBUSB_SUCCESS;
+}
+
+int libusb_set_configuration(libusb_device_handle* handle, const int configuration) {
+    if (handle == nullptr || handle->device == nullptr) {
+        return LIBUSB_ERROR_INVALID_PARAM;
+    }
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    if (!handle->device->present) {
+        return LIBUSB_ERROR_NO_DEVICE;
+    }
+    ++set_configuration_count;
+    handle->device->configuration = configuration;
+    return LIBUSB_SUCCESS;
+}
+
+int libusb_get_active_config_descriptor(libusb_device* device, libusb_config_descriptor** config) {
+    if (device == nullptr || config == nullptr) {
+        return LIBUSB_ERROR_INVALID_PARAM;
+    }
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    if (!device->present) {
+        return LIBUSB_ERROR_NO_DEVICE;
+    }
+    if (device->configuration == 0) {
+        return LIBUSB_ERROR_NOT_FOUND;
+    }
+    auto fake = std::make_unique<FakeConfig>();
+    const std::size_t count = device->bulk_interfaces.size();
+    fake->interfaces.resize(count);
+    fake->settings.resize(count);
+    fake->endpoints.resize(count);
+    for (std::size_t index = 0U; index < count; ++index) {
+        const auto& value = device->bulk_interfaces[index];
+        auto& endpoints = fake->endpoints[index];
+        endpoints[0] = libusb_endpoint_descriptor{
+            7U, 5U, value.endpoint_in, 2U, value.max_packet, 0U, 0U, 0U, nullptr, 0};
+        endpoints[1] = libusb_endpoint_descriptor{
+            7U, 5U, value.endpoint_out, 2U, value.max_packet, 0U, 0U, 0U, nullptr, 0};
+        fake->settings[index] = libusb_interface_descriptor{9U,
+                                                            4U,
+                                                            value.number,
+                                                            0U,
+                                                            2U,
+                                                            value.interface_class,
+                                                            value.interface_subclass,
+                                                            value.interface_protocol,
+                                                            0U,
+                                                            endpoints.data(),
+                                                            nullptr,
+                                                            0};
+        fake->interfaces[index] = libusb_interface{&fake->settings[index], 1};
+    }
+    fake->config.bLength = 9U;
+    fake->config.bDescriptorType = 2U;
+    fake->config.bNumInterfaces = static_cast<std::uint8_t>(count);
+    fake->config.bConfigurationValue = 1U;
+    fake->config.interface = fake->interfaces.data();
+    *config = &fake->config;
+    configs.push_back(std::move(fake));
+    return LIBUSB_SUCCESS;
+}
+
+void libusb_free_config_descriptor(libusb_config_descriptor* config) {
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    configs.erase(std::remove_if(configs.begin(), configs.end(),
+                                 [config](const std::unique_ptr<FakeConfig>& value) {
+                                     return &value->config == config;
+                                 }),
+                  configs.end());
+}
 
 int libusb_init_context(libusb_context** context, const libusb_init_option options[],
                         const int num_options) {
@@ -270,10 +440,20 @@ int libusb_open(libusb_device* device, libusb_device_handle** handle) {
     }
     result->device = device;
     *handle = result;
+    ++open_handle_count;
+    ++open_call_count;
     return LIBUSB_SUCCESS;
 }
 
-void libusb_close(libusb_device_handle* handle) { delete handle; }
+void libusb_close(libusb_device_handle* handle) {
+    if (handle != nullptr) {
+        const std::lock_guard<std::mutex> guard(global_mutex);
+        if (open_handle_count > 0U) {
+            --open_handle_count;
+        }
+    }
+    delete handle;
+}
 
 int libusb_get_string_descriptor_ascii(libusb_device_handle* handle, const uint8_t descriptor_index,
                                        unsigned char* data, const int length) {
@@ -381,9 +561,11 @@ void libusb_free_transfer(libusb_transfer* transfer) {
 }
 
 int libusb_submit_transfer(libusb_transfer* transfer) {
+    const bool bulk = transfer != nullptr &&
+                      transfer->type == static_cast<unsigned char>(LIBUSB_TRANSFER_TYPE_BULK);
     if (transfer == nullptr || transfer->dev_handle == nullptr ||
         transfer->dev_handle->device == nullptr || transfer->buffer == nullptr ||
-        transfer->length < static_cast<int>(LIBUSB_CONTROL_SETUP_SIZE)) {
+        transfer->length < (bulk ? 0 : static_cast<int>(LIBUSB_CONTROL_SETUP_SIZE))) {
         return LIBUSB_ERROR_INVALID_PARAM;
     }
     const std::lock_guard<std::mutex> guard(global_mutex);
@@ -399,6 +581,9 @@ int libusb_submit_transfer(libusb_transfer* transfer) {
         if (result != LIBUSB_SUCCESS) {
             return result;
         }
+    }
+    if (bulk) {
+        return submit_bulk_locked(transfer);
     }
 
     const auto* setup = reinterpret_cast<const libusb_control_setup*>(transfer->buffer);
@@ -550,8 +735,13 @@ void aoahid_fake_libusb_reset(void) {
     claims.clear();
     init_options.clear();
     allocated_transfers.clear();
+    configs.clear();
+    bulk_out.clear();
     poll_number = 0U;
     cancel_count = 0U;
+    open_handle_count = 0U;
+    open_call_count = 0U;
+    set_configuration_count = 0U;
     event_handle_count = 0U;
     event_stats = {};
     event_notification_generation = 0U;
@@ -703,6 +893,112 @@ size_t aoahid_fake_libusb_pending_transfer_count(void) {
                                                  return transfer != nullptr &&
                                                         transfer->fake_submitted != 0;
                                              }));
+}
+
+void aoahid_fake_libusb_add_bulk_interface(const size_t device_index,
+                                           const aoahid_fake_libusb_bulk_interface* value) {
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    if (libusb_device* device = find_device(device_index); device != nullptr && value != nullptr) {
+        device->bulk_interfaces.push_back(*value);
+    }
+}
+
+void aoahid_fake_libusb_push_bulk_in(const size_t device_index, const uint8_t endpoint,
+                                     const uint8_t* data, const size_t length) {
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    libusb_device* device = find_device(device_index);
+    if (device == nullptr) {
+        return;
+    }
+    std::vector<std::uint8_t> chunk;
+    if (data != nullptr && length != 0U) {
+        chunk.assign(data, data + length);
+    }
+    for (libusb_transfer* transfer : allocated_transfers) {
+        if (transfer != nullptr && transfer->fake_submitted != 0 &&
+            transfer->fake_cancel_requested == 0 && transfer->fake_ready_poll == never_ready &&
+            transfer->endpoint == endpoint && transfer->dev_handle != nullptr &&
+            transfer->dev_handle->device == device) {
+            fill_bulk_in_locked(transfer, chunk);
+            notify_event_locked(EventNotification::ready);
+            return;
+        }
+    }
+    bulk_queue_locked(device, endpoint)->push_back(std::move(chunk));
+}
+
+size_t aoahid_fake_libusb_bulk_out_count(void) {
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    return bulk_out.size();
+}
+
+size_t aoahid_fake_libusb_copy_bulk_out(const size_t index, uint8_t* output,
+                                        const size_t capacity) {
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    if (index >= bulk_out.size()) {
+        return 0U;
+    }
+    const auto& data = bulk_out[index].data;
+    if (output != nullptr) {
+        std::memcpy(output, data.data(), std::min(capacity, data.size()));
+    }
+    return data.size();
+}
+
+void aoahid_fake_libusb_unplug(const size_t device_index) {
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    libusb_device* device = find_device(device_index);
+    if (device == nullptr) {
+        return;
+    }
+    device->present = false;
+    device->bulk_in.clear();
+    for (libusb_transfer* transfer : allocated_transfers) {
+        if (transfer != nullptr && transfer->fake_submitted != 0 &&
+            transfer->dev_handle != nullptr && transfer->dev_handle->device == device) {
+            transfer->fake_completion_status = LIBUSB_TRANSFER_NO_DEVICE;
+            transfer->fake_completion_length = 0;
+            transfer->fake_ready_poll = poll_number + 1U;
+        }
+    }
+    notify_event_locked(EventNotification::ready);
+}
+
+void aoahid_fake_libusb_set_serial(const size_t device_index, const char* serial) {
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    if (libusb_device* device = find_device(device_index); device != nullptr) {
+        device->serial = serial == nullptr ? "" : serial;
+    }
+}
+
+void aoahid_fake_libusb_set_active_configuration(const size_t device_index, const int value) {
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    if (libusb_device* device = find_device(device_index); device != nullptr) {
+        device->configuration = value;
+    }
+}
+
+size_t aoahid_fake_libusb_set_configuration_count(void) {
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    return set_configuration_count;
+}
+
+void aoahid_fake_libusb_replug(const size_t device_index, const uint8_t address) {
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    if (libusb_device* device = find_device(device_index); device != nullptr) {
+        device->address = address;
+        device->present = true;
+    }
+}
+
+size_t aoahid_fake_libusb_open_call_count(void) {
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    return open_call_count;
+}
+
+size_t aoahid_fake_libusb_open_handle_count(void) {
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    return open_handle_count;
 }
 
 size_t aoahid_fake_libusb_cancel_count(void) {

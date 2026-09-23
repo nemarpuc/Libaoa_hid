@@ -15,7 +15,7 @@ from typing import Union
 
 
 # All public enum domains in aoahid.h are exactly int32_t.
-AOAHID_VERSION_MAJOR = 1
+AOAHID_VERSION_MAJOR = 2
 AOAHID_VERSION_MINOR = 0
 AOAHID_VERSION_PATCH = 0
 AOAHID_OK = 0
@@ -116,11 +116,16 @@ class Node(c.Structure):
     pass
 
 
+class Channel(c.Structure):
+    pass
+
+
 ContextP = c.POINTER(Context)
 DiscoveryP = c.POINTER(Discovery)
 DeviceP = c.POINTER(Device)
 SpecP = c.POINTER(Spec)
 NodeP = c.POINTER(Node)
+ChannelP = c.POINTER(Channel)
 LogSink = c.CFUNCTYPE(None, c.c_void_p, c.c_int32, c.c_char_p)
 
 
@@ -163,7 +168,8 @@ class DeviceInfo(c.Structure):
 
 
 class AoaStrings(c.Structure):
-    # Legacy ABI tombstone. Every pointer must remain null.
+    # AOA request-52 strings. aoahid_accessory_start requires manufacturer and
+    # model; inside DeviceOptions every pointer must remain null (tombstone).
     _fields_ = [
         ("manufacturer", c.c_char_p),
         ("model", c.c_char_p),
@@ -188,6 +194,7 @@ class DeviceOptions(c.Structure):
         ("transfer_pool_slots", c.c_uint32),
         ("maximum_report_bytes", c.c_uint32),
         ("close_drain_timeout_ms", c.c_uint32),
+        # Ignored since 2.0.0; the library never retries a report.
         ("first_report_attempts", c.c_uint32),
         ("first_report_backoff_us", c.c_uint32),
         ("validate_reports", c.c_uint32),
@@ -205,6 +212,30 @@ class DeviceOptions(c.Structure):
         # Legacy Mode-B fields retained only to mirror the stable ABI layout.
         ("accessory_strings", AoaStrings),
         ("enable_deprecated_audio_mode", c.c_uint32),
+    ]
+
+
+class AccessoryOptions(c.Structure):
+    _fields_ = [
+        ("struct_size", c.c_uint32),
+        ("reserved", c.c_uint32),
+        ("strings", AoaStrings),
+        ("control_timeout_ms", c.c_uint32),
+    ]
+
+
+class ChannelOptions(c.Structure):
+    _fields_ = [
+        ("struct_size", c.c_uint32),
+        ("reserved", c.c_uint32),
+        ("interface_class", c.c_uint8),
+        ("interface_subclass", c.c_uint8),
+        ("interface_protocol", c.c_uint8),
+        ("reserved8", c.c_uint8),
+        ("in_transfers", c.c_uint32),
+        ("out_transfers", c.c_uint32),
+        ("transfer_bytes", c.c_uint32),
+        ("zero_length_termination", c.c_uint32),
     ]
 
 
@@ -490,6 +521,8 @@ ABI_STRUCTS = {
     "aoahid_device_info": DeviceInfo,
     "aoahid_aoa_strings": AoaStrings,
     "aoahid_device_options": DeviceOptions,
+    "aoahid_accessory_options": AccessoryOptions,
+    "aoahid_channel_options": ChannelOptions,
     "aoahid_node_options": NodeOptions,
     "aoahid_physical_properties": PhysicalProperties,
     "aoahid_integer_field": IntegerField,
@@ -534,10 +567,15 @@ def load(path: Union[os.PathLike, str]) -> c.CDLL:
     declare("aoahid_discovery_count", [DiscoveryP], c.c_size_t)
     declare("aoahid_discovery_get", [DiscoveryP, c.c_size_t], c.POINTER(DeviceInfo))
     declare("aoahid_discovery_destroy", [DiscoveryP], None)
+    declare("aoahid_accessory_start", [ContextP, c.POINTER(DeviceInfo), c.POINTER(AccessoryOptions)], result)
     declare("aoahid_device_open", [ContextP, c.POINTER(DeviceInfo), c.POINTER(DeviceOptions), c.POINTER(DeviceP)], result)
     declare("aoahid_device_close", [DeviceP], result)
     declare("aoahid_device_latched_error", [DeviceP], result)
     declare("aoahid_device_protocol_version", [DeviceP], c.c_uint16)
+    declare("aoahid_channel_open", [DeviceP, c.POINTER(ChannelOptions), c.POINTER(ChannelP)], result)
+    declare("aoahid_channel_close", [ChannelP], result)
+    declare("aoahid_channel_write", [ChannelP, c.POINTER(c.c_uint8), c.c_size_t, c.POINTER(c.c_size_t), c.c_uint32], result)
+    declare("aoahid_channel_read", [ChannelP, c.POINTER(c.c_uint8), c.c_size_t, c.POINTER(c.c_size_t), c.c_uint32], result)
 
     factories = {
         "aoahid_spec_create_keyboard": KeyboardOptions,
@@ -594,12 +632,16 @@ __all__ += [
     "DeviceP",
     "SpecP",
     "NodeP",
+    "Channel",
+    "ChannelP",
+    "ChannelOptions",
     "LogSink",
     "ErrorDetail",
     "ContextOptions",
     "DeviceInfo",
     "AoaStrings",
     "DeviceOptions",
+    "AccessoryOptions",
     "NodeOptions",
     "PhysicalProperties",
     "IntegerField",

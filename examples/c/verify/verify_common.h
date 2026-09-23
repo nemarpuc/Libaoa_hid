@@ -55,6 +55,46 @@ static int verify_fail(const char* what, aoahid_result result) {
     return 1;
 }
 
+/* The Device options every verify program uses: plain, generous values for a
+ * first working connection, not a recommendation for a shipped product. */
+static aoahid_device_options verify_device_options(void) {
+    aoahid_device_options device_options = {0};
+    device_options.struct_size = (uint32_t)sizeof device_options;
+    device_options.startup_mode = AOAHID_START_CURRENT_USB_MODE;
+    device_options.control_timeout_ms = 500U;
+    device_options.send_timeout_ms = 500U;
+    device_options.descriptor_fragment_bytes = 4096U;
+    device_options.transfer_pool_slots = 4U;
+    device_options.maximum_report_bytes = 1024U;
+    device_options.close_drain_timeout_ms = 1000U;
+    device_options.aoa_descriptor_wire_policy_bytes = 4096U;
+    device_options.linux_descriptor_policy_bytes = 4096U;
+    device_options.linux_hid_fields_per_report_policy = 256U;
+    device_options.linux_hid_global_stack_depth_policy = 4U;
+    device_options.linux_hid_usages_policy = 12288U;
+    device_options.linux_hid_report_data_bits_policy = 65528U;
+    device_options.linux_hid_report_size_bits_policy = 256U;
+    device_options.target_ep0_data_policy_bytes = 4096U;
+    device_options.host_control_buffer_policy_bytes = 4096U;
+    device_options.interface_claim_policy = AOAHID_INTERFACE_CLAIM_NONE;
+    device_options.interface_number = -1;
+    return device_options;
+}
+
+/* The library never retries. Right after aoahid_node_open, Android may still
+ * be registering the HID and refuse the first report with AOAHID_ERR_STALL; a
+ * refused report stays pending, so this program resends it itself, a bounded
+ * number of times. A timeout is not resent: it may have been delivered. */
+static aoahid_result verify_submit(aoahid_node* node) {
+    aoahid_result result = AOAHID_ERR_STALL;
+    for (int attempt = 0; attempt < 20 && result == AOAHID_ERR_STALL; ++attempt) {
+        if (attempt != 0)
+            verify_sleep_ms(1);
+        result = aoahid_node_submit_blocking(node, 500U);
+    }
+    return result;
+}
+
 /* Discovers the first USB device this host can see and opens it as an AOA
  * Mode A device. On success the caller owns *out_context and *out_device and
  * must close/destroy them; on failure both are left null and a message has
@@ -94,28 +134,7 @@ static int verify_open_first_device(aoahid_context** out_context, aoahid_device*
            info != NULL ? (unsigned)info->vendor_id : 0U,
            info != NULL ? (unsigned)info->product_id : 0U);
 
-    aoahid_device_options device_options = {0};
-    device_options.struct_size = (uint32_t)sizeof device_options;
-    device_options.startup_mode = AOAHID_START_CURRENT_USB_MODE;
-    device_options.control_timeout_ms = 500U;
-    device_options.send_timeout_ms = 500U;
-    device_options.descriptor_fragment_bytes = 4096U;
-    device_options.transfer_pool_slots = 4U;
-    device_options.maximum_report_bytes = 1024U;
-    device_options.close_drain_timeout_ms = 1000U;
-    device_options.first_report_attempts = 20U;
-    device_options.first_report_backoff_us = 1000U;
-    device_options.aoa_descriptor_wire_policy_bytes = 4096U;
-    device_options.linux_descriptor_policy_bytes = 4096U;
-    device_options.linux_hid_fields_per_report_policy = 256U;
-    device_options.linux_hid_global_stack_depth_policy = 4U;
-    device_options.linux_hid_usages_policy = 12288U;
-    device_options.linux_hid_report_data_bits_policy = 65528U;
-    device_options.linux_hid_report_size_bits_policy = 256U;
-    device_options.target_ep0_data_policy_bytes = 4096U;
-    device_options.host_control_buffer_policy_bytes = 4096U;
-    device_options.interface_claim_policy = AOAHID_INTERFACE_CLAIM_NONE;
-    device_options.interface_number = -1;
+    const aoahid_device_options device_options = verify_device_options();
 
     result = aoahid_device_open(*out_context, info, &device_options, out_device);
     aoahid_discovery_destroy(discovery);

@@ -155,6 +155,24 @@ int main(void) {
     AOAHID_FIELD(aoahid_device_options, accessory_strings);
     AOAHID_FIELD(aoahid_device_options, enable_deprecated_audio_mode);
 
+    AOAHID_BEGIN(aoahid_accessory_options);
+    AOAHID_FIELD(aoahid_accessory_options, struct_size);
+    AOAHID_FIELD(aoahid_accessory_options, reserved);
+    AOAHID_FIELD(aoahid_accessory_options, strings);
+    AOAHID_FIELD(aoahid_accessory_options, control_timeout_ms);
+
+    AOAHID_BEGIN(aoahid_channel_options);
+    AOAHID_FIELD(aoahid_channel_options, struct_size);
+    AOAHID_FIELD(aoahid_channel_options, reserved);
+    AOAHID_FIELD(aoahid_channel_options, interface_class);
+    AOAHID_FIELD(aoahid_channel_options, interface_subclass);
+    AOAHID_FIELD(aoahid_channel_options, interface_protocol);
+    AOAHID_FIELD(aoahid_channel_options, reserved8);
+    AOAHID_FIELD(aoahid_channel_options, in_transfers);
+    AOAHID_FIELD(aoahid_channel_options, out_transfers);
+    AOAHID_FIELD(aoahid_channel_options, transfer_bytes);
+    AOAHID_FIELD(aoahid_channel_options, zero_length_termination);
+
     AOAHID_BEGIN(aoahid_node_options);
     AOAHID_FIELD(aoahid_node_options, struct_size);
     AOAHID_FIELD(aoahid_node_options, reserved);

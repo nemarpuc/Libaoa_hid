@@ -31,8 +31,6 @@ aoahid_device_options device_options() {
     options.transfer_pool_slots = 1U;
     options.maximum_report_bytes = 64U;
     options.close_drain_timeout_ms = 20U;
-    options.first_report_attempts = 2U;
-    options.first_report_backoff_us = 1U;
     options.validate_reports = 1U;
     options.aoa_descriptor_wire_policy_bytes = 1024U;
     options.linux_descriptor_policy_bytes = 1024U;

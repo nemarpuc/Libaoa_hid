@@ -37,8 +37,6 @@ aoahid_device_options make_device_options() noexcept {
     options.transfer_pool_slots = 2U;
     options.maximum_report_bytes = 64U;
     options.close_drain_timeout_ms = 1000U;
-    options.first_report_attempts = 2U;
-    options.first_report_backoff_us = 1U;
     options.validate_reports = 1U;
     options.aoa_descriptor_wire_policy_bytes = 1024U;
     options.linux_descriptor_policy_bytes = 1024U;

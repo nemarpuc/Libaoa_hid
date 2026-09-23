@@ -18,7 +18,8 @@ opaque!(
     aoahid_discovery,
     aoahid_device,
     aoahid_spec,
-    aoahid_node
+    aoahid_node,
+    aoahid_channel
 );
 
 pub type aoahid_result = i32;
@@ -33,7 +34,7 @@ pub type aoahid_axis_role = i32;
 pub type aoahid_dpad_representation = i32;
 pub type aoahid_usage_semantic = i32;
 
-pub const AOAHID_VERSION_MAJOR: u32 = 1;
+pub const AOAHID_VERSION_MAJOR: u32 = 2;
 pub const AOAHID_VERSION_MINOR: u32 = 0;
 pub const AOAHID_VERSION_PATCH: u32 = 0;
 pub const AOAHID_OK: i32 = 0;
@@ -168,6 +169,24 @@ c_struct!(aoahid_device_options {
     interface_number: i32,
     accessory_strings: aoahid_aoa_strings,
     enable_deprecated_audio_mode: u32,
+});
+c_struct!(aoahid_accessory_options {
+    struct_size: u32,
+    reserved: u32,
+    strings: aoahid_aoa_strings,
+    control_timeout_ms: u32,
+});
+c_struct!(aoahid_channel_options {
+    struct_size: u32,
+    reserved: u32,
+    interface_class: u8,
+    interface_subclass: u8,
+    interface_protocol: u8,
+    reserved8: u8,
+    in_transfers: u32,
+    out_transfers: u32,
+    transfer_bytes: u32,
+    zero_length_termination: u32,
 });
 c_struct!(aoahid_node_options {
     struct_size: u32,
@@ -375,6 +394,11 @@ extern "C" {
         index: usize,
     ) -> *const aoahid_device_info;
     pub fn aoahid_discovery_destroy(discovery: *mut aoahid_discovery);
+    pub fn aoahid_accessory_start(
+        context: *mut aoahid_context,
+        selected: *const aoahid_device_info,
+        options: *const aoahid_accessory_options,
+    ) -> aoahid_result;
     pub fn aoahid_device_open(
         context: *mut aoahid_context,
         selected: *const aoahid_device_info,
@@ -384,6 +408,26 @@ extern "C" {
     pub fn aoahid_device_close(device: *mut aoahid_device) -> aoahid_result;
     pub fn aoahid_device_latched_error(device: *mut aoahid_device) -> aoahid_result;
     pub fn aoahid_device_protocol_version(device: *const aoahid_device) -> u16;
+    pub fn aoahid_channel_open(
+        device: *mut aoahid_device,
+        options: *const aoahid_channel_options,
+        out_channel: *mut *mut aoahid_channel,
+    ) -> aoahid_result;
+    pub fn aoahid_channel_close(channel: *mut aoahid_channel) -> aoahid_result;
+    pub fn aoahid_channel_write(
+        channel: *mut aoahid_channel,
+        data: *const u8,
+        length: usize,
+        out_written: *mut usize,
+        timeout_ms: u32,
+    ) -> aoahid_result;
+    pub fn aoahid_channel_read(
+        channel: *mut aoahid_channel,
+        buffer: *mut u8,
+        capacity: usize,
+        out_received: *mut usize,
+        timeout_ms: u32,
+    ) -> aoahid_result;
 
     pub fn aoahid_spec_create_keyboard(
         options: *const aoahid_keyboard_options,

@@ -24,6 +24,9 @@ ABI_NAMESPACE_BY_SOVERSION = {
     # dynamic linker already treats as a separate, independently versioned
     # artifact; all compatible 1.x releases retain this AOAHID_1.0 node.
     "1": "1.0",
+    # 2.0.0 changed documented behavior (no library retry), so it starts
+    # libaoahid.so.2 with its own AOAHID_2.0 node.
+    "2": "2.0",
 }
 
 

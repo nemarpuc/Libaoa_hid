@@ -26,8 +26,6 @@ DESCRIPTOR_POLICY_BYTES = 4096
 HOST_REPORT_POLICY_BYTES = 4088
 POOL_SLOTS = 8
 RESERVED_SLOTS_PER_NODE = 1
-FIRST_REPORT_ATTEMPTS = 20
-FIRST_REPORT_BACKOFF_US = 1000
 CLOSE_DRAIN_TIMEOUT_MS = 1000
 KEYBOARD_A_USAGE = 0x04  # HUT 1.7 section 10, recorded in FACT_AUDIT.md.
 KEYBOARD_APPLICATION_USAGE = 0x65  # HUT 1.7 section 10, recorded in FACT_AUDIT.md.
@@ -121,8 +119,6 @@ def device_options(control_timeout_ms: int) -> DeviceOptions:  # noqa: F405
     options.transfer_pool_slots = POOL_SLOTS
     options.maximum_report_bytes = HOST_REPORT_POLICY_BYTES
     options.close_drain_timeout_ms = CLOSE_DRAIN_TIMEOUT_MS
-    options.first_report_attempts = FIRST_REPORT_ATTEMPTS
-    options.first_report_backoff_us = FIRST_REPORT_BACKOFF_US
     options.validate_reports = 1
     options.aoa_descriptor_wire_policy_bytes = DESCRIPTOR_POLICY_BYTES
     options.linux_descriptor_policy_bytes = DESCRIPTOR_POLICY_BYTES

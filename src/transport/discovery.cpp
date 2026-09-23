@@ -175,73 +175,6 @@ void Runtime::interrupt_event_handler() noexcept {
     }
 }
 
-void Runtime::register_device(Device* device) {
-    if (device == nullptr) {
-        return;
-    }
-    std::unique_lock<std::mutex> guard(devices_mutex_, std::defer_lock);
-    if (event_mode_ == AOAHID_EVENT_INTERNAL_THREAD)
-        guard.lock();
-    if (std::find(devices_.begin(), devices_.end(), device) == devices_.end()) {
-        devices_.push_back(device);
-    }
-}
-
-void Runtime::unregister_device(Device* device) noexcept {
-    std::unique_lock<std::mutex> guard(devices_mutex_, std::defer_lock);
-    if (event_mode_ == AOAHID_EVENT_INTERNAL_THREAD)
-        guard.lock();
-    const auto found = std::find(devices_.begin(), devices_.end(), device);
-    if (found != devices_.end()) {
-        devices_.erase(found);
-    }
-}
-
-void Runtime::note_retry_armed() noexcept {
-    retries_armed_.fetch_add(1U, std::memory_order_release);
-}
-
-void Runtime::note_retry_disarmed() noexcept {
-    retries_armed_.fetch_sub(1U, std::memory_order_release);
-}
-
-bool Runtime::any_retry_armed() const noexcept {
-    return retries_armed_.load(std::memory_order_acquire) != 0U;
-}
-
-std::uint64_t Runtime::next_retry_delay_us(const std::uint64_t maximum_us) noexcept {
-    // The submit path polls with a zero timeout, so this runs once per report.
-    // With no armed retry there is nothing to shorten the wait for, and the
-    // registry lock, the per-slot scan, and the clock read are all skipped.
-    if (!any_retry_armed()) {
-        return maximum_us;
-    }
-    std::uint64_t delay = maximum_us;
-    std::unique_lock<std::mutex> guard(devices_mutex_, std::defer_lock);
-    if (event_mode_ == AOAHID_EVENT_INTERNAL_THREAD)
-        guard.lock();
-    for (Device* device : devices_) {
-        if (device != nullptr) {
-            delay = device->next_retry_delay_us(delay);
-        }
-    }
-    return delay;
-}
-
-void Runtime::service_retries() noexcept {
-    if (!any_retry_armed()) {
-        return;
-    }
-    std::unique_lock<std::mutex> guard(devices_mutex_, std::defer_lock);
-    if (event_mode_ == AOAHID_EVENT_INTERNAL_THREAD)
-        guard.lock();
-    for (Device* device : devices_) {
-        if (device != nullptr) {
-            device->service_retries();
-        }
-    }
-}
-
 aoahid_result Runtime::poll(const std::uint32_t timeout_ms) noexcept {
     reset_error();
     if (context_ == nullptr) {
@@ -249,15 +182,12 @@ aoahid_result Runtime::poll(const std::uint32_t timeout_ms) noexcept {
         return AOAHID_ERR_PARAM;
     }
 
-    service_retries();
-    const std::uint64_t requested_us = static_cast<std::uint64_t>(timeout_ms) * 1000U;
-    const std::uint64_t wait_us = next_retry_delay_us(requested_us);
+    const std::uint64_t wait_us = static_cast<std::uint64_t>(timeout_ms) * 1000U;
     timeval timeout{};
     timeout.tv_sec = static_cast<decltype(timeout.tv_sec)>(wait_us / 1'000'000U);
     timeout.tv_usec = static_cast<decltype(timeout.tv_usec)>(wait_us % 1'000'000U);
     const int status = libusb_handle_events_timeout_completed(
         static_cast<libusb_context*>(context_), &timeout, nullptr);
-    service_retries();
     if (status == LIBUSB_SUCCESS || status == LIBUSB_ERROR_INTERRUPTED) {
         return AOAHID_OK;
     }
@@ -292,10 +222,25 @@ aoahid_result Runtime::discover(const std::uint32_t timeout_ms, std::vector<Cand
                 continue;
             }
 
-            libusb_device_handle* handle = nullptr;
-            if (libusb_open(device, &handle) != LIBUSB_SUCCESS || handle == nullptr) {
+            // An open Device already owns this device: probe through its handle
+            // so the process never holds two handles to one device (WinUSB
+            // rejects a second open of a composite device).
+            Port* owned =
+                retain_port(libusb_get_bus_number(device), libusb_get_device_address(device));
+            libusb_device_handle* handle =
+                owned == nullptr ? nullptr
+                                 : static_cast<libusb_device_handle*>(owned->native_handle());
+            if (owned == nullptr &&
+                (libusb_open(device, &handle) != LIBUSB_SUCCESS || handle == nullptr)) {
                 continue;
             }
+            const auto close_handle = [owned, handle]() noexcept {
+                if (owned != nullptr) {
+                    owned->release();
+                } else {
+                    libusb_close(handle);
+                }
+            };
 
             try {
                 std::array<unsigned char, 2U> version_bytes{};
@@ -321,10 +266,10 @@ aoahid_result Runtime::discover(const std::uint32_t timeout_ms, std::vector<Cand
                     }
                 }
             } catch (...) {
-                libusb_close(handle);
+                close_handle();
                 throw;
             }
-            libusb_close(handle);
+            close_handle();
         }
     } catch (...) {
         libusb_free_device_list(devices, 1);

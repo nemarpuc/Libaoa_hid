@@ -74,6 +74,10 @@ enum libusb_transfer_type {
     LIBUSB_TRANSFER_TYPE_BULK_STREAM = 4
 };
 
+#define LIBUSB_ENDPOINT_IN 0x80
+#define LIBUSB_TRANSFER_TYPE_MASK 0x03
+enum libusb_endpoint_transfer_type { LIBUSB_ENDPOINT_TRANSFER_TYPE_BULK = 0x2 };
+
 typedef struct libusb_context libusb_context;
 typedef struct libusb_device libusb_device;
 typedef struct libusb_device_handle libusb_device_handle;
@@ -131,6 +135,58 @@ typedef struct libusb_device_descriptor {
     uint8_t bNumConfigurations;
 } libusb_device_descriptor;
 
+struct libusb_endpoint_descriptor {
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint8_t bEndpointAddress;
+    uint8_t bmAttributes;
+    uint16_t wMaxPacketSize;
+    uint8_t bInterval;
+    uint8_t bRefresh;
+    uint8_t bSynchAddress;
+    const unsigned char* extra;
+    int extra_length;
+};
+
+struct libusb_interface_descriptor {
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint8_t bInterfaceNumber;
+    uint8_t bAlternateSetting;
+    uint8_t bNumEndpoints;
+    uint8_t bInterfaceClass;
+    uint8_t bInterfaceSubClass;
+    uint8_t bInterfaceProtocol;
+    uint8_t iInterface;
+    const struct libusb_endpoint_descriptor* endpoint;
+    const unsigned char* extra;
+    int extra_length;
+};
+
+struct libusb_interface {
+    const struct libusb_interface_descriptor* altsetting;
+    int num_altsetting;
+};
+
+struct libusb_config_descriptor {
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint16_t wTotalLength;
+    uint8_t bNumInterfaces;
+    uint8_t bConfigurationValue;
+    uint8_t iConfiguration;
+    uint8_t bmAttributes;
+    uint8_t MaxPower;
+    const struct libusb_interface* interface;
+    const unsigned char* extra;
+    int extra_length;
+};
+
+typedef struct libusb_endpoint_descriptor libusb_endpoint_descriptor;
+typedef struct libusb_interface_descriptor libusb_interface_descriptor;
+typedef struct libusb_interface libusb_interface;
+typedef struct libusb_config_descriptor libusb_config_descriptor;
+
 typedef struct libusb_control_setup {
     uint8_t bmRequestType;
     uint8_t bRequest;
@@ -177,6 +233,11 @@ uint8_t libusb_get_device_address(libusb_device* device);
 int libusb_get_port_numbers(libusb_device* device, uint8_t* ports, int port_count);
 int libusb_open(libusb_device* device, libusb_device_handle** handle);
 void libusb_close(libusb_device_handle* handle);
+libusb_device* libusb_get_device(libusb_device_handle* handle);
+int libusb_get_configuration(libusb_device_handle* handle, int* config);
+int libusb_set_configuration(libusb_device_handle* handle, int configuration);
+int libusb_get_active_config_descriptor(libusb_device* device, libusb_config_descriptor** config);
+void libusb_free_config_descriptor(libusb_config_descriptor* config);
 int libusb_get_string_descriptor_ascii(libusb_device_handle* handle, uint8_t descriptor_index,
                                        unsigned char* data, int length);
 int libusb_control_transfer(libusb_device_handle* handle, uint8_t request_type, uint8_t request,
@@ -231,6 +292,21 @@ static inline void libusb_fill_control_transfer(libusb_transfer* transfer,
         transfer->length =
             (int)LIBUSB_CONTROL_SETUP_SIZE + (int)aoahid_fake_le16_to_cpu(setup->wLength);
     }
+}
+
+static inline void libusb_fill_bulk_transfer(libusb_transfer* transfer,
+                                             libusb_device_handle* handle,
+                                             const unsigned char endpoint, unsigned char* buffer,
+                                             const int length, libusb_transfer_cb_fn callback,
+                                             void* user_data, const unsigned int timeout) {
+    transfer->dev_handle = handle;
+    transfer->endpoint = endpoint;
+    transfer->type = (unsigned char)LIBUSB_TRANSFER_TYPE_BULK;
+    transfer->timeout = timeout;
+    transfer->buffer = buffer;
+    transfer->length = length;
+    transfer->callback = callback;
+    transfer->user_data = user_data;
 }
 
 typedef struct aoahid_fake_libusb_device_config {
@@ -304,6 +380,9 @@ size_t aoahid_fake_libusb_copy_control_data(size_t index, uint8_t* output, size_
 size_t aoahid_fake_libusb_claim_count(void);
 int aoahid_fake_libusb_get_claim(size_t index, aoahid_fake_libusb_claim_record* record);
 size_t aoahid_fake_libusb_pending_transfer_count(void);
+size_t aoahid_fake_libusb_open_handle_count(void);
+/* Successful libusb_open calls since reset. */
+size_t aoahid_fake_libusb_open_call_count(void);
 size_t aoahid_fake_libusb_cancel_count(void);
 size_t aoahid_fake_libusb_event_handle_count(void);
 int aoahid_fake_libusb_get_event_stats(aoahid_fake_libusb_event_stats* stats);
@@ -312,6 +391,35 @@ int aoahid_fake_libusb_wait_for_event_waiters(size_t minimum, unsigned int timeo
 size_t aoahid_fake_libusb_init_context_count(void);
 size_t aoahid_fake_libusb_init_option_count(void);
 int aoahid_fake_libusb_get_init_option(size_t index, aoahid_fake_libusb_init_option_record* record);
+
+/* Bulk and re-enumeration emulation. */
+typedef struct aoahid_fake_libusb_bulk_interface {
+    uint8_t number;
+    uint8_t interface_class;
+    uint8_t interface_subclass;
+    uint8_t interface_protocol;
+    uint8_t endpoint_in;
+    uint8_t endpoint_out;
+    uint16_t max_packet;
+} aoahid_fake_libusb_bulk_interface;
+
+void aoahid_fake_libusb_add_bulk_interface(size_t device_index,
+                                           const aoahid_fake_libusb_bulk_interface* value);
+/* Delivers bytes as one Bulk IN transfer, now if one is pending, else later. */
+void aoahid_fake_libusb_push_bulk_in(size_t device_index, uint8_t endpoint, const uint8_t* data,
+                                     size_t length);
+size_t aoahid_fake_libusb_bulk_out_count(void);
+/* Returns the recorded length of one Bulk OUT transfer (zero for a ZLP). */
+size_t aoahid_fake_libusb_copy_bulk_out(size_t index, uint8_t* output, size_t capacity);
+/* Unplug: the device leaves the list and its pending transfers complete with
+ * LIBUSB_TRANSFER_NO_DEVICE at the next event poll. */
+void aoahid_fake_libusb_unplug(size_t device_index);
+/* Replug with a new address, as re-enumeration does. */
+void aoahid_fake_libusb_replug(size_t device_index, uint8_t address);
+void aoahid_fake_libusb_set_serial(size_t device_index, const char* serial);
+/* Active configuration value (1 by default; 0 is unconfigured). */
+void aoahid_fake_libusb_set_active_configuration(size_t device_index, int value);
+size_t aoahid_fake_libusb_set_configuration_count(void);
 
 #ifdef __cplusplus
 }

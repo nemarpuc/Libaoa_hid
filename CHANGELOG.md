@@ -5,6 +5,72 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-09-23
+
+### Changed (breaking)
+
+- The library never retries a transfer. The first report after
+  `aoahid_node_open` used to be resent automatically after a STALL (default 20
+  attempts, 1 ms apart); it is now sent once and `AOAHID_ERR_STALL` is returned.
+  A STALL means the target refused request 57 (`f_accessory` stalls while the
+  HID ID is not yet registered), so the refused state now stays pending and the
+  caller's next submit resends it; timeouts, cancellations, and I/O errors still
+  consume the submitted state because delivery is unknown.
+  `first_report_attempts` and `first_report_backoff_us` stay in
+  `aoahid_device_options` for layout compatibility and are ignored.
+  `examples/c/verify/verify_common.h` shows a bounded caller-side resend.
+- SOVERSION 2 (`libaoahid.so.2`) with the ELF symbol-version node
+  `AOAHID_2.0`, because the change above alters documented behavior.
+
+### Added
+
+- `aoahid_accessory_start` with `aoahid_accessory_options`: sends AOA requests
+  51, 52 (the caller's `aoahid_aoa_strings`; a nonempty manufacturer and model
+  are required, each at most 256 bytes including its NUL as AOA 1.0 specifies,
+  checked before any request), and 53 to a device in its current USB mode, then
+  closes it and returns. It never waits for re-enumeration and never retries. The
+  application rediscovers the accessory-mode device (VID `0x18D1`, PID
+  `0x2D00`-`0x2D05`) and opens it with the unchanged `aoahid_device_open`. A
+  device already in accessory mode receives no request. There is no call that
+  leaves accessory mode.
+- Bulk Channels on a Device: `aoahid_channel_open`, `aoahid_channel_read`,
+  `aoahid_channel_write`, `aoahid_channel_close`, and `aoahid_channel_options`.
+  A Channel selects configuration 1 only on an unconfigured device (AOA 1.0),
+  claims the first interface with the requested class triple (for example ADB
+  `0xFF/0x42/0x01`) on the Device's own USB handle, keeps IN
+  transfers submitted ahead of the reader, uses a transfer pool separate from
+  HID, reads as a byte stream, back-pressures writes, and can end a write with
+  an explicit zero-length packet that behaves the same on every backend. Read
+  and write take no lock and allocate nothing. Channels follow the Node close
+  rules, and `aoahid_device_close` also closes them.
+- `examples/c/verify/verify_accessory.c`: switches the first phone to
+  accessory mode, types one letter, and opens an ADB Channel when USB debugging
+  is on.
+- C, Python, C#, and Rust declarations for every new function and structure.
+
+### Changed
+
+- Every USB handle is owned by one internal Port shared by the Device and its
+  Channels. `aoahid_discover` probes a device that an open Device already holds
+  through that handle instead of opening it a second time (WinUSB refuses a
+  second open). `aoahid_accessory_start` likewise borrows an open Device's
+  handle.
+- `docs/API.md` now describes the `aoahid_toggle` release rule introduced in
+  1.0.0 (`usage` must be `0` or the pressed Usage).
+- `udev/51-aoahid.rules` comments describe the accessory-mode VID/PID range
+  that `aoahid_accessory_start` produces; the rules themselves are unchanged.
+
+### Verification status
+
+The new accessory start and Bulk Channels are tested only against the
+deterministic fake libusb backend (including ThreadSanitizer runs and an
+allocation probe of Channel read/write). None of it is hardware-verified: the
+ten accessory-mode and Channel hypotheses in `docs/TARGET_MATRIX.md`,
+including re-enumeration, HID in accessory mode, ADB next to HID on one handle
+on Linux and Windows, and the first-report STALL behavior without library
+retry, are recorded as **[unverified on hardware]**. No profile's status in
+`TARGET_MATRIX.md` changes: every profile remains not hardware-verified.
+
 ## [1.0.0] - 2026-09-22
 
 ### Added
