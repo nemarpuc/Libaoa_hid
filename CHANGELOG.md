@@ -5,6 +5,24 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-09-23
+
+### Removed
+
+- `docs/ARCHITECTURE_USB_HUB.md`, which still described a rejected automatic
+  design and an unimplemented ADB-server plan. `docs/API.md` now cites the
+  Android 10-second accessory-request timeout directly from AOSP
+  `UsbDeviceManager.java`.
+- An unused internal Channel query and two fake-libusb test helpers left over
+  from that rejected design. No public function, structure, value, or behavior
+  changes; the ABI is identical to 2.0.0.
+
+### Verification status
+
+Documentation and dead-code removal only. Nothing is hardware-verified; the
+accessory-mode and Channel hypotheses in `docs/TARGET_MATRIX.md` remain
+**[unverified on hardware]**, and every profile remains not hardware-verified.
+
 ## [2.0.0] - 2026-09-23
 
 ### Changed (breaking)

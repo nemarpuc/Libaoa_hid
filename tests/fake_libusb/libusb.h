@@ -414,9 +414,6 @@ size_t aoahid_fake_libusb_copy_bulk_out(size_t index, uint8_t* output, size_t ca
 /* Unplug: the device leaves the list and its pending transfers complete with
  * LIBUSB_TRANSFER_NO_DEVICE at the next event poll. */
 void aoahid_fake_libusb_unplug(size_t device_index);
-/* Replug with a new address, as re-enumeration does. */
-void aoahid_fake_libusb_replug(size_t device_index, uint8_t address);
-void aoahid_fake_libusb_set_serial(size_t device_index, const char* serial);
 /* Active configuration value (1 by default; 0 is unconfigured). */
 void aoahid_fake_libusb_set_active_configuration(size_t device_index, int value);
 size_t aoahid_fake_libusb_set_configuration_count(void);

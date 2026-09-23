@@ -446,10 +446,6 @@ void Channel::lose() noexcept {
     }
 }
 
-bool Channel::lost() const noexcept {
-    return impl_ == nullptr || impl_->lost.load(std::memory_order_acquire);
-}
-
 bool Channel::drained() const noexcept {
     return impl_ == nullptr || impl_->in_flight.load(std::memory_order_acquire) == 0U;
 }
