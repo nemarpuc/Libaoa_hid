@@ -55,6 +55,8 @@ fn rust_constants() -> BTreeMap<String, usize> {
             AOAHID_ERR_INTERNAL,
             AOAHID_EVENT_CALLER_POLL,
             AOAHID_EVENT_INTERNAL_THREAD,
+            AOAHID_CHANNEL_READ_STREAM,
+            AOAHID_CHANNEL_READ_REQUEST,
             AOAHID_START_CURRENT_USB_MODE,
             AOAHID_START_ACCESSORY_MODE,
             AOAHID_INTERFACE_CLAIM_NONE,
