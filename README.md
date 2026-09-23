@@ -3,16 +3,6 @@
 [Canonical repository](https://github.com/nemarpuc/Libaoa_hid) ·
 [first-push and release setup](GITHUB_SETUP.md)
 
-## AI disclosure
-
-Most of the code, tests, and documentation in this repository were written by
-an AI coding assistant. Architecture and design decisions, hardware
-verification steps, debugging, and review of the AI's output were done by a
-human. No claim in this repository - including the descriptor/Android
-support statuses below - has been independently re-verified beyond what is
-described in [TARGET_MATRIX.md](docs/TARGET_MATRIX.md); treat it accordingly,
-especially before relying on it for anything security- or safety-relevant.
-
 `libaoahid` is a C++20 host library with a stable C ABI for sending HID **Input**
 reports through Android Open Accessory 2.0 control requests. It has no option
 initializers, profile presets, or inferred bit widths: callers supply every
@@ -128,6 +118,12 @@ step-by-step walkthrough covering cables/hubs, Linux udev permissions, the
 Windows `adb`-conflict gotcha, and small programs under
 [examples/c/verify/](examples/c/verify) built specifically to be watched
 (typing text, dragging on the touchscreen, moving the mouse in circles) so you
+
+### Using ADB and Libaoa_hid Simultaneously (ADB Proxy)
+On strict OSes like Windows, standard `adb.exe` uses an exclusive WinUSB lock, meaning you cannot run `adb` and a `Libaoa_hid` application simultaneously on the same device. 
+To completely solve this, we provide an official companion tool: **[aoahid_adb_proxy](https://github.com/nemarpuc/aoahid_adb_proxy)**. 
+By embedding this lightweight C ABI proxy module into your `Libaoa_hid` application, your app can claim the USB device for zero-latency HID control, while seamlessly routing standard ADB traffic to a local TCP port (e.g. `adb connect localhost:5555`). This perfectly bypasses the Windows restriction without modifying ADB itself.
+
 can confirm a real phone reacts before writing product code.
 
 The complete, fully explicit C session is
@@ -276,3 +272,14 @@ If you relink against a modified libusb, the LGPL obligations apply to that
 copy. [NOTICE](NOTICE) and
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) record the exact versions and
 checksums.
+
+## AI disclosure
+
+Most of the code, tests, and documentation in this repository were written by
+an AI coding assistant. Architecture and design decisions, hardware
+verification steps, debugging, and review of the AI's output were done by a
+human. No claim in this repository - including the descriptor/Android
+support statuses below - has been independently re-verified beyond what is
+described in [TARGET_MATRIX.md](docs/TARGET_MATRIX.md); treat it accordingly,
+especially before relying on it for anything security- or safety-relevant.
+
