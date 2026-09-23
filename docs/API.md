@@ -113,8 +113,11 @@ switch as one explicit call and leaves every other step to the application:
    (accessory) or `0x2D01` (accessory plus ADB); AOA 2.0 audio adds
    `0x2D02`-`0x2D05`. The library does not wait for this and never retries.
    Rediscover on the application's own schedule and match the same bus and
-   port path. Android cancels the request when the host does not follow up
-   in time (see `ARCHITECTURE_USB_HUB.md` F5).
+   port path. Android cancels the request when the host does not configure the
+   device within 10 seconds (**[AOSP source]**
+   `services/usb/java/com/android/server/usb/UsbDeviceManager.java`
+   `ACCESSORY_REQUEST_TIMEOUT`, main at
+   `15c8b135d2c41940f53aa77f3d48354bc2e7e2d7`, retrieved 2026-09-23).
 3. Open the accessory-mode entry with `aoahid_device_open`, then continue at
    step 4 above.
 

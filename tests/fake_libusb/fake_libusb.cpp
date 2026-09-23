@@ -964,13 +964,6 @@ void aoahid_fake_libusb_unplug(const size_t device_index) {
     notify_event_locked(EventNotification::ready);
 }
 
-void aoahid_fake_libusb_set_serial(const size_t device_index, const char* serial) {
-    const std::lock_guard<std::mutex> guard(global_mutex);
-    if (libusb_device* device = find_device(device_index); device != nullptr) {
-        device->serial = serial == nullptr ? "" : serial;
-    }
-}
-
 void aoahid_fake_libusb_set_active_configuration(const size_t device_index, const int value) {
     const std::lock_guard<std::mutex> guard(global_mutex);
     if (libusb_device* device = find_device(device_index); device != nullptr) {
@@ -981,14 +974,6 @@ void aoahid_fake_libusb_set_active_configuration(const size_t device_index, cons
 size_t aoahid_fake_libusb_set_configuration_count(void) {
     const std::lock_guard<std::mutex> guard(global_mutex);
     return set_configuration_count;
-}
-
-void aoahid_fake_libusb_replug(const size_t device_index, const uint8_t address) {
-    const std::lock_guard<std::mutex> guard(global_mutex);
-    if (libusb_device* device = find_device(device_index); device != nullptr) {
-        device->address = address;
-        device->present = true;
-    }
 }
 
 size_t aoahid_fake_libusb_open_call_count(void) {

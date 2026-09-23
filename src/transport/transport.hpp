@@ -222,7 +222,6 @@ class Channel final {
     /* Marks the Channel lost and cancels every transfer; reads and writes then
      * fail with AOAHID_ERR_NO_DEVICE. */
     void lose() noexcept;
-    bool lost() const noexcept;
     bool drained() const noexcept;
 
   private:
