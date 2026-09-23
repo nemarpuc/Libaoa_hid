@@ -119,11 +119,6 @@ Windows `adb`-conflict gotcha, and small programs under
 [examples/c/verify/](examples/c/verify) built specifically to be watched
 (typing text, dragging on the touchscreen, moving the mouse in circles) so you
 
-### Using ADB and Libaoa_hid Simultaneously (ADB Proxy)
-On strict OSes like Windows, standard `adb.exe` uses an exclusive WinUSB lock, meaning you cannot run `adb` and a `Libaoa_hid` application simultaneously on the same device. 
-To completely solve this, we provide an official companion tool: **[aoahid_adb_proxy](https://github.com/nemarpuc/aoahid_adb_proxy)**. 
-By embedding this lightweight C ABI proxy module into your `Libaoa_hid` application, your app can claim the USB device for zero-latency HID control, while seamlessly routing standard ADB traffic to a local TCP port (e.g. `adb connect localhost:5555`). This perfectly bypasses the Windows restriction without modifying ADB itself.
-
 can confirm a real phone reacts before writing product code.
 
 The complete, fully explicit C session is
@@ -168,6 +163,13 @@ firmware accepts AOA HID requests only after `ACCESSORY_START` are reached with
 never sent). There is no call that leaves accessory mode: unplug the device or
 use `svc usb setFunctions` through ADB. Hardware behavior of either path is not
 yet recorded; see `SOURCE_CONFLICTS.md` T-07 and `TARGET_MATRIX.md`.
+
+
+### Using ADB and Libaoa_hid Simultaneously (ADB Proxy)
+
+On strict OSes like Windows, standard `adb.exe` uses an exclusive WinUSB lock, meaning you cannot run `adb` and a `Libaoa_hid` application simultaneously on the same device. 
+To completely solve this, we provide an official companion tool: **[aoahid_adb_proxy](https://github.com/nemarpuc/aoahid_adb_proxy)**. 
+By embedding this lightweight C ABI proxy module into your `Libaoa_hid` application, your app can claim the USB device for zero-latency HID control, while seamlessly routing standard ADB traffic to a local TCP port (e.g. `adb connect localhost:5555`). This perfectly bypasses the Windows restriction without modifying ADB itself.
 
 ## Releases
 
