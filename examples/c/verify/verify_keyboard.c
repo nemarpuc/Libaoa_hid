@@ -34,14 +34,14 @@ static int type_char(aoahid_node* node, char c) {
     aoahid_result result = aoahid_kbd(node, usage, 1U);
     if (result != AOAHID_OK)
         return verify_fail("key down", result);
-    result = aoahid_node_submit_blocking(node, 500U);
+    result = verify_submit(node);
     if (result != AOAHID_OK)
         return verify_fail("submit key down", result);
     verify_sleep_ms(60);
     result = aoahid_kbd(node, usage, 0U);
     if (result != AOAHID_OK)
         return verify_fail("key up", result);
-    result = aoahid_node_submit_blocking(node, 500U);
+    result = verify_submit(node);
     if (result != AOAHID_OK)
         return verify_fail("submit key up", result);
     verify_sleep_ms(120);

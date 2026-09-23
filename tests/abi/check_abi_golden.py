@@ -112,6 +112,30 @@ class DeviceOptions(c.Structure):
     ]
 
 
+class AccessoryOptions(c.Structure):
+    _fields_ = [
+        ("struct_size", U32),
+        ("reserved", U32),
+        ("strings", AoaStrings),
+        ("control_timeout_ms", U32),
+    ]
+
+
+class ChannelOptions(c.Structure):
+    _fields_ = [
+        ("struct_size", U32),
+        ("reserved", U32),
+        ("interface_class", U8),
+        ("interface_subclass", U8),
+        ("interface_protocol", U8),
+        ("reserved8", U8),
+        ("in_transfers", U32),
+        ("out_transfers", U32),
+        ("transfer_bytes", U32),
+        ("zero_length_termination", U32),
+    ]
+
+
 class NodeOptions(c.Structure):
     _fields_ = [
         ("struct_size", U32),
@@ -390,6 +414,8 @@ GOLDEN_STRUCTS = {
     "aoahid_device_info": DeviceInfo,
     "aoahid_aoa_strings": AoaStrings,
     "aoahid_device_options": DeviceOptions,
+    "aoahid_accessory_options": AccessoryOptions,
+    "aoahid_channel_options": ChannelOptions,
     "aoahid_node_options": NodeOptions,
     "aoahid_physical_properties": PhysicalProperties,
     "aoahid_integer_field": IntegerField,
@@ -414,7 +440,7 @@ GOLDEN_STRUCTS = {
 
 
 GOLDEN_CONSTANTS = {
-    "AOAHID_VERSION_MAJOR": 1,
+    "AOAHID_VERSION_MAJOR": 2,
     "AOAHID_VERSION_MINOR": 0,
     "AOAHID_VERSION_PATCH": 0,
     "AOAHID_OK": 0,

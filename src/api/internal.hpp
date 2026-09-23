@@ -320,9 +320,15 @@ struct aoahid_device {
     std::uint16_t vendor_id{};
     std::uint16_t product_id{};
     std::vector<struct aoahid_node*> nodes;
+    std::vector<struct aoahid_channel*> channels;
     std::atomic<bool> closing{false};
     aoahid_result close_result{AOAHID_OK};
     aoa::detail::DeferredError close_error;
+};
+
+struct aoahid_channel {
+    aoahid_device* device{};
+    aoa::transport::Channel* transport{};
 };
 
 struct aoahid_node {
@@ -351,9 +357,7 @@ struct aoahid_node {
     bool submitted_touch_final_packet{};
     bool submitted_non_neutral{};
     bool emitted_non_neutral{};
-    bool first_report{true};
-    /* Registration alone sends nothing; the first real mutation remains the
-     * first-report STALL-retry candidate. */
+    // Registration alone sends nothing; only a real mutation marks the Node.
     bool dirty{false};
     bool closed{false};
 };

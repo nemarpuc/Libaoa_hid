@@ -111,7 +111,8 @@ public struct DeviceInfo
 [StructLayout(LayoutKind.Sequential)]
 public struct AoaStrings
 {
-    // Legacy ABI tombstone: every pointer must remain zero.
+    // AOA request-52 strings. AccessoryStart requires Manufacturer and Model;
+    // inside DeviceOptions every pointer must remain zero (legacy tombstone).
     public nint Manufacturer;
     public nint Model;
     public nint Description;
@@ -135,7 +136,9 @@ public struct DeviceOptions
     public uint TransferPoolSlots;
     public uint MaximumReportBytes;
     public uint CloseDrainTimeoutMs;
+    [Obsolete("Ignored since 2.0.0; the library never retries a report.")]
     public uint FirstReportAttempts;
+    [Obsolete("Ignored since 2.0.0; the library never retries a report.")]
     public uint FirstReportBackoffUs;
     public uint ValidateReports;
     public uint AoaDescriptorWirePolicyBytes;
@@ -153,6 +156,30 @@ public struct DeviceOptions
     public AoaStrings AccessoryStrings;
     [Obsolete("Legacy Mode-B ABI tombstone; leave zero.")]
     public uint EnableDeprecatedAudioMode;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct AccessoryOptions
+{
+    public uint StructSize;
+    public uint Reserved;
+    public AoaStrings Strings;
+    public uint ControlTimeoutMs;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct ChannelOptions
+{
+    public uint StructSize;
+    public uint Reserved;
+    public byte InterfaceClass;
+    public byte InterfaceSubclass;
+    public byte InterfaceProtocol;
+    public byte Reserved8;
+    public uint InTransfers;
+    public uint OutTransfers;
+    public uint TransferBytes;
+    public uint ZeroLengthTermination;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -435,7 +462,7 @@ public static class Native
 {
     private const string Library = "aoahid";
     private const CallingConvention Call = CallingConvention.Cdecl;
-    public const uint AOAHID_VERSION_MAJOR = 1;
+    public const uint AOAHID_VERSION_MAJOR = 2;
     public const uint AOAHID_VERSION_MINOR = 0;
     public const uint AOAHID_VERSION_PATCH = 0;
 
@@ -522,6 +549,8 @@ public static class Native
             ["aoahid_device_info"] = typeof(DeviceInfo),
             ["aoahid_aoa_strings"] = typeof(AoaStrings),
             ["aoahid_device_options"] = typeof(DeviceOptions),
+            ["aoahid_accessory_options"] = typeof(AccessoryOptions),
+            ["aoahid_channel_options"] = typeof(ChannelOptions),
             ["aoahid_node_options"] = typeof(NodeOptions),
             ["aoahid_physical_properties"] = typeof(PhysicalProperties),
             ["aoahid_integer_field"] = typeof(IntegerField),
@@ -566,6 +595,8 @@ public static class Native
     public static extern nint DiscoveryGet(nint discovery, nuint index);
     [DllImport(Library, EntryPoint = "aoahid_discovery_destroy", ExactSpelling = true, CallingConvention = Call)]
     public static extern void DiscoveryDestroy(nint discovery);
+    [DllImport(Library, EntryPoint = "aoahid_accessory_start", ExactSpelling = true, CallingConvention = Call)]
+    public static extern Result AccessoryStart(nint context, in DeviceInfo selected, in AccessoryOptions options);
     [DllImport(Library, EntryPoint = "aoahid_device_open", ExactSpelling = true, CallingConvention = Call)]
     public static extern Result DeviceOpen(nint context, in DeviceInfo selected, in DeviceOptions options, out nint device);
     [DllImport(Library, EntryPoint = "aoahid_device_close", ExactSpelling = true, CallingConvention = Call)]
@@ -574,6 +605,15 @@ public static class Native
     public static extern Result DeviceLatchedError(nint device);
     [DllImport(Library, EntryPoint = "aoahid_device_protocol_version", ExactSpelling = true, CallingConvention = Call)]
     public static extern ushort DeviceProtocolVersion(nint device);
+
+    [DllImport(Library, EntryPoint = "aoahid_channel_open", ExactSpelling = true, CallingConvention = Call)]
+    public static extern Result ChannelOpen(nint device, in ChannelOptions options, out nint channel);
+    [DllImport(Library, EntryPoint = "aoahid_channel_close", ExactSpelling = true, CallingConvention = Call)]
+    public static extern Result ChannelClose(nint channel);
+    [DllImport(Library, EntryPoint = "aoahid_channel_write", ExactSpelling = true, CallingConvention = Call)]
+    public static extern Result ChannelWrite(nint channel, nint data, nuint length, out nuint written, uint timeoutMs);
+    [DllImport(Library, EntryPoint = "aoahid_channel_read", ExactSpelling = true, CallingConvention = Call)]
+    public static extern Result ChannelRead(nint channel, nint buffer, nuint capacity, out nuint received, uint timeoutMs);
 
     [DllImport(Library, EntryPoint = "aoahid_spec_create_keyboard", ExactSpelling = true, CallingConvention = Call)]
     public static extern Result SpecCreateKeyboard(in KeyboardOptions options, out nint spec);

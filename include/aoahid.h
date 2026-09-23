@@ -29,7 +29,7 @@
 extern "C" {
 #endif
 
-#define AOAHID_VERSION_MAJOR 1
+#define AOAHID_VERSION_MAJOR 2
 #define AOAHID_VERSION_MINOR 0
 #define AOAHID_VERSION_PATCH 0
 
@@ -38,6 +38,7 @@ typedef struct aoahid_discovery aoahid_discovery;
 typedef struct aoahid_device aoahid_device;
 typedef struct aoahid_spec aoahid_spec;
 typedef struct aoahid_node aoahid_node;
+typedef struct aoahid_channel aoahid_channel;
 
 /* Every public enum domain has an explicit 32-bit ABI representation.  The
  * anonymous enums below provide integral constants without making structure
@@ -80,7 +81,8 @@ enum {
      * HID needs no new USB interface, but target firmware support must be tested. */
     AOAHID_START_CURRENT_USB_MODE = 1,
     /* Retained only to preserve the 0.1 C ABI value. Passing it to
-     * aoahid_device_open returns AOAHID_ERR_UNSUPPORTED before USB I/O. */
+     * aoahid_device_open returns AOAHID_ERR_UNSUPPORTED before USB I/O; switch
+     * a device with aoahid_accessory_start() and open it after it reappears. */
     AOAHID_START_ACCESSORY_MODE = 2
 };
 
@@ -203,8 +205,11 @@ typedef struct aoahid_device_info {
 } aoahid_device_info;
 
 typedef struct aoahid_aoa_strings {
-    /* Legacy ABI tombstone. The library no longer sends AOA identification
-     * strings; every pointer must be null. */
+    /* AOA identification strings (request 52, string IDs 0-5), each a
+     * NUL-terminated string or null. aoahid_accessory_start() requires a
+     * nonempty manufacturer and model and sends only the non-null others.
+     * Inside aoahid_device_options this structure is a legacy tombstone and
+     * every pointer must be null. */
     const char* manufacturer;
     const char* model;
     const char* description;
@@ -234,9 +239,9 @@ typedef struct aoahid_device_options {
     uint32_t maximum_report_bytes;
     /* zero -> 1000 ms */
     uint32_t close_drain_timeout_ms;
-    /* zero -> 20 total attempts, including the first submission */
+    /* Legacy ABI tombstones since 2.0.0; ignored when zero or nonzero. The
+     * library never retries a report; a STALL is returned to the caller. */
     uint32_t first_report_attempts;
-    /* zero -> 1000 microseconds */
     uint32_t first_report_backoff_us;
     uint32_t validate_reports;
     /* Four independent byte policies prevent a Linux descriptor ceiling from
@@ -260,6 +265,38 @@ typedef struct aoahid_device_options {
     aoahid_aoa_strings accessory_strings;
     uint32_t enable_deprecated_audio_mode;
 } aoahid_device_options;
+
+typedef struct aoahid_accessory_options {
+    uint32_t struct_size;
+    uint32_t reserved;
+    /* Android matches manufacturer and model against an application's
+     * accessory filter; they are product values the caller chooses. */
+    aoahid_aoa_strings strings;
+    /* zero -> 500 ms, per request 51/52/53 */
+    uint32_t control_timeout_ms;
+} aoahid_accessory_options;
+
+typedef struct aoahid_channel_options {
+    uint32_t struct_size;
+    uint32_t reserved;
+    /* The first interface (alternate setting 0) with this exact class,
+     * subclass, and protocol and one Bulk IN plus one Bulk OUT endpoint. */
+    uint8_t interface_class;
+    uint8_t interface_subclass;
+    uint8_t interface_protocol;
+    uint8_t reserved8;
+    /* Tuning fields: zero selects the documented bounded fallback. These are
+     * project policies, not USB, Android, or ADB requirements. */
+    /* zero -> 4 IN transfers kept submitted for reading ahead */
+    uint32_t in_transfers;
+    /* zero -> 4 OUT transfers */
+    uint32_t out_transfers;
+    /* zero -> 65536 bytes per transfer; rounded up to wMaxPacketSize */
+    uint32_t transfer_bytes;
+    /* Exactly zero or one. One ends every write whose length is a nonzero
+     * multiple of wMaxPacketSize with an explicit zero-length packet. */
+    uint32_t zero_length_termination;
+} aoahid_channel_options;
 
 typedef struct aoahid_node_options {
     uint32_t struct_size;
@@ -709,6 +746,32 @@ aoahid_discovery_get(const aoahid_discovery* discovery, size_t index);
  * AOAHID_ERR_INTERNAL without a returned code. */
 AOAHID_API void AOAHID_CALL aoahid_discovery_destroy(aoahid_discovery* discovery);
 
+/* aoahid_accessory_start
+ * Ownership: Borrows Context, selected, and options for the call; nothing is
+ * retained and no handle is returned.
+ * Blocking: Sends AOA request 51, request 52 for each non-null string, and
+ * request 53 (START) on EP0, then closes the device again. It returns as soon
+ * as request 53 completes and never waits for re-enumeration or retries. The
+ * device then disconnects and reappears in accessory mode (VID 0x18D1, PID
+ * 0x2D00-0x2D05); find it with aoahid_discover() and open it with
+ * aoahid_device_open(). A selection that is already in accessory mode receives
+ * no request. An open Device on the same device is probed through its own
+ * handle and reports AOAHID_ERR_NO_DEVICE once the device disconnects.
+ * Synchronization: Belongs to the parent Context domain and must be serialized
+ * with every other application call touching that Context.
+ * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid pointers/ABI fields/identity;
+ * AOAHID_ERR_UNSET_FIELD for a missing or empty manufacturer/model or a
+ * nonzero reserved field; AOAHID_ERR_NOT_AOA when request 51 shows no AOA
+ * support; AOAHID_ERR_OVERFLOW, before any request, for a string longer than
+ * 256 bytes including its NUL (AOA 1.0) or an overlong port path; AOAHID_ERR_UNSUPPORTED,
+ * AOAHID_ERR_ACCESS, AOAHID_ERR_BUSY, AOAHID_ERR_NO_DEVICE, AOAHID_ERR_STALL, AOAHID_ERR_TIMEOUT,
+ * AOAHID_ERR_SHORT_TRANSFER, or AOAHID_ERR_IO for USB/open/control failure
+ * (after a request-53 failure the device may still have switched);
+ * AOAHID_ERR_INTERNAL for allocation or unexpected ABI-boundary failure. */
+AOAHID_API aoahid_result AOAHID_CALL
+aoahid_accessory_start(aoahid_context* context, const aoahid_device_info* selected,
+                       const aoahid_accessory_options* options);
+
 /* aoahid_device_open
  * Ownership: Borrows Context, selected, and options for the call; it copies
  * retained values and normalizes documented zero-valued tuning fields only in
@@ -737,7 +800,7 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_device_open(aoahid_context* context,
 
 /* aoahid_device_close
  * Ownership: A null call consumes nothing. The first valid call consumes Device
- * and every child Node for every returned result, including
+ * and every child Node and Channel for every returned result, including
  * AOAHID_CLOSE_PENDING; all those pointers become invalid and must never be
  * passed again.
  * Blocking: Bounded by configured drain/control timeouts while it completes
@@ -778,6 +841,83 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_device_latched_error(aoahid_device* 
  * failure sentinel with AOAHID_ERR_PARAM for an invalid/closing Device or
  * AOAHID_ERR_INTERNAL for an unexpected ABI-boundary failure in last_error. */
 AOAHID_API uint16_t AOAHID_CALL aoahid_device_protocol_version(const aoahid_device* device);
+
+/* aoahid_channel_open
+ * Ownership: Borrows Device and options for the call. On success, out_channel
+ * receives one Channel owned by the caller and Device; it shares the Device's
+ * USB handle. out_channel is null on every failure. aoahid_device_close also
+ * closes every Channel still open on the Device.
+ * Blocking: Selects configuration 1 only when the device is unconfigured (AOA
+ * 1.0), reads the active configuration descriptor, claims the selected
+ * interface, allocates a fixed transfer pool, and submits the read-ahead IN
+ * transfers; it does not wait for data.
+ * Synchronization: Belongs to the parent Context domain and must be serialized
+ * with all Device, Node, Channel open/close, and Context application calls.
+ * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid handles/options or a closing
+ * Device; AOAHID_ERR_UNSET_FIELD for a nonzero reserved field or a
+ * zero_length_termination other than zero or one; AOAHID_ERR_UNSUPPORTED when
+ * no interface has the class triple and a Bulk IN/OUT pair, or for a mapped
+ * backend status; AOAHID_ERR_ACCESS, AOAHID_ERR_BUSY, AOAHID_ERR_NO_DEVICE, or
+ * AOAHID_ERR_IO for descriptor, claim, or submit failure; AOAHID_ERR_OVERFLOW
+ * for a transfer size above the libusb limit; AOAHID_ERR_INTERNAL for
+ * allocation or unexpected failure. */
+AOAHID_API aoahid_result AOAHID_CALL aoahid_channel_open(aoahid_device* device,
+                                                         const aoahid_channel_options* options,
+                                                         aoahid_channel** out_channel);
+
+/* aoahid_channel_close
+ * Ownership: Only AOAHID_OK consumes Channel. AOAHID_CLOSE_PENDING leaves the
+ * lost Channel caller-owned for a retry or later Device close. After AOAHID_OK
+ * the Channel pointer is invalid and must never be passed again.
+ * Blocking: Cancels every transfer and waits up to the Device's close drain
+ * budget for their completions; in caller-poll mode this call drives libusb
+ * events.
+ * Synchronization: Belongs to the parent Context domain; never run it
+ * concurrently with a read or write on the same Channel.
+ * Returns: AOAHID_OK; AOAHID_ERR_PARAM for null; AOAHID_CLOSE_PENDING when a
+ * cancelled transfer misses the close budget; AOAHID_ERR_UNSUPPORTED,
+ * AOAHID_ERR_ACCESS, AOAHID_ERR_BUSY, AOAHID_ERR_NO_DEVICE, AOAHID_ERR_STALL,
+ * AOAHID_ERR_TIMEOUT, AOAHID_ERR_IO, or AOAHID_ERR_OVERFLOW for a caller-poll
+ * event-pump failure; AOAHID_ERR_INTERNAL for unexpected failure. */
+AOAHID_API aoahid_result AOAHID_CALL aoahid_channel_close(aoahid_channel* channel);
+
+/* aoahid_channel_write
+ * Ownership: Borrows data; bytes are copied into the Channel pool before
+ * return. out_written receives the number of bytes queued on every return.
+ * Blocking: Waits at most timeout_ms (zero never waits) for free OUT transfers,
+ * then returns once every byte is submitted; it never waits for completion and
+ * never retries. In caller-poll mode a wait drives libusb events.
+ * Synchronization: Internal-thread mode: one thread may write while another
+ * reads, concurrently with other Context calls, but never concurrently with
+ * closing this Channel, its Device, or the Context. Caller-poll mode: belongs
+ * to the parent Context domain. The call takes no lock and allocates nothing.
+ * Returns: AOAHID_OK when every byte was queued; AOAHID_ERR_PARAM for invalid
+ * pointers; AOAHID_ERR_TIMEOUT when the pool stayed full; AOAHID_ERR_NO_DEVICE
+ * once the Channel is lost; AOAHID_ERR_STALL, AOAHID_ERR_TIMEOUT,
+ * AOAHID_ERR_SHORT_TRANSFER, AOAHID_ERR_IO, or AOAHID_ERR_OVERFLOW for an
+ * earlier failed write completion (reported once) or an event-pump failure;
+ * AOAHID_ERR_INTERNAL for unexpected failure. */
+AOAHID_API aoahid_result AOAHID_CALL aoahid_channel_write(aoahid_channel* channel,
+                                                          const uint8_t* data, size_t length,
+                                                          size_t* out_written, uint32_t timeout_ms);
+
+/* aoahid_channel_read
+ * Ownership: Borrows buffer; out_received receives the bytes copied on every
+ * return.
+ * Blocking: Waits at most timeout_ms (zero never waits) for received data. The
+ * Channel is a byte stream: one call may return part of a USB transfer or stop
+ * at a transfer boundary. In caller-poll mode a wait drives libusb events.
+ * Synchronization: Same rule as aoahid_channel_write; at most one thread reads
+ * a Channel at a time. The call takes no lock and allocates nothing.
+ * Returns: AOAHID_OK with at least one byte; AOAHID_ERR_PARAM for invalid
+ * pointers or zero capacity; AOAHID_ERR_TIMEOUT when no data arrived;
+ * AOAHID_ERR_NO_DEVICE once the Channel is lost; AOAHID_ERR_STALL,
+ * AOAHID_ERR_IO, or AOAHID_ERR_OVERFLOW for a failed IN transfer, which also
+ * loses the Channel, or for an event-pump failure; AOAHID_ERR_INTERNAL for
+ * unexpected failure. */
+AOAHID_API aoahid_result AOAHID_CALL aoahid_channel_read(aoahid_channel* channel, uint8_t* buffer,
+                                                         size_t capacity, size_t* out_received,
+                                                         uint32_t timeout_ms);
 
 /* aoahid_spec_create_keyboard
  * Ownership: Borrows options for the call and copies them. On success, out_spec

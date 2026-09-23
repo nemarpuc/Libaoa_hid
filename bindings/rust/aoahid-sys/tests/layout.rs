@@ -199,6 +199,29 @@ fn rust_layout() -> BTreeMap<String, usize> {
     );
     layout!(
         values,
+        aoahid_accessory_options,
+        "aoahid_accessory_options",
+        [struct_size, reserved, strings, control_timeout_ms]
+    );
+    layout!(
+        values,
+        aoahid_channel_options,
+        "aoahid_channel_options",
+        [
+            struct_size,
+            reserved,
+            interface_class,
+            interface_subclass,
+            interface_protocol,
+            reserved8,
+            in_transfers,
+            out_transfers,
+            transfer_bytes,
+            zero_length_termination
+        ]
+    );
+    layout!(
+        values,
         aoahid_node_options,
         "aoahid_node_options",
         [struct_size, reserved, has_reserved_slots, reserved_slots]

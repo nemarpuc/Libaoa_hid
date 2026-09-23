@@ -58,14 +58,14 @@ static int run_case(aoahid_node* node, const toggle_case* c) {
     aoahid_result result = aoahid_toggle(node, c->usage, 1U);
     if (result != AOAHID_OK)
         return verify_fail("toggle down", result);
-    result = aoahid_node_submit_blocking(node, 500U);
+    result = verify_submit(node);
     if (result != AOAHID_OK)
         return verify_fail("submit toggle down", result);
     verify_sleep_ms(600);
     result = aoahid_toggle(node, c->usage, 0U);
     if (result != AOAHID_OK)
         return verify_fail("toggle up", result);
-    result = aoahid_node_submit_blocking(node, 500U);
+    result = verify_submit(node);
     if (result != AOAHID_OK)
         return verify_fail("submit toggle up", result);
     verify_sleep_ms(1200);

@@ -1,9 +1,8 @@
 # libaoahid udev rules.
 #
-# This library implements AOA "Mode A" only: it never sends ACCESSORY_START
-# and the device never re-enumerates as Google's Accessory VID/PID range
-# (18D1:2D00-2D05). While connected, the phone keeps its own OEM VID/PID in
-# whatever USB mode it is already in (MTP, PTP, "No data transfer", etc.) --
+# aoahid_device_open uses the phone in its current USB mode ("Mode A"). The
+# phone then keeps its own OEM VID/PID in whatever USB mode it is already in
+# (MTP, PTP, "No data transfer", etc.) --
 # for example a Samsung phone commonly enumerates as 04E8:xxxx. There is no
 # fixed list of OEM VID/PIDs to match, since it is whichever phone you plug
 # in, so a wildcard-by-VID rule below is not meaningful for this library.
@@ -28,11 +27,8 @@ SUBSYSTEM=="usb", TAG+="uaccess"
 # (Samsung Galaxy: 04e8:6860 in MTP mode -- your VID/PID will differ):
 # SUBSYSTEM=="usb", ATTR{idVendor}=="04e8", MODE="0660", GROUP="plugdev"
 
-# The rule below is kept only for the historical/reference "Mode B" protocol
-# path described in docs/AOA_HID_GUIDE.md section 4.2. libaoahid does not
-# implement Mode B (AOAHID_START_ACCESSORY_MODE returns AOAHID_ERR_UNSUPPORTED
-# before any USB I/O; see README.md and docs/SOURCE_CONFLICTS.md T-07), so a
-# device never actually re-enumerates under this VID/PID range while used
-# with this library. It is retained here only so the rule exists if a future
-# accessory-mode implementation is added.
+# After aoahid_accessory_start() the phone re-enumerates in AOA accessory mode
+# as Google's VID 18D1 with PID 2D00-2D05 (2D01 adds ADB). The uaccess rule
+# above already covers it; this group rule is the explicit alternative for
+# systems without uaccess.
 SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", ATTR{idProduct}=="2d0[0-5]", MODE="0660", GROUP="plugdev"

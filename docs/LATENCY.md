@@ -24,25 +24,22 @@ claims.
   between the caller and libaoahid's event thread.
 - The event loop is reaped after async submission so an immediately completed
   request can be observed without a pre-submit delay.
-- Deferred transport work is counted, not searched for. First-report STALL
-  retries are the only deferred work the transport has, and they arise solely
-  from the registration race, so a Context keeps an atomic count of armed
-  retries. When it is zero - every ordinary send cycle - `poll` skips the
-  device-registry lock, the per-slot scan, and the `steady_clock` read that
-  computing a shortened wait would need. This matters on the submit path and
-  not only in the poll loop, because caller-poll mode polls with a zero timeout
-  immediately after accepting a report.
+- The transport has no deferred work. Since 2.0.0 the library never retries a
+  report, so `poll` is exactly one libusb event-handling call: no device
+  registry, retry scan, or clock read runs on the submit path. This matters on
+  the submit path and not only in the poll loop, because caller-poll mode polls
+  with a zero timeout immediately after accepting a report.
 - The Context graveyard is checked the same way: an atomic size is read without
   the Context mutex, so a poll with nothing awaiting reclamation takes no lock.
-- The internal thread uses a bounded 60-second libusb event wait while idle;
-  the next pending retry deadline shortens that wait when necessary. Context
+- The internal thread uses a bounded 60-second libusb event wait while idle.
+  Context
   teardown explicitly interrupts the active libusb event handler, so it does
   not wait for the idle bound to expire. This is a blocking maximum, not a
   60-second polling interval: an available USB event wakes the handler.
 - Relative axes retain 64-bit pending totals and emit bounded field-sized
   fragments; completion consumes exactly the submitted fragment.
-- No callback sleeps. Only first-report STALL handling uses the caller's bounded
-  backoff outside a libusb callback.
+- No callback sleeps, and the library never sleeps to retry. A STALLed report
+  stays pending for the caller's own resend (`API.md`, Submission semantics).
 - An internal event-pump failure is followed by an interruptible 10 ms
   condition-variable wait, preventing an immediately failing backend from
   turning that error path into a busy loop.
@@ -52,8 +49,7 @@ claims.
 
 The native API normalizes a local copy of zero-valued Device tuning fields to
 500 ms control/send timeouts, 64-byte descriptor fragments, 8 pool slots, a
-1024-byte maximum report buffer, a 1000 ms close-drain budget, 20 total
-first-report attempts, and 1000 microseconds of first-report backoff. Node
+1024-byte maximum report buffer, and a 1000 ms close-drain budget. Node
 reservation zero/zero means no reservation. These values are **[project
 policy]**, not libusb recommendations or measured optima.
 
@@ -73,11 +69,8 @@ storage when the application's reports and concurrency permit it. Increasing
 the pool does not parallelize EP0.
 
 The 64-byte descriptor fragment setting affects registration request 56 only;
-Input reports remain one request 57 each and are never fragmented. Twenty total
-first-report attempts mean at most 19 retries and therefore 19 configured
-one-millisecond backoff intervals (19 ms nominal cumulative backoff), excluding
-transfer completion time and scheduler overshoot. This retry applies only to
-the first-report registration STALL race. A Node with no reservation consumes
+Input reports remain one request 57 each and are never fragmented. A Node with
+no reservation consumes
 no dedicated slot; this saves no Device-pool allocation because the pool is
 already allocated, but it leaves all slots shared and changes fairness under
 contention.
@@ -164,7 +157,8 @@ ARM64 prediction follows from these sources.
 | Linux ThreadSanitizer suite | The full deterministic suite executes with ThreadSanitizer instrumentation and fails if TSan reports an observed data race. | TSan is schedule-dependent and does not prove race freedom; it also does not validate Android hardware or Windows synchronization. |
 | Internal-thread idle wait | After one injected immediate backend error, the fake backend observes only nonzero 60-second requested waits, no submissions or callbacks, and no zero-timeout calls while the Context is idle. The error path itself uses an interruptible 10 ms condition-variable backoff. | Counters prove the selected blocking path, not a CPU percentage or scheduler behavior on a physical host. |
 | Cancellation and teardown wake | A deliberately delayed transfer blocks a fake five-second event wait; cancellation causes exactly one cancellation wake and terminal callback. Separately, idle Context teardown interrupts a fake 60-second wait exactly once, with no timeout wake and no remaining waiter. | The five-second value is a deadlock escape, not a latency threshold; the test does not benchmark a real libusb backend. |
-| Retry and graveyard fast paths | The deterministic suite and the first-report STALL retry tests still pass with the armed-retry and graveyard counters in place, so the counters stay exact across arm, due-submit, cancel, and teardown transitions. | Removing that work is a structural reduction in instructions and lock acquisitions per submit. It is not a measured latency improvement, and no figure is claimed for it. |
+| Graveyard fast path and no retry | The graveyard counter stays exact across close and teardown, and the STALL test observes exactly one request 57 per submit with the refused state left pending. | Removing retry scheduling is a structural reduction in instructions per submit and poll. It is not a measured latency improvement, and no figure is claimed for it. |
+| Bulk Channel hot-path probe | In caller-poll mode, one Channel read of delivered data, one write, one poll, and one empty nonwaiting read make zero calls to the test-instrumented C++ allocation operators. | It does not measure elapsed time or a real libusb backend's allocations. |
 
 Run the race-detection build on Linux with GNU or Clang:
 
@@ -191,8 +185,8 @@ teardown to progress; a long polling gap directly adds completion latency.
 Use internal-thread mode when independent event progress is more important
 than avoiding one thread and its synchronization. Blocking waits use condition
 variables or libusb's blocking event handler rather than repeatedly checking
-completion state. The idle event wait is bounded at 60 seconds, shortened for a
-pending retry, and explicitly interrupted during teardown. This mode is tested
+completion state. The idle event wait is bounded at 60 seconds and explicitly
+interrupted during teardown. This mode is tested
 under ThreadSanitizer, but it necessarily has more scheduling and lock work
 than caller-poll mode.
 
@@ -203,6 +197,18 @@ logging disabled on latency-sensitive deployments. `validate_reports=1` adds a
 second linear validation scan; disabling it removes that scan but is appropriate
 only after the immutable specs and reports have passed the same tests and the
 target qualification gate.
+
+## Bulk Channels next to HID
+
+Bulk Channel transfers complete on the same libusb event path as HID
+completions. Each Bulk completion stores a slot index in a
+single-producer/single-consumer ring, decrements an atomic in-flight count, and
+wakes a waiting thread; it takes that waiter's mutex only while a reader or
+writer is actually blocked, the pattern Node completion already uses. Bulk
+transfers use their own pool, so a full Bulk pool never consumes a HID slot, and
+Channel read/write allocate nothing. Whether heavy Bulk traffic, such as a large
+`adb push`, raises HID latency on real hardware is **[unverified on hardware]**
+(`TARGET_MATRIX.md`).
 
 ## Measurements still required on the target
 

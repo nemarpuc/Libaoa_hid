@@ -17,8 +17,6 @@ const DESCRIPTOR_POLICY_BYTES: u32 = 4096;
 const HOST_REPORT_POLICY_BYTES: u32 = 4088;
 const POOL_SLOTS: u32 = 8;
 const RESERVED_SLOTS_PER_NODE: u32 = 1;
-const FIRST_REPORT_ATTEMPTS: u32 = 20;
-const FIRST_REPORT_BACKOFF_US: u32 = 1000;
 const CLOSE_DRAIN_TIMEOUT_MS: u32 = 1000;
 const KEYBOARD_A_USAGE: u16 = 0x04; // HUT 1.7 section 10; see FACT_AUDIT.md.
 const KEYBOARD_APPLICATION_USAGE: u16 = 0x65; // HUT 1.7 section 10.
@@ -87,8 +85,9 @@ fn device_options(timeout_ms: u32) -> sys::aoahid_device_options {
         transfer_pool_slots: POOL_SLOTS,
         maximum_report_bytes: HOST_REPORT_POLICY_BYTES,
         close_drain_timeout_ms: CLOSE_DRAIN_TIMEOUT_MS,
-        first_report_attempts: FIRST_REPORT_ATTEMPTS,
-        first_report_backoff_us: FIRST_REPORT_BACKOFF_US,
+        // Ignored since 2.0.0: the library never retries a report.
+        first_report_attempts: 0,
+        first_report_backoff_us: 0,
         validate_reports: 1,
         aoa_descriptor_wire_policy_bytes: DESCRIPTOR_POLICY_BYTES,
         linux_descriptor_policy_bytes: DESCRIPTOR_POLICY_BYTES,

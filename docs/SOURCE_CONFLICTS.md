@@ -142,10 +142,24 @@ it on the next submit.
 transfer may have partially or fully reached the device. Retrying a relative
 delta or tap can double-apply it. **[libusb contract]**
 
-**Implemented resolution:** only a node's first request 57 may retry, and only
-after STALL during the documented registration race. Other errors are latched;
-the exact relative component submitted is consumed even when delivery becomes
-unknown, preventing an automatic duplicate.
+**Implemented resolution (2.0.0):** the library never retries a transfer.
+Timeout, cancel, short-transfer, overflow, and I/O errors are latched, and the
+exact state submitted, including a relative component, is consumed even when
+delivery becomes unknown, preventing any duplicate.
+
+A STALL on request 57 is different: it is the target refusing the request,
+so nothing was applied. **[implementation observation]** At kernel/common
+commit `0e3db17d01c94263b629b089c51c7d0988308232`,
+`f_accessory.c::acc_ctrlrequest` sets `value = -EINVAL` when the request-57 HID
+ID is not found in the registered list, and a negative value is never queued on
+EP0, so the control transfer stalls; `hid_report_raw_event` runs only from
+`acc_complete_send_hid_event` after a queued data stage. Registration through
+requests 54/56 completes on `hid_work` asynchronously, which is the audited
+first-report race. The library therefore leaves a STALLed report pending: the
+caller's next submit resends the same state after a delay the caller chooses.
+Before 2.0.0 the library retried the first report internally; that automatic
+retry was removed so every retry decision belongs to the application. Other
+OEM kernels are **[unverified on hardware]**.
 
 `libusb_submit_transfer()` is a separate boundary: a negative return means the
 submission itself failed, and v1.0.30 removes that transfer from its flying
@@ -217,9 +231,12 @@ the driver is not eligible for android-mainline or future Android 16+ branches.
 The EP0 statement is an **[AOA requirement]**; both exact source readings are
 **[implementation observation]**, not a portable guarantee.
 
-**Implemented resolution:** the runtime is Mode A-only and sends requests
-54-57 on the selected device's current EP0. It never sends requests 52, 53, or
-58 and never waits for re-enumeration. This is **[project policy]** selected for
+**Implemented resolution:** `aoahid_device_open` is Mode A-only and sends
+requests 54-57 on the selected device's current EP0. It never sends requests
+52, 53, or 58 and never waits for re-enumeration. Since 2.0.0 an application
+that prefers the standard flow calls `aoahid_accessory_start` (requests 51, 52,
+53 only, no waiting) and opens the re-enumerated accessory-mode device with the
+same `aoahid_device_open`; request 58 (audio) is still never sent. This is **[project policy]** selected for
 a smaller startup lifecycle, not proof that every target accepts pre-`START`
 HID. `AOAHID_START_ACCESSORY_MODE` remains an ABI tombstone and returns
 `AOAHID_ERR_UNSUPPORTED` before USB I/O. Mode A must still be recorded as
@@ -233,10 +250,13 @@ matching and an Accessory interface. The audited wahoo request 51 initializes
 those fields to `"Android"`. The former is an **[AOA requirement]**; the latter
 is an **[implementation observation]**, not the portable contract.
 
-**Current resolution:** the string discrepancy remains a historical protocol
-and implementation observation, but the library no longer sends request 52 or
-implements Mode B. The retained public string structure is an ABI tombstone and
-is not a startup input. **[project policy]**
+**Current resolution (2.0.0):** `aoahid_accessory_start` sends request 52 and
+requires a nonempty manufacturer and model, so application matching and the
+Accessory interface are never silently disabled by omission; description,
+version, URI, and serial are sent only when non-null. The values are the
+caller's product policy; the library supplies none. Inside
+`aoahid_device_options` the same structure remains an ABI tombstone.
+**[AOA requirement]** plus **[project policy]**
 
 ### T-09 - USB success does not prove Android input delivery
 
@@ -284,6 +304,12 @@ does not establish that re-probing an already-open session is side-effect-free.
 **Resolution:** discovery retains the required official GET_PROTOCOL probe and
 documents this implementation observation. Re-running discovery during a live
 session remains **[unverified on hardware]** and is not advertised as harmless.
+Since 2.0.0 discovery probes a device that an open Device already holds through
+that Device's handle instead of a second `libusb_open`, so a composite device is
+never opened twice (WinUSB refuses the second open). The request sent is
+unchanged. Discovering an accessory-mode device after `aoahid_accessory_start`
+also sends request 51 to it; its effect on accessory state there is
+**[unverified on hardware]**.
 
 ### T-13 - AOA does not define serial-based re-enumeration correlation
 
@@ -297,6 +323,9 @@ does not say that the OEM USB serial survives the transition or that string ID
 number chain as the path from the root and ties a port number to a physical port
 subject to its stated OS/topology caveats. This is **[AOA requirement]** plus
 **[libusb contract]**; using the path for correlation is **[project policy]**.
+The library performs no correlation itself: after `aoahid_accessory_start`, the
+application rediscovers and matches the accessory-mode entry by bus and port
+path (`examples/c/verify/verify_accessory.c`).
 
 **Current resolution:** the library no longer sends request 53 or correlates a
 re-enumerated device. The source conflict remains recorded so removal is not
@@ -503,8 +532,9 @@ make 500 ms a universal timeout for AOA requests 51 and 54-57.
 **Implemented resolution:** at the public `aoahid_device_options` boundary,
 zero selects fixed bounded values: 500 ms control timeout, 500 ms report-send
 timeout, 64-byte descriptor fragments, 8 transfer-pool slots, 1024-byte maximum
-report buffers, 1000 ms close drain, 20 total first-report attempts, and 1000
-microseconds between retry attempts. `aoahid_node_options` zero/zero selects no
+report buffers, and 1000 ms close drain (before 2.0.0 also 20 first-report
+attempts and 1000 microseconds of backoff; those fields are now ignored).
+`aoahid_node_options` zero/zero selects no
 reservation. These values are **[project policy]**, reused from established
 repository examples/tests where applicable, not USB/AOA requirements or
 libusb recommendations.
@@ -515,8 +545,7 @@ values retain their prior meaning. The affected zero values previously failed
 validation, so the public API did not previously expose libusb's unlimited
 timeout through these fields. A timeout is a failure deadline passed to the
 backend: successful I/O completes immediately when reported and does not wait
-out the remaining budget. Twenty first-report attempts include the initial
-submission and permit at most 19 backoff intervals.
+out the remaining budget.
 
 No product or exact-target contract is inferred. Event mode, startup mode,
 interface/validation policy, descriptor/EP0/control-buffer policies, the five
@@ -524,6 +553,57 @@ target HID-parser policies, and every profile Usage, range, width, count, and
 Report ID remain mandatory. No OS-specific latency or physical Android behavior
 was established; those claims remain **[unverified on hardware]**. Retrieved
 2026-08-27.
+
+### T-24 - Accessory start follows AOA 1.0 exactly and stops at request 53
+
+**Sources:** AOA 1.0 (`source.android.com/docs/core/interaction/accessories/aoa`)
+and AOA 2.0 (`.../aoa2`), retrieved 2026-09-23.
+
+**Finding:** **[AOA requirement]** request 51 is `USB_DIR_IN | USB_TYPE_VENDOR`,
+value 0, index 0, returning a 16-bit little-endian version; request 52 is
+`USB_DIR_OUT | USB_TYPE_VENDOR`, value 0, index = string ID 0-5 (manufacturer,
+model, description, version, URI, serial), data a zero-terminated UTF-8 string
+of at most 256 bytes; request 53 is `USB_DIR_OUT | USB_TYPE_VENDOR`, value 0,
+index 0, no data. The host then "should wait for the connected USB device to
+re-introduce itself on the bus in accessory mode" as VID `0x18D1`, PID `0x2D00`
+or `0x2D01` (AOA 2.0 adds `0x2D02`-`0x2D05`; `0x2D02`/`0x2D03` are audio only and
+have no accessory interface). A device already in accessory mode "does not need
+to be started". AOA 2.0: without manufacturer and model "the accessory USB
+interface isn't present".
+
+**Implemented resolution:** `aoahid_accessory_start` sends exactly these
+requests with these values, rejects a string over 256 bytes including its NUL
+before any request, requires a nonempty manufacturer and model (**[project
+policy]**, so the Accessory interface is never silently absent), sends nothing
+to a device already in the `0x2D00`-`0x2D05` range, and returns after request
+53. The AOA text gives no wait duration; waiting and rediscovery are left to
+the application (**[project policy]**, no library retry or timer).
+
+### T-25 - Bulk Channel portability choices
+
+**Sources:** libusb 1.0 API documentation (`libusb__dev`, `libusb__asyncio`
+groups) and Microsoft `WinUsb_WritePipe`, retrieved 2026-09-23; AOA 1.0 as in
+T-24.
+
+**Finding:** **[libusb contract]** `LIBUSB_TRANSFER_ADD_ZERO_PACKET` "is
+currently only supported on Linux. On other systems, libusb_submit_transfer()
+will return LIBUSB_ERROR_NOT_SUPPORTED". `libusb_set_configuration` on the
+already active configuration "will act as a lightweight device reset", cannot
+run while interfaces are claimed, and `libusb_get_configuration` reports 0 for
+an unconfigured device. `libusb_cancel_transfer` returns `NOT_FOUND` for a
+transfer that is not in progress. **[Windows contract]** WinUSB: "A write
+request that contains zero-length data is forwarded down the USB stack."
+**[AOA requirement]** the host sets configuration 1 before using the accessory
+endpoints.
+
+**Implemented resolution:** a Channel ends a write whose length is a nonzero
+multiple of `wMaxPacketSize` with an explicit zero-length OUT transfer instead
+of the Linux-only flag, so both backends behave the same (hardware behavior is
+**[unverified on hardware]**, `TARGET_MATRIX.md`). It selects configuration 1
+only when the device reports configuration 0, never re-selecting an active
+configuration. IN transfer buffers are rounded up to a multiple of
+`wMaxPacketSize` so a full packet can never overflow them. Cancellation of every
+slot during loss or close is safe because idle slots return `NOT_FOUND`.
 
 ## HID Usage-semantic discrepancy
 
@@ -1415,7 +1495,8 @@ wakes and clears it, and an interrupt without another event returns from event
 handling without a special application error.
 
 **Implemented resolution:** internal-thread mode uses a bounded 60-second idle
-libusb wait; an earlier pending retry deadline shortens it. Teardown first
+libusb wait (before 2.0.0 a pending first-report retry deadline shortened it).
+Teardown first
 publishes the stop flag, then interrupts an event handler that has not already
 exited, notifies the library condition variable, joins the thread, and only
 later destroys the libusb Context. A backend that returns an immediate error

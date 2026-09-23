@@ -113,6 +113,11 @@ class AbiNamespacePolicyTests(unittest.TestCase):
             with self.subTest(version=version):
                 validate_release.validate_abi_namespace(version, "1", "1.0")
 
+    def test_major_two_minor_bumps_keep_the_2_0_namespace(self) -> None:
+        for version in ("2.0.0", "2.1.0", "2.99.7"):
+            with self.subTest(version=version):
+                validate_release.validate_abi_namespace(version, "2", "2.0")
+
     def test_project_minor_is_not_an_abi_namespace(self) -> None:
         with self.assertRaisesRegex(
             validate_release.ValidationError,

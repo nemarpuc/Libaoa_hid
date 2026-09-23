@@ -32,9 +32,10 @@ header cannot silently reinterpret a structure: an exact size mismatch fails.
 |---|---|
 | `aoahid_context` | Owns one libusb runtime and optionally one event thread. Destroy after all devices. |
 | `aoahid_discovery` | Owns a point-in-time list and all strings/pointers returned by `aoahid_discovery_get`. |
-| `aoahid_device` | Owns one USB handle, transfer pool, and registered nodes. HID IDs come from the context-lifetime, physical-identity-domain allocator described in `SOURCE_CONFLICTS.md` T-05. |
+| `aoahid_device` | Owns one USB handle, transfer pool, registered nodes, and open channels. HID IDs come from the context-lifetime, physical-identity-domain allocator described in `SOURCE_CONFLICTS.md` T-05. |
 | `aoahid_spec` | Immutable and reference-counted. It can be registered on multiple devices/contexts. |
 | `aoahid_node` | Owns mutable profile state and one AOA HID registration; it retains its spec. |
+| `aoahid_channel` | Owns one claimed Bulk interface, its fixed transfer pool, and read-ahead state on its Device's USB handle. |
 
 `aoahid_spec_descriptor` and manifest pointers remain valid while the spec is
 retained. A discovery entry remains valid only until discovery destruction.
@@ -57,8 +58,7 @@ wrapped handlers implement the event-lock scheme and that synchronous I/O in
 another thread uses the event-waiter mechanism. A libusb callback itself never
 calls a synchronous or other event-handling libusb API.
 
-The internal pump uses a bounded 60-second idle event wait, shortened by a
-pending first-report retry deadline. Context teardown sets its stop flag, calls
+The internal pump uses a bounded 60-second idle event wait. Context teardown sets its stop flag, calls
 `libusb_interrupt_event_handler` if the event thread has not already exited,
 and then joins the thread; it does not periodically wake only to discover that
 shutdown was requested. An available USB event wakes the blocking handler
@@ -92,6 +92,35 @@ contract to concurrent calls the caller is required to serialize.
    synchronously, and any registration failure unwinds those host resources.
 6. Update profile state and call `aoahid_node_submit` or
    `aoahid_node_submit_blocking`.
+7. Optionally `aoahid_channel_open` for Bulk data on the same USB handle (for
+   example ADB, or the accessory interface for an Android app).
+
+### Switching a device to accessory mode
+
+AOA HID works in two USB modes. In the current (Mode A) mode the host sends
+requests 54-57 without restarting the device (target-conditional, T-07). The
+standard AOA flow instead switches the device first; the library exposes that
+switch as one explicit call and leaves every other step to the application:
+
+1. `aoahid_discover`, then `aoahid_accessory_start(context, info, &options)`.
+   It sends request 51, request 52 for each non-null string (string IDs 0-5,
+   each NUL-terminated UTF-8 of at most 256 bytes including the NUL, checked
+   before any request), and request 53 on EP0, closes the device, and returns.
+   Manufacturer and model are required product values: Android matches them
+   against an application's accessory filter. **[AOA requirement]** for the
+   request sequence; the strings are **[product policy]**.
+2. The device disconnects and re-enumerates as VID `0x18D1`, PID `0x2D00`
+   (accessory) or `0x2D01` (accessory plus ADB); AOA 2.0 audio adds
+   `0x2D02`-`0x2D05`. The library does not wait for this and never retries.
+   Rediscover on the application's own schedule and match the same bus and
+   port path. Android cancels the request when the host does not follow up
+   in time (see `ARCHITECTURE_USB_HUB.md` F5).
+3. Open the accessory-mode entry with `aoahid_device_open`, then continue at
+   step 4 above.
+
+A selection already in accessory mode receives no request. The library has no
+call that leaves accessory mode: unplugging the device, or `svc usb
+setFunctions` through ADB, returns it to its default USB functions.
 
 Device options keep byte transport policies separate from five caller-selected
 policies for the exact target HID parser: maximum registered fields in one
@@ -117,8 +146,6 @@ is not modified and the public structure layout is unchanged.
 | `transfer_pool_slots` | 8 slots | Per-Device asynchronous transfer-pool capacity. |
 | `maximum_report_bytes` | 1024 bytes | Per-slot report payload capacity and public report-length policy. |
 | `close_drain_timeout_ms` | 1000 ms | Bounded Device close/drain budget. |
-| `first_report_attempts` | 20 total attempts | Initial request-57 submission plus at most 19 STALL-race retries. |
-| `first_report_backoff_us` | 1000 microseconds | Delay between those first-report retry attempts. |
 | `aoahid_node_options.has_reserved_slots == 0` and `reserved_slots == 0` | no reservation | The Node uses the shared Device pool without a reserved slot. |
 
 Every value in this table is **[project policy]**. The USB specifications and
@@ -127,8 +154,7 @@ libusb defines a timeout of zero as unlimited/no timeout, but public
 `aoahid_device_options` intercepts zero and applies the bounded values above;
 use an explicit nonzero value to override them. A 500 ms timeout is a failure
 deadline passed to the backend, not a sleep and not latency added after a
-successful transfer. `first_report_attempts` counts the first submission, so
-20 permits at most 19 backoff intervals.
+successful transfer.
 
 Fallbacks do not bypass cross-field validation. For example, if an explicit
 target EP0 or host-control-buffer policy is below 1024 bytes, set
@@ -147,13 +173,71 @@ but does not guarantee that every vendor kernel routes requests 54-57 before
 `ACCESSORY_START`. The library does not send requests 52, 53, or 58 and does not
 perform re-enumeration. See `SOURCE_CONFLICTS.md` T-07.
 
-`AOAHID_START_ACCESSORY_MODE`, `aoahid_aoa_strings`,
-`reenumeration_timeout_ms`, `accessory_strings`, and
-`enable_deprecated_audio_mode` remain in the public declarations only to
-preserve the established structure size, offsets, and language-binding layouts.
-The retained mode returns `AOAHID_ERR_UNSUPPORTED` before USB I/O. The retained
-members are not read as Mode-B configuration and must not be interpreted as a
-supported transition path.
+`aoahid_device_open` itself never switches modes. `AOAHID_START_ACCESSORY_MODE`,
+`reenumeration_timeout_ms`, `accessory_strings`, `enable_deprecated_audio_mode`,
+and (since 2.0.0) `first_report_attempts` and `first_report_backoff_us` remain
+in `aoahid_device_options` only to preserve the established structure size,
+offsets, and language-binding layouts. The retained mode, non-null accessory
+strings, and a nonzero audio flag return `AOAHID_ERR_UNSUPPORTED` before USB
+I/O; the other retained members are ignored. Switch modes with
+`aoahid_accessory_start`, which uses `aoahid_aoa_strings` through
+`aoahid_accessory_options`.
+
+## Bulk Channels
+
+`aoahid_channel_open` first selects configuration 1 if, and only if, the device
+is unconfigured (AOA 1.0 asks the host to set configuration 1 before using the
+accessory endpoints; libusb documents re-selecting the active configuration as
+a lightweight device reset, so a configured device is left alone). It then
+selects the first interface (alternate setting 0) whose class, subclass, and
+protocol match and that has one Bulk IN and one Bulk OUT endpoint, claims it on
+the Device's handle, and starts `in_transfers` read-ahead
+IN transfers. HID and Bulk share one handle, so a composite device never needs a
+second open (WinUSB refuses one). Examples: ADB `0xFF/0x42/0x01` (**[AOSP
+source]** `packages/modules/adb/adb.h` `ADB_CLASS`/`ADB_SUBCLASS`/`ADB_PROTOCOL`,
+main at `4516d3cbfb9aafa2fb1c1be0949b8b866cc7801f`, retrieved 2026-09-23); the AOA
+accessory interface of a `0x2D00`/`0x2D01` device, which exists only when the
+manufacturer and model strings were sent. Channel transfers use their own pool,
+so Bulk traffic never takes a HID transfer slot.
+
+- `aoahid_channel_read` returns a byte stream: one call may return part of a USB
+  transfer. The caller reassembles its own framing (for ADB, the 24-byte
+  message header's length field).
+- `aoahid_channel_write` copies data into free OUT transfers and returns once
+  every byte is submitted; a full pool waits at most `timeout_ms` and then
+  reports `AOAHID_ERR_TIMEOUT` with the queued byte count. A failed OUT
+  completion is reported once by the next write. Nothing is retried.
+- `timeout_ms = 0` never waits, like `aoahid_context_poll`. In caller-poll mode
+  a waiting read or write drives libusb events itself; in internal-thread mode
+  it sleeps on a condition variable that the event thread signals only while a
+  reader or writer is actually blocked.
+- `zero_length_termination = 1` ends a write whose length is a nonzero multiple
+  of `wMaxPacketSize` with an explicit zero-length transfer, which behaves the
+  same on every backend instead of relying on a Linux-only libusb flag.
+- A failed IN transfer or a disconnect loses the Channel: reads and writes then
+  return `AOAHID_ERR_NO_DEVICE` and the Channel must be closed.
+- Opening returns `AOAHID_ERR_BUSY` when another program already holds the
+  interface; for the ADB interface that is usually a running `adb` server
+  (stop it with `adb kill-server` first). HID on EP0 is unaffected, because it
+  claims no interface by default.
+
+Threading: in internal-thread mode one thread may read while another writes,
+concurrently with other Context calls, but never concurrently with closing that
+Channel, its Device, or the Context. In caller-poll mode read and write belong
+to the Context domain like every other call. Read and write take no lock and
+allocate nothing.
+
+### Accessory and Channel tuning fallbacks
+
+| Public field | Zero selects | Scope |
+|---|---:|---|
+| `aoahid_accessory_options.control_timeout_ms` | 500 ms | Failure deadline for each of requests 51, 52, and 53. |
+| `aoahid_channel_options.in_transfers` | 4 transfers | IN transfers kept submitted for reading ahead. |
+| `aoahid_channel_options.out_transfers` | 4 transfers | OUT transfer pool; a full pool makes a write wait (back-pressure). |
+| `aoahid_channel_options.transfer_bytes` | 65536 bytes | Buffer per transfer, rounded up to a multiple of `wMaxPacketSize`. |
+
+Every value in this table is **[project policy]**, not a USB, Android, or ADB
+requirement. `aoahid_channel_close` uses the Device's `close_drain_timeout_ms`.
 
 ## Submission semantics
 
@@ -165,10 +249,14 @@ The blocking form pumps until the profile is clean, so it emits every
 mouse-delta fragment, touch continuation packet, and pen tool-transition
 report.
 
-Only the first report may retry after STALL, using the effective attempt count
-and backoff (an explicit nonzero override or the documented zero fallback).
-Timeout, cancel, short transfer, later STALL, and I/O errors are not blindly
-retried because delivery may be unknown.
+The library never retries a transfer. A STALL on request 57 means the target
+refused it, for example a first report that raced Android's asynchronous HID
+registration, so nothing was applied: the refused state stays pending and the
+caller's next submit resends it, after whatever delay the caller chooses.
+`examples/c/verify/verify_common.h` shows a bounded caller-side resend. Timeout,
+cancel, short transfer, and I/O errors consume the submitted state instead,
+because the report may have been delivered and resending could duplicate a key,
+contact, or relative motion (`SOURCE_CONFLICTS.md` T-03).
 
 When `validate_reports = 1`, every generated report is decoded again before
 request 57 and checked against its immutable wire length, Report-ID prefix,
@@ -209,7 +297,7 @@ audit assigns a stronger label to the underlying field meaning.
 |---|---|---|
 | Keyboard, full-NKRO bitmap | Modifier Usages are routed to their separate bits. Every nonmodifier Usage maps to its own bit, so any number of simultaneously pressed keys up to the declared range is reported at once; there is no Array slot count and no ErrorRollOver overflow encoding. Duplicate edges are suppressed and an opposite edge waits for the first accepted report. `aoahid_kbd` has no release-all call; the caller releases each Usage it pressed. | Usage interval and Report ID. |
 | Mouse | X, Y, Wheel, and AC Pan each use a signed 64-bit pending total. Serialization clamps each independently to its declared field range; terminal completion consumes only the submitted fragment. Button edges use the same accepted-report guard. | Axis ranges/widths, button count, Wheel/Pan presence, Report ID, and acceleration policy. |
-| Toggle (Consumer/System/Camera/Telephony/caller page) | `aoahid_toggle(node, usage, 1)` asserts exactly one allow-listed field; `aoahid_toggle(node, usage, 0)` emits the all-zero state, ignoring `usage`. The accepted-edge guard supplies the `1 -> 0` wire lifecycle for Selector bitmap, OOC toggle, OOC maintained, MC, OSC, and RTC descriptor forms. Declaring `field_page = 0x90` (Camera Control) additionally restricts the allow-list to the two audited OSC controls. | Every Usage and `usage_semantics[i]`, `application_page`/`application_usage`/`field_page`, expected Linux event evidence, Report ID, and target delivery/interception evidence. LC, DV, NAry, and two-direction OOC remain unsupported by this key-like API. |
+| Toggle (Consumer/System/Camera/Telephony/caller page) | `aoahid_toggle(node, usage, 1)` asserts exactly one allow-listed field; `aoahid_toggle(node, usage, 0)` emits the all-zero state; `usage` must be `0` (release whichever Usage is pressed) or the Usage actually pressed, and any other nonzero Usage returns `AOAHID_ERR_PARAM`. The accepted-edge guard supplies the `1 -> 0` wire lifecycle for Selector bitmap, OOC toggle, OOC maintained, MC, OSC, and RTC descriptor forms. Declaring `field_page = 0x90` (Camera Control) additionally restricts the allow-list to the two audited OSC controls. | Every Usage and `usage_semantics[i]`, `application_page`/`application_usage`/`field_page`, expected Linux event evidence, Report ID, and target delivery/interception evidence. LC, DV, NAry, and two-direction OOC remain unsupported by this key-like API. |
 | Gamepad | `aoahid_dpad` maps `(up, down, right, left)` to Hat values Up `0`, Up-right `1`, Right `2`, Down-right `3`, Down `4`, Down-left `5`, Left `6`, Up-left `7`, and no direction to Null `15`. Opposite pairs return `AOAHID_ERR_PARAM` without changing Hat state. In `AOAHID_DPAD_BUTTONS` mode the four booleans remain independent OOC bits, including simultaneous opposites. Buttons and direction changes retain accepted edges; close restores explicit axis/D-pad neutrals. | Axes, ranges, widths, neutrals, ordinary buttons, D-pad representation, Report ID, and target mappings. Only Game Pad + canonical Hat + a contiguous Button range from `1` with at least five fields is a portable candidate; raw/no-D-pad forms remain conditional. |
 | Touchscreen | `aoahid_touch(node, contact_id, down, x, y, extra)` auto-detects placement (a not-yet-active `contact_id`) versus movement (an already-active one) from `down=1`, and lift from `down=0`; Contact Count is computed from the records in the frame, only the first packet carries the total, and continuation packets carry zero. An Up record retains the Contact ID and emits one Tip=0 record before reuse. Tip=1 pressure is floored to one when present. Enabled Scan Time is computed at first-packet submission as elapsed steady-clock time in 100-microsecond ticks, reused for continuation packets, wrapped to the declared counter domain, and restarted at zero after inactivity. Contact and packet conflicts return `AOAHID_ERR_BUSY`. | Coordinate, Contact ID/Count/Scan Time ranges and widths, maximum contacts, contacts per report, optional fields, and Report ID. |
 | Touchpad | Same `aoahid_touch` contact derivation as Touchscreen (both profiles share the same internal `TouchFields` state machine). `aoahid_touchpad_button(node, button, pressed)` is a one-based, edge-guarded button state machine shared with Mouse/Gamepad buttons; it is rejected during an in-flight or multi-packet contact frame. | Coordinate/contact/count/time ranges and widths as Touchscreen, plus `button_count` (may be zero for a buttonless clickpad). `android_status` is always `AOAHID_ANDROID_CONDITIONAL`, independent of `button_count`. |
@@ -270,8 +358,10 @@ one call.
 Ownership differs by handle: only `AOAHID_OK` from `aoahid_node_close`
 consumes the Node. Any failure leaves it live and caller-owned so it can be
 retried; `AOAHID_CLOSE_PENDING` specifically identifies an expired drain
-budget. The first `aoahid_device_close` consumes the Device and every child
-Node even when it returns pending; their graph moves to the Context graveyard.
+budget. `aoahid_channel_close` follows the same rule. The first
+`aoahid_device_close` consumes the Device and every child Node and Channel even
+when it returns pending; their graph moves to the Context graveyard and is freed
+only after the Device's and every Channel's transfers have completed.
 `aoahid_context_destroy` returning `AOAHID_CLOSE_PENDING` leaves the Context
 valid and caller-owned. This covers both an outstanding callback and a Device
 graph that could not yet transfer safely into teardown. A deadline-expired

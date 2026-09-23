@@ -77,7 +77,7 @@ static int touch_circle_step(touch_circle_state* state) {
     aoahid_result result = aoahid_touch(state->node, state->contact_id, 1U, x, y, NULL);
     if (result != AOAHID_OK)
         return verify_fail("touch move", result);
-    result = aoahid_node_submit_blocking(state->node, 500U);
+    result = verify_submit(state->node);
     if (result != AOAHID_OK)
         return verify_fail("submit touch move", result);
     state->down = 1;
@@ -91,7 +91,7 @@ static int touch_circle_lift(touch_circle_state* state) {
         aoahid_touch(state->node, state->contact_id, 0U, state->center_x, state->center_y, NULL);
     if (result != AOAHID_OK)
         return verify_fail("touch up", result);
-    result = aoahid_node_submit_blocking(state->node, 500U);
+    result = verify_submit(state->node);
     if (result != AOAHID_OK)
         return verify_fail("submit touch up", result);
     state->down = 0;
@@ -111,7 +111,7 @@ static int mouse_circle_step(mouse_circle_state* state) {
     aoahid_result result = aoahid_mouse_move(state->node, dx, dy);
     if (result != AOAHID_OK)
         return verify_fail("mouse move", result);
-    result = aoahid_node_submit_blocking(state->node, 500U);
+    result = verify_submit(state->node);
     if (result != AOAHID_OK)
         return verify_fail("submit mouse move", result);
     return 0;
@@ -126,7 +126,7 @@ static int keyboard_typing_step(keyboard_typing_state* state) {
         aoahid_result result = aoahid_kbd(state->node, state->current_usage, 0U);
         if (result != AOAHID_OK)
             return verify_fail("key up", result);
-        result = aoahid_node_submit_blocking(state->node, 500U);
+        result = verify_submit(state->node);
         if (result != AOAHID_OK)
             return verify_fail("submit key up", result);
         state->key_is_down = 0;
@@ -144,7 +144,7 @@ static int keyboard_typing_step(keyboard_typing_state* state) {
     aoahid_result result = aoahid_kbd(state->node, usage, 1U);
     if (result != AOAHID_OK)
         return verify_fail("key down", result);
-    result = aoahid_node_submit_blocking(state->node, 500U);
+    result = verify_submit(state->node);
     if (result != AOAHID_OK)
         return verify_fail("submit key down", result);
     state->current_usage = usage;
@@ -180,7 +180,7 @@ static int phase_keyboard_hello(aoahid_node* keyboard_node, int repeats) {
         aoahid_result result = aoahid_kbd(keyboard_node, state.current_usage, 0U);
         if (result != AOAHID_OK)
             return verify_fail("key up", result);
-        result = aoahid_node_submit_blocking(keyboard_node, 500U);
+        result = verify_submit(keyboard_node);
         if (result != AOAHID_OK)
             return verify_fail("submit key up", result);
     }
@@ -228,7 +228,7 @@ static int phase_all_at_once(aoahid_node* touch_node, aoahid_node* keyboard_node
         aoahid_result result = aoahid_kbd(keyboard_node, keyboard_state.current_usage, 0U);
         if (result != AOAHID_OK)
             return verify_fail("key up", result);
-        result = aoahid_node_submit_blocking(keyboard_node, 500U);
+        result = verify_submit(keyboard_node);
         if (result != AOAHID_OK)
             return verify_fail("submit key up", result);
     }

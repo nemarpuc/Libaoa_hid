@@ -207,9 +207,9 @@ typedef struct {
   `AOAHID_ERR_UNSET_FIELD`.
 - In `aoahid_device_options`, zero selects these bounded **[project policy]**
   host-transport fallbacks: control/send timeout 500 ms, descriptor fragment 64
-  bytes, transfer pool 8 slots, maximum report 1024 bytes, close-drain timeout
-  1000 ms, first-report 20 total attempts, and first-report backoff 1000
-  microseconds. A timeout is a backend failure deadline, not a successful-I/O
+  bytes, transfer pool 8 slots, maximum report 1024 bytes, and close-drain
+  timeout 1000 ms. Since 2.0.0 `first_report_attempts` and
+  `first_report_backoff_us` are ignored ABI tombstones. A timeout is a backend failure deadline, not a successful-I/O
   delay and not a libusb recommendation. Explicit nonzero values pass through.
 - `aoahid_node_options` with `has_reserved_slots == 0` and
   `reserved_slots == 0` selects no reservation. A positive reservation remains
@@ -358,6 +358,15 @@ transport. The immutable result is registered through the ordinary
 
 ## 7. L0 - transport
 
+Since 2.0.0 a `transport::Port` is the sole owner of each opened USB handle and
+its interface claims. A Device and its Bulk Channels borrow the Port by
+reference count, and discovery probes an already open device through its Port,
+so the process never opens one physical device twice. The library runs no
+thread besides the optional internal event thread, never retries a transfer,
+and never waits for re-enumeration: `aoahid_accessory_start` sends requests 51,
+52, and 53 and returns, and the application rediscovers and opens the
+accessory-mode device itself (`API.md`).
+
 ### 7.1 Discovery
 
 `GET_PROTOCOL` (request 51, IN, two little-endian bytes) classifies every candidate *(guide §2)*:
@@ -382,7 +391,7 @@ Per *guide §5.1*:
 - A nonzero fragment size is an explicit caller policy; zero selects the
   documented 64-byte project-policy fallback. It is not an AOA, USB, or libusb
   constant.
-- After the final fragment the kernel registers the HID **asynchronously** and there is no ready callback. The first `SEND_HID_EVENT` may therefore STALL. Only the first event of a node is eligible for a bounded retry with backoff, using either explicit nonzero tuning or the documented zero fallback. Any later STALL is an error *(guide §5.1, §26)*.
+- After the final fragment the kernel registers the HID **asynchronously** and there is no ready callback. The first `SEND_HID_EVENT` may therefore STALL *(guide §5.1, §26)*. Since 2.0.0 the library never retries: the STALL is returned, the refused state stays pending, and the caller's next submit resends it (`SOURCE_CONFLICTS.md` T-03).
 - A successful descriptor transfer does not prove `hid_parse_report()` succeeded. Diagnostics must distinguish "device removed" from "descriptor rejected" and say when they cannot.
 
 ### 7.3 Send path
@@ -452,7 +461,7 @@ Per *guide §29.2*. `actual_length` for a control transfer is the data-stage len
 | `COMPLETED`, `actual_length != N` | `SHORT_TRANSFER` |
 | `CANCELLED` | normal terminal state during close |
 | `NO_DEVICE` | sticky fatal, nothing is ever submitted again |
-| `STALL` | bounded retry only for a node's first report; otherwise `STALL` |
+| `STALL` | `STALL`; the refused state stays pending for the caller's resend |
 | `TIMED_OUT` | `TIMEOUT` |
 | `ERROR` | `IO` |
 | `OVERFLOW` | `OVERFLOW` |
@@ -816,7 +825,7 @@ by a separate workflow.
 Per *guide §40*, the mechanical workflow gates publication on descriptor and
 semantic tests; setup-packet and short-transfer tests for current-mode requests
 51 and 54-57; rejection of the retained Mode-B token before USB I/O;
-post-registration race, STALL retry, unregister, and re-registration tests;
+post-registration race, STALL-then-resend, unregister, and re-registration tests;
 asynchronous callback draining under the configured ASan/UBSan and TSan jobs;
 ABI, binding, package, and release-asset validators; and a successful CI run
 for the exact tagged commit. Release review additionally requires the public
@@ -838,7 +847,7 @@ The phrase "Android supported" does not appear in release notes for anything not
   Count `0`, coordinate retention across a lift, contact ID stability,
   roll-over overflow and recovery, delta splitting and consumption, hat null
   value, In Range and Tip constraints, and neutral state on close.
-- **Mock transport** replacing libusb, verifying exact request numbers, `wValue`, `wIndex`, fragment offsets, ordering, and the first-report retry.
+- **Mock transport** replacing libusb, verifying exact request numbers, `wValue`, `wIndex`, fragment offsets, ordering, the returned first-report STALL, accessory start, and Bulk Channels.
 - **Fuzzing** of the descriptor builder, the report serializer and the raw validator.
 - **Sanitizers**, including a teardown race suite that cancels transfers under load.
 - **hid-tools** parse of every generated descriptor on Linux CI.
@@ -855,8 +864,8 @@ The predecessor's comment style is the standard: prose in natural English that e
 - Anything that exists only because of Android or Linux kernel behavior says
   so explicitly, so a future reader does not "simplify" it away. The `Up`
   phase, first/continuation Contact Count rules, the pressure floor of 1, the
-  platform-conditional interface policy, the first-report retry, and the
-  graveyard all fall in this class.
+  platform-conditional interface policy, the pending state after a STALL, and
+  the graveyard all fall in this class.
 - Comments never restate the code. `i++ // increment i` is a review rejection.
 - No commented-out code, no TODO without an issue number.
 - American English, present tense, complete sentences.
@@ -876,8 +885,8 @@ are recorded in the audit documents:
 2. Report ID prefixes are inserted or omitted according to the descriptor.
 3. Contact, key, button, hat, axis and pen state machines maintain the transitions Android requires, including neutral state at close.
 4. Descriptor fragments are sent strictly ascending with exact offsets.
-5. The first report after registration may be retried within explicit nonzero
-   tuning or the documented bounded zero fallback.
+5. No transfer is ever retried by the library; a STALLed report stays pending
+   so the caller decides whether and when to resend it.
 6. Reports are never fragmented across AOA requests.
 7. Interface claiming is OS-independent and follows the explicit policy:
    `NONE` claims nothing; `EXPLICIT` claims only the caller-selected index.

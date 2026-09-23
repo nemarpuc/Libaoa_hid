@@ -35,7 +35,7 @@ static int send_strength(aoahid_node* node, int32_t strength, const char* label)
     aoahid_result result = aoahid_battery_update(node, 1U, strength);
     if (result != AOAHID_OK)
         return verify_fail("battery update (known value)", result);
-    result = aoahid_node_submit_blocking(node, 500U);
+    result = verify_submit(node);
     if (result != AOAHID_OK)
         return verify_fail("submit battery update", result);
     verify_sleep_ms(2000);
@@ -92,7 +92,7 @@ int main(void) {
         if (r != AOAHID_OK) {
             exit_code = verify_fail("battery update (unknown)", r);
         } else {
-            r = aoahid_node_submit_blocking(node, 500U);
+            r = verify_submit(node);
             if (r != AOAHID_OK)
                 exit_code = verify_fail("submit battery update (unknown)", r);
             else

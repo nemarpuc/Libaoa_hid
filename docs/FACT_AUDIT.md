@@ -607,10 +607,10 @@ device request-processing timing ceilings for defined request stages; those
 ceilings are not a prediction of host scheduling, libusb backend latency, or an
 AOA vendor-request completion time.
 
-**Resolution:** the public API interprets zero in eight named Device tuning
+**Resolution:** the public API interprets zero in six named Device tuning
 fields as 500 ms control/send, 64-byte descriptor fragments, 8 pool slots,
-1024-byte maximum report buffers, 1000 ms close drain, 20 total first-report
-attempts, and 1000-microsecond retry backoff. Node options zero/zero means no
+1024-byte maximum report buffers, and 1000 ms close drain (the two first-report
+retry fields are ignored since 2.0.0). Node options zero/zero means no
 reservation. Each number is **[Project policy]**, selected for bounded behavior
 and consistency with this repository's worked examples and tests; none is
 called a USB/AOA/libusb recommendation. The implementation normalizes a local

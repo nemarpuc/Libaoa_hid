@@ -12,7 +12,6 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -31,8 +30,6 @@ constexpr std::uint8_t accessory_register_hid = 54U;
 constexpr std::uint8_t accessory_unregister_hid = 55U;
 constexpr std::uint8_t accessory_set_hid_report_desc = 56U;
 constexpr std::uint8_t accessory_send_hid_event = 57U;
-// libusb_get_port_numbers() documents the USB 3.0 topology depth limit as 7.
-constexpr std::size_t maximum_port_depth = 7U;
 
 bool control_outcome_may_be_accepted(const aoahid_result result) noexcept {
     // A host-side timeout, generic I/O failure, or disconnect does not prove the
@@ -46,54 +43,6 @@ bool control_outcome_may_be_accepted(const aoahid_result result) noexcept {
 void restore_error(const aoa::transport::ErrorInfo& error) noexcept {
     aoa::transport::record_error(error.result, error.native_status, error.aoa_request, error.hid_id,
                                  error.offset, error.length);
-}
-
-bool port_path_matches(libusb_device* device, const std::vector<std::uint8_t>& expected) noexcept {
-    if (device == nullptr || expected.empty() || expected.size() > maximum_port_depth) {
-        return false;
-    }
-    std::array<std::uint8_t, maximum_port_depth> ports{};
-    const int count = libusb_get_port_numbers(device, ports.data(), static_cast<int>(ports.size()));
-    return count == static_cast<int>(expected.size()) &&
-           std::equal(expected.begin(), expected.end(), ports.begin());
-}
-
-bool original_identity_matches(libusb_device* device, const libusb_device_descriptor& descriptor,
-                               const aoa::transport::Candidate& candidate) {
-    if (libusb_get_bus_number(device) != candidate.bus ||
-        descriptor.idVendor != candidate.vendor_id ||
-        descriptor.idProduct != candidate.product_id) {
-        return false;
-    }
-    if (!candidate.port_path.empty()) {
-        return port_path_matches(device, candidate.port_path);
-    }
-    return libusb_get_device_address(device) == candidate.address;
-}
-
-int open_original(libusb_context* context, const aoa::transport::Candidate& candidate,
-                  libusb_device_handle** out) {
-    *out = nullptr;
-    libusb_device** devices = nullptr;
-    const auto count = libusb_get_device_list(context, &devices);
-    if (count < 0) {
-        return static_cast<int>(count);
-    }
-
-    int result = LIBUSB_ERROR_NO_DEVICE;
-    for (std::size_t index = 0U; index < static_cast<std::size_t>(count); ++index) {
-        libusb_device* device = devices[index];
-        libusb_device_descriptor descriptor{};
-        if (device == nullptr ||
-            libusb_get_device_descriptor(device, &descriptor) != LIBUSB_SUCCESS ||
-            !original_identity_matches(device, descriptor, candidate)) {
-            continue;
-        }
-        result = libusb_open(device, out);
-        break;
-    }
-    libusb_free_device_list(devices, 1);
-    return result;
 }
 
 aoahid_result exact_control_result(const int status, const std::size_t expected, const bool probe,
@@ -178,7 +127,7 @@ bool is_cancelled_completion_status(const std::int32_t native_status) noexcept {
 }
 
 struct Device::Impl {
-    enum class SlotState : std::uint8_t { free, prepared, submitted, retry_wait };
+    enum class SlotState : std::uint8_t { free, prepared, submitted };
 
     struct Reservation;
 
@@ -192,11 +141,8 @@ struct Device::Impl {
         std::uint16_t hid_id{};
         std::uint16_t report_id{};
         std::size_t report_length{};
-        std::uint32_t retries_remaining{};
-        bool first_report{};
         bool reservation_counted{};
         Reservation* reservation{};
-        std::chrono::steady_clock::time_point retry_at{};
     };
 
     struct Notice {
@@ -213,7 +159,7 @@ struct Device::Impl {
         std::size_t in_use{};
     };
 
-    Runtime* runtime{};
+    Port* port{};
     libusb_device_handle* handle{};
     DeviceConfig config{};
     std::vector<Slot> slots;
@@ -255,21 +201,6 @@ struct Device::Impl {
       private:
         std::atomic_flag* lock_{};
     };
-
-    // Every retry_wait entry and exit passes through these two helpers so the
-    // Runtime-level armed count can never drift from the slot states.
-    void arm_retry_locked(Slot* slot) noexcept {
-        slot->state = SlotState::retry_wait;
-        if (runtime != nullptr) {
-            runtime->note_retry_armed();
-        }
-    }
-
-    void disarm_retry_locked(const Slot* slot) noexcept {
-        if (slot->state == SlotState::retry_wait && runtime != nullptr) {
-            runtime->note_retry_disarmed();
-        }
-    }
 
     void release_reservation_locked(Slot* slot) noexcept {
         Reservation* reservation = slot->reservation;
@@ -337,7 +268,6 @@ struct Device::Impl {
         if (notice.completion != nullptr) {
             ++callbacks_active;
         }
-        disarm_retry_locked(slot);
         latch_locked(slot, result, native_status);
         release_reservation_locked(slot);
         slot->state = SlotState::free;
@@ -345,8 +275,6 @@ struct Device::Impl {
         slot->completion = nullptr;
         slot->report_id = 0U;
         slot->report_length = 0U;
-        slot->retries_remaining = 0U;
-        slot->first_report = false;
         slot->reservation = nullptr;
         if (outstanding > 0U) {
             --outstanding;
@@ -385,16 +313,6 @@ struct Device::Impl {
             if (slot->state != SlotState::submitted) {
                 return;
             }
-            if (slot->transfer->status == LIBUSB_TRANSFER_STALL && slot->first_report &&
-                slot->retries_remaining > 0U && !closing) {
-                // f_accessory registers the HID from a worker after the last
-                // descriptor fragment. Only this first report gets bounded
-                // caller-configured retries for that registration race.
-                slot->retry_at = std::chrono::steady_clock::now() +
-                                 std::chrono::microseconds(config.first_report_backoff_us);
-                arm_retry_locked(slot);
-                return;
-            }
             const aoahid_result result = completion_result(slot->transfer);
             notice = finish_locked(slot, result, static_cast<std::int32_t>(slot->transfer->status));
             notify = true;
@@ -405,7 +323,7 @@ struct Device::Impl {
     }
 
     aoahid_result submit_prepared(const PreparedTransfer prepared, const std::size_t report_length,
-                                  const std::uint16_t report_id, const bool first) noexcept {
+                                  const std::uint16_t report_id) noexcept {
         auto* slot = static_cast<Slot*>(prepared.slot);
         if (slot == nullptr || slot->owner != this) {
             return AOAHID_ERR_PARAM;
@@ -439,10 +357,6 @@ struct Device::Impl {
             } else {
                 store_le16(slot->buffer.data() + 2U, slot->hid_id);
                 store_le16(slot->buffer.data() + 6U, static_cast<std::uint16_t>(report_length));
-                slot->first_report = first;
-                slot->retries_remaining = first && config.first_report_attempts > 0U
-                                              ? config.first_report_attempts - 1U
-                                              : 0U;
                 libusb_fill_control_transfer(slot->transfer, handle, slot->buffer.data(),
                                              transfer_callback, slot, config.send_timeout_ms);
                 slot->state = SlotState::submitted;
@@ -458,71 +372,6 @@ struct Device::Impl {
             deliver_terminal(notice);
         }
         return result;
-    }
-
-    std::uint64_t retry_delay_us(const std::uint64_t maximum_us) noexcept {
-        const auto now = std::chrono::steady_clock::now();
-        std::uint64_t result = maximum_us;
-        const StateGuard guard(*this);
-        for (const Slot& slot : slots) {
-            if (slot.state != SlotState::retry_wait) {
-                continue;
-            }
-            if (slot.retry_at <= now) {
-                return 0U;
-            }
-            const auto delay =
-                std::chrono::duration_cast<std::chrono::microseconds>(slot.retry_at - now).count();
-            const auto delay_us = static_cast<std::uint64_t>(delay);
-            result = std::min(result, delay_us);
-        }
-        return result;
-    }
-
-    void submit_due_retries() noexcept {
-        for (;;) {
-            Notice notice{};
-            bool notify = false;
-            bool found = false;
-            {
-                const StateGuard guard(*this);
-                const auto now = std::chrono::steady_clock::now();
-                Slot* due = nullptr;
-                for (Slot& slot : slots) {
-                    if (slot.state == SlotState::retry_wait && slot.retry_at <= now) {
-                        due = &slot;
-                        break;
-                    }
-                }
-                if (due == nullptr) {
-                    return;
-                }
-                found = true;
-                if (closing || !present) {
-                    const aoahid_result result = present ? AOAHID_ERR_IO : AOAHID_ERR_NO_DEVICE;
-                    notice = finish_locked(due, result, LIBUSB_TRANSFER_CANCELLED);
-                    notify = true;
-                } else {
-                    if (due->retries_remaining > 0U) {
-                        --due->retries_remaining;
-                    }
-                    disarm_retry_locked(due);
-                    due->state = SlotState::submitted;
-                    const int status = libusb_submit_transfer(due->transfer);
-                    if (status != LIBUSB_SUCCESS) {
-                        const aoahid_result result = map_libusb_error(status, false);
-                        notice = finish_locked(due, result, status);
-                        notify = true;
-                    }
-                }
-            }
-            if (notify) {
-                deliver_terminal(notice);
-            }
-            if (!found) {
-                return;
-            }
-        }
     }
 
     void observe_control_result(const aoahid_result result) noexcept {
@@ -556,7 +405,6 @@ aoahid_result Device::open(Runtime* runtime, const Candidate& candidate, const D
         config.descriptor_fragment_bytes > std::numeric_limits<std::uint16_t>::max() ||
         config.pool_slots == 0U || config.maximum_report_bytes == 0U ||
         config.maximum_report_bytes > std::numeric_limits<std::uint16_t>::max() ||
-        config.first_report_attempts == 0U ||
         (config.claim_policy != AOAHID_INTERFACE_CLAIM_NONE &&
          config.claim_policy != AOAHID_INTERFACE_CLAIM_EXPLICIT) ||
         (config.claim_policy == AOAHID_INTERFACE_CLAIM_NONE && config.interface_number != -1) ||
@@ -566,28 +414,26 @@ aoahid_result Device::open(Runtime* runtime, const Candidate& candidate, const D
         return AOAHID_ERR_PARAM;
     }
 
-    auto* context = static_cast<libusb_context*>(runtime->native_context());
-    libusb_device_handle* handle = nullptr;
-    int open_status = open_original(context, candidate, &handle);
-    if (open_status != LIBUSB_SUCCESS || handle == nullptr) {
-        const aoahid_result result = map_libusb_error(open_status, false);
-        record_error(result, open_status);
-        return result;
+    Port* port = nullptr;
+    const aoahid_result port_result = runtime->acquire_port(candidate, &port);
+    if (port_result != AOAHID_OK) {
+        return port_result;
     }
+    auto* handle = static_cast<libusb_device_handle*>(port->native_handle());
 
     std::uint16_t protocol = 0U;
     aoahid_result result = read_protocol(handle, config.control_timeout_ms, &protocol);
     if (result != AOAHID_OK) {
-        libusb_close(handle);
+        port->release();
         return result;
     }
     if (protocol == 1U || (protocol > 2U && !config.accept_future_versions)) {
-        libusb_close(handle);
+        port->release();
         record_error(AOAHID_ERR_VERSION, 0, accessory_get_protocol, 0U, 0U, 2U);
         return AOAHID_ERR_VERSION;
     }
     if (protocol < 2U) {
-        libusb_close(handle);
+        port->release();
         record_error(AOAHID_ERR_VERSION, 0, accessory_get_protocol, 0U, 0U, 2U);
         return AOAHID_ERR_VERSION;
     }
@@ -596,9 +442,9 @@ aoahid_result Device::open(Runtime* runtime, const Candidate& candidate, const D
     int claimed_interface = -1;
     if (config.claim_policy == AOAHID_INTERFACE_CLAIM_EXPLICIT) {
         claimed_interface = config.interface_number;
-        const int claim_status = libusb_claim_interface(handle, claimed_interface);
+        const int claim_status = port->claim_interface(claimed_interface);
         if (claim_status != LIBUSB_SUCCESS) {
-            libusb_close(handle);
+            port->release();
             const aoahid_result claim_result = map_libusb_error(claim_status, false);
             record_error(claim_result, claim_status);
             return claim_result;
@@ -612,14 +458,14 @@ aoahid_result Device::open(Runtime* runtime, const Candidate& candidate, const D
         delete device;
         delete impl;
         if (claimed) {
-            static_cast<void>(libusb_release_interface(handle, claimed_interface));
+            port->release_interface(claimed_interface);
         }
-        libusb_close(handle);
+        port->release();
         record_error(AOAHID_ERR_INTERNAL);
         return AOAHID_ERR_INTERNAL;
     }
 
-    impl->runtime = runtime;
+    impl->port = port;
     impl->handle = handle;
     impl->config = config;
     impl->active_state_lock =
@@ -649,7 +495,6 @@ aoahid_result Device::open(Runtime* runtime, const Candidate& candidate, const D
                                       accessory_send_hid_event, 0U, 0U, 0U);
             impl->free_stack.push_back(&slot);
         }
-        runtime->register_device(device);
     } catch (...) {
         delete device;
         throw;
@@ -664,9 +509,6 @@ Device::~Device() noexcept {
         return;
     }
     Impl* impl = impl_;
-    if (impl->runtime != nullptr) {
-        impl->runtime->unregister_device(this);
-    }
     if (!drained()) {
         static_cast<void>(cancel_all());
         // The public lifecycle retains a non-drained Device in its graveyard.
@@ -676,9 +518,9 @@ Device::~Device() noexcept {
         return;
     }
     if (impl->claimed) {
-        static_cast<void>(libusb_release_interface(impl->handle, impl->claimed_interface));
+        impl->port->release_interface(impl->claimed_interface);
     }
-    libusb_close(impl->handle);
+    impl->port->release();
     for (Impl::Slot& slot : impl->slots) {
         if (slot.transfer != nullptr) {
             libusb_free_transfer(slot.transfer);
@@ -950,23 +792,9 @@ aoahid_result Device::acquire(const std::uint16_t hid_id, const ReservationToken
 aoahid_result Device::submit(const PreparedTransfer prepared, const std::size_t report_length,
                              const std::uint16_t report_id) noexcept {
     reset_error();
-    const aoahid_result result =
-        impl_ == nullptr ? AOAHID_ERR_PARAM
-                         : impl_->submit_prepared(prepared, report_length, report_id, false);
-    if (result != AOAHID_OK && last_error().result == AOAHID_OK) {
-        record_error(result, 0, accessory_send_hid_event, 0U, 0U,
-                     static_cast<std::uint32_t>(std::min<std::size_t>(
-                         report_length, std::numeric_limits<std::uint32_t>::max())));
-    }
-    return result;
-}
-
-aoahid_result Device::submit_first(const PreparedTransfer prepared, const std::size_t report_length,
-                                   const std::uint16_t report_id) noexcept {
-    reset_error();
-    const aoahid_result result =
-        impl_ == nullptr ? AOAHID_ERR_PARAM
-                         : impl_->submit_prepared(prepared, report_length, report_id, true);
+    const aoahid_result result = impl_ == nullptr
+                                     ? AOAHID_ERR_PARAM
+                                     : impl_->submit_prepared(prepared, report_length, report_id);
     if (result != AOAHID_OK && last_error().result == AOAHID_OK) {
         record_error(result, 0, accessory_send_hid_event, 0U, 0U,
                      static_cast<std::uint32_t>(std::min<std::size_t>(
@@ -1027,8 +855,7 @@ aoahid_result Device::cancel_all() noexcept {
                 cancelled_hid_id = slot.hid_id;
                 cancelled_length = static_cast<std::uint32_t>(std::min<std::size_t>(
                     slot.report_length, std::numeric_limits<std::uint32_t>::max()));
-            } else if (slot.state == Impl::SlotState::prepared ||
-                       slot.state == Impl::SlotState::retry_wait) {
+            } else if (slot.state == Impl::SlotState::prepared) {
                 notice = impl_->finish_locked(&slot, AOAHID_ERR_IO, LIBUSB_TRANSFER_CANCELLED);
             }
         }
@@ -1083,14 +910,6 @@ aoahid_result Device::latched_error(ErrorInfo* detail) noexcept {
     return result;
 }
 
-std::uint64_t Device::next_retry_delay_us(const std::uint64_t maximum_us) noexcept {
-    return impl_ == nullptr ? maximum_us : impl_->retry_delay_us(maximum_us);
-}
-
-void Device::service_retries() noexcept {
-    if (impl_ != nullptr) {
-        impl_->submit_due_retries();
-    }
-}
+Port* Device::port() const noexcept { return impl_ == nullptr ? nullptr : impl_->port; }
 
 } // namespace aoa::transport

@@ -50,8 +50,6 @@ static const uint32_t k_descriptor_policy_bytes = 4096U;
 static const uint32_t k_host_report_policy_bytes = 4088U;
 static const uint32_t k_pool_slots = 8U;
 static const uint32_t k_reserved_slots_per_node = 1U;
-static const uint32_t k_first_report_attempts = 20U;
-static const uint32_t k_first_report_backoff_us = 1000U;
 static const uint32_t k_close_drain_timeout_ms = 1000U;
 static const uint16_t k_keyboard_a_usage = 0x04U;           /* HUT 1.7 section 10. */
 static const uint16_t k_keyboard_application_usage = 0x65U; /* HUT 1.7 section 10. */
@@ -166,8 +164,6 @@ static aoahid_device_options device_options(void) {
     options.transfer_pool_slots = k_pool_slots;
     options.maximum_report_bytes = k_host_report_policy_bytes;
     options.close_drain_timeout_ms = k_close_drain_timeout_ms;
-    options.first_report_attempts = k_first_report_attempts;
-    options.first_report_backoff_us = k_first_report_backoff_us;
     options.validate_reports = 1U;
     options.aoa_descriptor_wire_policy_bytes = k_descriptor_policy_bytes;
     options.linux_descriptor_policy_bytes = k_descriptor_policy_bytes;

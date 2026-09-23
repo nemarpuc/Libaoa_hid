@@ -19,6 +19,8 @@
 namespace {
 using aoa::detail::set_error;
 constexpr std::size_t kMaximumLibusbPortDepth = 7U;
+// AOA 1.0 SEND_STRING: at most 256 bytes per string, NUL included.
+constexpr std::size_t kMaximumAccessoryStringBytes = 256U;
 // A long bounded wait removes the former 100 Hz idle wake cadence while still
 // bounding shutdown if a backend cannot honor an event-handler interrupt.
 constexpr std::uint32_t kInternalEventPollTimeoutMs = 60'000U;
@@ -32,8 +34,9 @@ constexpr std::uint32_t kFallbackDescriptorFragmentBytes = 64U;
 constexpr std::uint32_t kFallbackTransferPoolSlots = 8U;
 constexpr std::uint32_t kFallbackMaximumReportBytes = 1024U;
 constexpr std::uint32_t kFallbackCloseDrainTimeoutMs = 1000U;
-constexpr std::uint32_t kFallbackFirstReportAttempts = 20U;
-constexpr std::uint32_t kFallbackFirstReportBackoffUs = 1000U;
+constexpr std::uint32_t kFallbackChannelInTransfers = 4U;
+constexpr std::uint32_t kFallbackChannelOutTransfers = 4U;
+constexpr std::uint32_t kFallbackChannelTransferBytes = 65536U;
 
 std::uint16_t report_id(const aoahid_node* node) noexcept {
     return node != nullptr && node->spec != nullptr && node->spec->layout.has_report_id
@@ -293,10 +296,6 @@ void apply_tuning_fallbacks(aoahid_device_options* options) noexcept {
         options->maximum_report_bytes = kFallbackMaximumReportBytes;
     if (options->close_drain_timeout_ms == 0U)
         options->close_drain_timeout_ms = kFallbackCloseDrainTimeoutMs;
-    if (options->first_report_attempts == 0U)
-        options->first_report_attempts = kFallbackFirstReportAttempts;
-    if (options->first_report_backoff_us == 0U)
-        options->first_report_backoff_us = kFallbackFirstReportBackoffUs;
 }
 
 bool required_product_policies_nonzero(const aoahid_device_options& options) noexcept {
@@ -393,8 +392,6 @@ aoa::transport::DeviceConfig copy_config(const aoahid_device_options& options,
                                         options.descriptor_fragment_bytes,
                                         options.transfer_pool_slots,
                                         options.maximum_report_bytes,
-                                        options.first_report_attempts,
-                                        options.first_report_backoff_us,
                                         options.interface_claim_policy,
                                         options.interface_number};
 }
@@ -716,7 +713,9 @@ void release_node_storage(aoahid_node* node) noexcept {
     // Only internal-thread mode can race Node teardown against its callback.
     // Caller-poll callbacks execute inside the caller's synchronization domain,
     // so its null active mutex deliberately keeps teardown lock-free too.
-    { const aoa::detail::ModeMutexGuard callback_exit(node->active_completion_mutex); }
+    {
+        const aoa::detail::ModeMutexGuard callback_exit(node->active_completion_mutex);
+    }
     node->closed = true;
     static_cast<void>(aoa::detail::release_spec(node->spec));
     node->spec = nullptr;
@@ -807,8 +806,25 @@ void remember_terminal_completion(aoahid_device* device, aoahid_node* node) noex
                     "node.completion", completion_reason(result), completed_report_id}));
 }
 
-aoa::detail::DeferredError destroy_drained_device(aoahid_device* device) noexcept {
+// A Device graph may be freed only after its own transfers and every child
+// Channel's Bulk transfers have delivered their callbacks.
+bool graph_drained(const aoahid_device* device) noexcept {
     if (device == nullptr || device->transport == nullptr || !device->transport->drained()) {
+        return false;
+    }
+    return std::all_of(device->channels.begin(), device->channels.end(),
+                       [](const aoahid_channel* channel) { return channel->transport->drained(); });
+}
+
+void release_channel_storage(aoahid_channel* channel) noexcept {
+    delete channel->transport;
+    channel->transport = nullptr;
+    channel->device = nullptr;
+    delete channel;
+}
+
+aoa::detail::DeferredError destroy_drained_device(aoahid_device* device) noexcept {
+    if (!graph_drained(device)) {
         return make_deferred_error(
             DeferredErrorInput{aoa::transport::ErrorInfo{AOAHID_CLOSE_PENDING, 0, 0, 0U, 0U, 0U},
                                "device.close", "Terminal transfer callbacks have not drained."});
@@ -834,6 +850,11 @@ aoa::detail::DeferredError destroy_drained_device(aoahid_device* device) noexcep
             "A transfer-pool reservation could not be released during Device teardown.", node);
         release_node_storage(node);
     }
+
+    for (aoahid_channel* channel : device->channels) {
+        release_channel_storage(channel);
+    }
+    device->channels.clear();
 
     const aoa::detail::DeferredError outcome = device->close_error;
     const aoahid_result result = outcome.pending ? outcome.transport.result : AOAHID_OK;
@@ -861,12 +882,9 @@ void reap_graveyard(aoahid_context* context) noexcept {
         aoahid_device* ready = nullptr;
         {
             const aoa::detail::ModeMutexGuard guard(context->active_state_mutex);
-            const auto found = std::find_if(context->graveyard.begin(), context->graveyard.end(),
-                                            [](const aoahid_device* device) {
-                                                return device != nullptr &&
-                                                       device->transport != nullptr &&
-                                                       device->transport->drained();
-                                            });
+            const auto found =
+                std::find_if(context->graveyard.begin(), context->graveyard.end(),
+                             [](const aoahid_device* device) { return graph_drained(device); });
             if (found == context->graveyard.end()) {
                 return;
             }
@@ -1180,6 +1198,69 @@ void AOAHID_CALL aoahid_discovery_destroy(aoahid_discovery* discovery) try {
     delete discovery;
 }
 AOAHID_C_VOID_CATCH("discovery.destroy")
+
+aoahid_result AOAHID_CALL aoahid_accessory_start(aoahid_context* context,
+                                                 const aoahid_device_info* selected,
+                                                 const aoahid_accessory_options* options) try {
+    aoa::detail::clear_error();
+    if (context == nullptr || selected == nullptr) {
+        set_error(AOAHID_ERR_PARAM, "accessory.start", "Context and selection are required.");
+        return AOAHID_ERR_PARAM;
+    }
+    const aoahid_result deferred = preflight_context(context);
+    if (deferred != AOAHID_OK)
+        return deferred;
+    if ((selected->port_path_length != 0U && selected->port_path == nullptr) ||
+        selected->port_path_length > kMaximumLibusbPortDepth) {
+        set_error(selected->port_path_length > kMaximumLibusbPortDepth ? AOAHID_ERR_OVERFLOW
+                                                                       : AOAHID_ERR_PARAM,
+                  "device.port_path",
+                  "A nonempty libusb physical path needs a pointer and cannot exceed seven ports.");
+        return selected->port_path_length > kMaximumLibusbPortDepth ? AOAHID_ERR_OVERFLOW
+                                                                    : AOAHID_ERR_PARAM;
+    }
+    if (options == nullptr ||
+        !aoa::detail::valid_struct(options, options->struct_size,
+                                   static_cast<std::uint32_t>(sizeof(*options)),
+                                   "accessory_options")) {
+        return AOAHID_ERR_PARAM;
+    }
+    const aoahid_aoa_strings& strings = options->strings;
+    if (options->reserved != 0U || strings.manufacturer == nullptr ||
+        strings.manufacturer[0] == '\0' || strings.model == nullptr || strings.model[0] == '\0') {
+        set_error(AOAHID_ERR_UNSET_FIELD, "accessory_options.strings",
+                  "A nonempty manufacturer and model are required product values, and reserved "
+                  "must be zero.");
+        return AOAHID_ERR_UNSET_FIELD;
+    }
+    const std::array<const char*, 6U> values{strings.manufacturer, strings.model,
+                                             strings.description,  strings.version,
+                                             strings.uri,          strings.serial};
+    // AOA 1.0 limits each request-52 string to 256 bytes including its NUL;
+    // check all of them before any request is sent.
+    for (std::size_t index = 0U; index < values.size(); ++index) {
+        if (values[index] != nullptr &&
+            std::char_traits<char>::length(values[index]) + 1U > kMaximumAccessoryStringBytes) {
+            set_error(AOAHID_ERR_OVERFLOW, "accessory_options.strings",
+                      "An AOA identification string exceeds 256 bytes including its NUL.", 0, 52,
+                      0U, 0U, static_cast<std::uint32_t>(index));
+            return AOAHID_ERR_OVERFLOW;
+        }
+    }
+    const std::uint32_t timeout_ms =
+        options->control_timeout_ms == 0U ? kFallbackControlTimeoutMs : options->control_timeout_ms;
+    const aoahid_result result =
+        context->runtime->start_accessory(copy_candidate(*selected), values.data(), timeout_ms);
+    if (result != AOAHID_OK) {
+        return finish_transport_result(result, "accessory.start",
+                                       "An AOA accessory-mode start request failed.");
+    }
+    aoa::detail::log_event(context, AOAHID_LOG_INFO, "accessory_start", nullptr, nullptr,
+                           aoa::detail::LogEventStatus{AOAHID_OK, 0, 53});
+    aoa::detail::clear_error();
+    return AOAHID_OK;
+}
+AOAHID_C_RESULT_CATCH("accessory.start")
 
 aoahid_result AOAHID_CALL aoahid_device_open(aoahid_context* context,
                                              const aoahid_device_info* selected,
@@ -1585,10 +1666,7 @@ aoahid_result AOAHID_CALL aoahid_node_submit(aoahid_node* node) try {
     node->submitted_report_length = report_length;
     node->submitted_report_id = report_id(node);
     const aoahid_result result =
-        node->first_report
-            ? node->device->transport->submit_first(prepared, report_length,
-                                                    node->submitted_report_id)
-            : node->device->transport->submit(prepared, report_length, node->submitted_report_id);
+        node->device->transport->submit(prepared, report_length, node->submitted_report_id);
     if (result != AOAHID_OK) {
         // Submit-time failures invoke the completion path synchronously. The
         // return value already reports that failure, so do not report it twice.
@@ -1692,10 +1770,7 @@ aoahid_result AOAHID_CALL aoahid_raw_submit(aoahid_node* node, const std::uint8_
     node->submitted_non_neutral = false;
     node->submitted_report_length = length;
     node->submitted_report_id = accepted->has_report_id == 1U ? accepted->report_id : 0U;
-    result =
-        node->first_report
-            ? node->device->transport->submit_first(prepared, length, node->submitted_report_id)
-            : node->device->transport->submit(prepared, length, node->submitted_report_id);
+    result = node->device->transport->submit(prepared, length, node->submitted_report_id);
     if (result != AOAHID_OK) {
         const aoahid_result completion_failure = consume_completion(node, "raw.submit");
         if (completion_failure == AOAHID_OK) {
@@ -1844,6 +1919,10 @@ static aoahid_result device_close_impl(aoahid_device* device, bool* consumed) tr
                 "continued."}));
     }
 
+    // Channels share the Device's handle; cancel them with its transfers.
+    for (aoahid_channel* channel : device->channels) {
+        channel->transport->lose();
+    }
     const aoahid_result cancel = device->transport->cancel_all();
     if (cancel != AOAHID_OK && cancel != AOAHID_ERR_NO_DEVICE) {
         static_cast<void>(finish_transport_result(cancel, "device.cancel",
@@ -1854,8 +1933,30 @@ static aoahid_result device_close_impl(aoahid_device* device, bool* consumed) tr
     for (aoahid_node* node : device->nodes) {
         node->closed = true;
     }
+    if (!device->channels.empty()) {
+        // Read-ahead IN transfers are always in flight; give their
+        // cancellation the close budget (pumping in caller-poll mode) before
+        // falling back to the graveyard. A Device without Channels skips this.
+        const auto channel_deadline = std::chrono::steady_clock::now() +
+                                      std::chrono::milliseconds(device->close_drain_timeout_ms);
+        while (!graph_drained(device) && remaining_milliseconds(channel_deadline) != 0U) {
+            if (context->options.event_mode == AOAHID_EVENT_CALLER_POLL) {
+                const aoahid_result poll = context->runtime->poll(1U);
+                if (poll != AOAHID_OK) {
+                    static_cast<void>(finish_transport_result(
+                        poll, "context.poll", "libusb event handling failed.", device));
+                    remember_current_close_error(device, poll, "context.poll",
+                                                 "libusb event handling failed while Channel "
+                                                 "transfers drained during Device teardown.");
+                    break;
+                }
+            } else {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        }
+    }
 
-    if (device->transport->drained()) {
+    if (graph_drained(device)) {
         const aoa::detail::DeferredError outcome = destroy_drained_device(device);
         return publish_deferred_error(outcome);
     }
@@ -1916,6 +2017,163 @@ std::uint16_t AOAHID_CALL aoahid_device_protocol_version(const aoahid_device* de
     return device->protocol_version;
 }
 AOAHID_C_VALUE_CATCH("device.protocol_version", 0U)
+
+aoahid_result AOAHID_CALL aoahid_channel_open(aoahid_device* device,
+                                              const aoahid_channel_options* options,
+                                              aoahid_channel** out_channel) try {
+    aoa::detail::clear_error();
+    if (out_channel == nullptr) {
+        set_error(AOAHID_ERR_PARAM, "out_channel", "The output pointer is null.");
+        return AOAHID_ERR_PARAM;
+    }
+    *out_channel = nullptr;
+    if (device == nullptr || device->transport == nullptr || device->context == nullptr) {
+        set_error(AOAHID_ERR_PARAM, "channel.open", "A live Device is required.");
+        return AOAHID_ERR_PARAM;
+    }
+    if (device->closing.load(std::memory_order_acquire)) {
+        set_error(AOAHID_ERR_PARAM, "device",
+                  "The Device handle was consumed by close and cannot open a Channel.");
+        return AOAHID_ERR_PARAM;
+    }
+    const aoahid_result deferred = preflight_context(device->context);
+    if (deferred != AOAHID_OK)
+        return deferred;
+    if (options == nullptr ||
+        !aoa::detail::valid_struct(options, options->struct_size,
+                                   static_cast<std::uint32_t>(sizeof(*options)),
+                                   "channel_options")) {
+        return AOAHID_ERR_PARAM;
+    }
+    if (options->reserved != 0U || options->reserved8 != 0U ||
+        !aoa::detail::valid_boolean(options->zero_length_termination)) {
+        set_error(AOAHID_ERR_UNSET_FIELD, "channel_options",
+                  "Reserved fields must be zero and zero_length_termination exactly zero or one.");
+        return AOAHID_ERR_UNSET_FIELD;
+    }
+    aoa::transport::ChannelConfig config{};
+    config.interface_class = options->interface_class;
+    config.interface_subclass = options->interface_subclass;
+    config.interface_protocol = options->interface_protocol;
+    config.in_transfers =
+        options->in_transfers == 0U ? kFallbackChannelInTransfers : options->in_transfers;
+    config.out_transfers =
+        options->out_transfers == 0U ? kFallbackChannelOutTransfers : options->out_transfers;
+    config.transfer_bytes =
+        options->transfer_bytes == 0U ? kFallbackChannelTransferBytes : options->transfer_bytes;
+    config.zero_length_termination = options->zero_length_termination == 1U;
+    config.pump = device->context->options.event_mode == AOAHID_EVENT_CALLER_POLL
+                      ? device->context->runtime
+                      : nullptr;
+
+    auto channel = std::unique_ptr<aoahid_channel>(new (std::nothrow) aoahid_channel());
+    if (channel == nullptr) {
+        set_error(AOAHID_ERR_INTERNAL, "channel", "Memory allocation for the Channel failed.");
+        return AOAHID_ERR_INTERNAL;
+    }
+    // Reserve first so publishing an opened Channel cannot fail.
+    device->channels.reserve(device->channels.size() + 1U);
+    const aoahid_result opened =
+        aoa::transport::Channel::open(device->transport->port(), config, &channel->transport);
+    if (opened != AOAHID_OK) {
+        return finish_transport_result(
+            opened, "channel.open",
+            opened == AOAHID_ERR_UNSUPPORTED
+                ? "No interface has the requested class triple and a Bulk IN/OUT pair."
+                : "The Bulk interface could not be read, claimed, or started.",
+            device);
+    }
+    channel->device = device;
+    device->channels.push_back(channel.get());
+    *out_channel = channel.release();
+    aoa::detail::log_event(device->context, AOAHID_LOG_INFO, "channel_open", device, nullptr);
+    aoa::detail::clear_error();
+    return AOAHID_OK;
+}
+AOAHID_C_RESULT_CATCH("channel.open")
+
+aoahid_result AOAHID_CALL aoahid_channel_close(aoahid_channel* channel) try {
+    aoa::detail::clear_error();
+    if (channel == nullptr || channel->device == nullptr || channel->transport == nullptr ||
+        channel->device->closing.load(std::memory_order_acquire)) {
+        set_error(AOAHID_ERR_PARAM, "channel.close",
+                  "The Channel handle is null, detached, or owned by a closing Device.");
+        return AOAHID_ERR_PARAM;
+    }
+    aoahid_device* device = channel->device;
+    channel->transport->lose();
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::milliseconds(device->close_drain_timeout_ms);
+    while (!channel->transport->drained()) {
+        const std::uint32_t remaining = remaining_milliseconds(deadline);
+        if (remaining == 0U) {
+            set_error(AOAHID_CLOSE_PENDING, "channel.close",
+                      "Cancelled Bulk transfers did not complete within the close drain budget; "
+                      "the lost Channel remains caller-owned.");
+            return AOAHID_CLOSE_PENDING;
+        }
+        if (device->context->options.event_mode == AOAHID_EVENT_CALLER_POLL) {
+            const aoahid_result poll = device->context->runtime->poll(1U);
+            if (poll != AOAHID_OK) {
+                return finish_transport_result(poll, "context.poll",
+                                               "libusb event handling failed.", device);
+            }
+        } else {
+            // Cold path: cancellation completes on the event thread.
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    }
+    auto& channels = device->channels;
+    channels.erase(std::remove(channels.begin(), channels.end(), channel), channels.end());
+    release_channel_storage(channel);
+    aoa::detail::log_event(device->context, AOAHID_LOG_INFO, "channel_close", device, nullptr);
+    aoa::detail::clear_error();
+    return AOAHID_OK;
+}
+AOAHID_C_RESULT_CATCH("channel.close")
+
+aoahid_result AOAHID_CALL aoahid_channel_write(aoahid_channel* channel, const std::uint8_t* data,
+                                               const std::size_t length, std::size_t* out_written,
+                                               const std::uint32_t timeout_ms) try {
+    aoa::detail::clear_error();
+    if (channel == nullptr || channel->transport == nullptr) {
+        if (out_written != nullptr)
+            *out_written = 0U;
+        set_error(AOAHID_ERR_PARAM, "channel.write", "A live Channel is required.");
+        return AOAHID_ERR_PARAM;
+    }
+    const aoahid_result result = channel->transport->write(data, length, out_written, timeout_ms);
+    if (result != AOAHID_OK) {
+        return finish_transport_result(
+            result, "channel.write",
+            result == AOAHID_ERR_TIMEOUT ? "Every OUT transfer stayed in flight until the timeout."
+                                         : "The Bulk OUT path failed or the Channel is lost.");
+    }
+    return AOAHID_OK;
+}
+AOAHID_C_RESULT_CATCH("channel.write")
+
+aoahid_result AOAHID_CALL aoahid_channel_read(aoahid_channel* channel, std::uint8_t* buffer,
+                                              const std::size_t capacity, std::size_t* out_received,
+                                              const std::uint32_t timeout_ms) try {
+    aoa::detail::clear_error();
+    if (channel == nullptr || channel->transport == nullptr) {
+        if (out_received != nullptr)
+            *out_received = 0U;
+        set_error(AOAHID_ERR_PARAM, "channel.read", "A live Channel is required.");
+        return AOAHID_ERR_PARAM;
+    }
+    const aoahid_result result =
+        channel->transport->read(buffer, capacity, out_received, timeout_ms);
+    if (result != AOAHID_OK) {
+        return finish_transport_result(result, "channel.read",
+                                       result == AOAHID_ERR_TIMEOUT
+                                           ? "No Bulk IN data arrived before the timeout."
+                                           : "The Bulk IN path failed or the Channel is lost.");
+    }
+    return AOAHID_OK;
+}
+AOAHID_C_RESULT_CATCH("channel.read")
 
 static aoahid_result context_destroy_impl(aoahid_context* context, bool* context_consumed) {
     *context_consumed = false;
