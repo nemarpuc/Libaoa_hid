@@ -35,7 +35,7 @@
 | F3 | AOA HID（要求54〜57）は EP0 のみで動作し、新しいインターフェースを必要としない | source.android.com AOA 2.0 |
 | F4 | Accessory モードの PID: `0x2D00`（accessory）/ `0x2D01`（accessory＋**adb**）、VID `0x18D1`。要求53後に再列挙される | source.android.com AOA 1.0 / 2.0 |
 | F5 | Android `UsbDeviceManager`: `ACCESSORY_REQUEST_TIMEOUT = 10s`（ホストが10秒以内に構成しないと要求取り消し）、USB 切断で accessory を抜けデフォルト機能へ戻る。`accessory,adb` の共存構成あり | AOSP `UsbDeviceManager.java` |
-| F6 | 上流 ADB ホスト側 USB は `Connection` 抽象を持ち、libusb バックエンドは `LibUsbDevice`（Open/Close/Read/Write/Reset）＋ hotplug（`register_libusb_transport` 呼び出し）の2箇所に閉じている。Linux/macOS は libusb が既定、Windows は `AdbWinApi` が既定で `ADB_LIBUSB=1` で libusb 経路を選べる | ADB ソース `client/usb_libusb*.cpp`, `client/transport_usb.cpp::is_libusb_enabled`（2025-03 HEAD `1cf2f01`） |
+| F6 | 上流 ADB ホスト側 USB は `Connection` 抽象を持ち、libusb バックエンドは `LibUsbDevice`（Open/Close/Read/Write/Reset）＋ hotplug（`register_libusb_transport` 呼び出し）の2箇所に閉じている。Linux/macOS は libusb が既定、Windows は `AdbWinApi` が既定で `ADB_LIBUSB=1` で libusb 経路を選べる | ADB ソース `client/usb_libusb*.cpp`, `client/transport_usb.cpp` の `is_libusb_enabled`（2025-03 HEAD `1cf2f01`） |
 | F7 | ADB の USB を握るのは **adb サーバ**（ポート5037）。`adb` CLI や Android Studio はサーバに TCP で繋ぐクライアントにすぎない。サーバには `adb_set_reject_kill_server()` があり `kill-server` を拒否できる。クライアントとサーバの `ADB_SERVER_VERSION`（現行41）が不一致だとクライアントがサーバを再起動しようとする | ADB ソース `adb.h`, `adb.cpp:1251,1278`, `client/main.cpp:121` |
 | F8 | adbd は MS OS 拡張記述子（`WINUSB` 互換ID＋`DeviceInterfaceGUID`）を出す実装を持つが、ベンダーの gadget 設定次第 | ADB ソース `daemon/usb_ffs.cpp` |
 | F9 | 現 `libaoahid` は Mode A 専用。`AOAHID_START_ACCESSORY_MODE` 等は ABI の墓標（常に `UNSUPPORTED`）。`aoahid_device_open` が内部で `libusb_open` し、ハンドルを Device が単独所有。discovery も全デバイスを `libusb_open` して要求51を送る | [API.md](API.md), [SOURCE_CONFLICTS.md](SOURCE_CONFLICTS.md) T-07/T-12, `src/transport/*.cpp` |
@@ -59,7 +59,7 @@
 |---|---|
 | `client/usb_libusb_device.cpp` | `libusb_*` 呼び出しを `libaoahid` の Channel API へ置換（Open=`aoahid_channel_open`、Read/Write=`aoahid_channel_read/write`、Reset=非対応） |
 | `client/usb_libusb_hotplug.cpp` / `usb_libusb_inhouse_hotplug.cpp` | libusb hotplug を廃止し、アプリが `aoahid_device_open` した端末について `register_libusb_transport` を呼ぶ（検知はアプリの discover 周期） |
-| `client/transport_usb.cpp::is_libusb_enabled` | 全 OS で常に true（Windows の `AdbWinApi` 経路を無効化） |
+| `client/transport_usb.cpp` の `is_libusb_enabled` | 全 OS で常に true（Windows の `AdbWinApi` 経路を無効化） |
 | `client/main.cpp` | `adb_server_main` を「スレッドで起動する関数」に分解。`signal(SIGINT)` 上書き・stderr のログファイル付け替え・`exit()` を除去。`adb_set_reject_kill_server(true)` を常時有効化 |
 | 新規 `libadbhost_c_api.cpp` | C ABI（開始・状態取得のみ）。C++ 型は境界を越えない |
 
@@ -121,9 +121,9 @@ aoahid_channel_close(ch); aoahid_node_close(node); aoahid_device_close(dev);
 
 | 箇所 | 変更 |
 |---|---|
-| `transport::Port`（新規） | ハンドルと claim の唯一の所有者。参照カウント、インターフェース claim の参照カウント、Runtime 登録簿、`start_accessory` |
-| `transport::Device` | ハンドルを Port から借用。再試行状態（retry_wait・armed カウンタ・デバイス登録簿）を削除 |
-| `transport::Channel`（新規） | Bulk IN/OUT、先読み IN、SPSC リング、明示 ZLP、caller-poll 時は待機中に自分でイベントを回す |
+| `Port`（transport 層）（新規） | ハンドルと claim の唯一の所有者。参照カウント、インターフェース claim の参照カウント、Runtime 登録簿、`start_accessory` |
+| `Device`（transport 層） | ハンドルを Port から借用。再試行状態（retry_wait・armed カウンタ・デバイス登録簿）を削除 |
+| `Channel`（transport 層）（新規） | Bulk IN/OUT、先読み IN、SPSC リング、明示 ZLP、caller-poll 時は待機中に自分でイベントを回す |
 | discovery | 既に開いている端末は Port のハンドル経由で要求51（2本目の open をしない） |
 
 ---
@@ -137,9 +137,9 @@ flowchart TB
     App["アプリ（player 等）<br/>HID スレッド / ADB read・write スレッド"]
     subgraph Lib["libaoahid"]
         API["公開 C API<br/>device / node / accessory_start / channel"]
-        Dev["transport::Device<br/>HID 転送プール（EP0 要求57）"]
-        Ch["transport::Channel<br/>Bulk 転送プール＋SPSC リング"]
-        Port["transport::Port<br/>USB ハンドル1つ・claim 管理"]
+        Dev["Device（transport 層）<br/>HID 転送プール（EP0 要求57）"]
+        Ch["Channel（transport 層）<br/>Bulk 転送プール＋SPSC リング"]
+        Port["Port（transport 層）<br/>USB ハンドル1つ・claim 管理"]
         Ev["libusb イベント処理<br/>（内部スレッド or caller-poll）"]
     end
     App --> API --> Dev & Ch
