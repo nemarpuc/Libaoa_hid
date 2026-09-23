@@ -28,6 +28,7 @@ public enum Result : int
 }
 
 public enum EventMode : int { CallerPoll = 1, InternalThread = 2 }
+public enum ChannelReadMode : int { Stream = 0, Request = 1 }
 public enum StartupMode : int
 {
     CurrentUsbMode = 1,
@@ -180,6 +181,7 @@ public struct ChannelOptions
     public uint OutTransfers;
     public uint TransferBytes;
     public uint ZeroLengthTermination;
+    public ChannelReadMode ReadMode;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -462,9 +464,9 @@ public static class Native
 {
     private const string Library = "aoahid";
     private const CallingConvention Call = CallingConvention.Cdecl;
-    public const uint AOAHID_VERSION_MAJOR = 2;
+    public const uint AOAHID_VERSION_MAJOR = 3;
     public const uint AOAHID_VERSION_MINOR = 0;
-    public const uint AOAHID_VERSION_PATCH = 1;
+    public const uint AOAHID_VERSION_PATCH = 0;
 
     public static readonly IReadOnlyDictionary<string, int> AbiConstants =
         new Dictionary<string, int>
@@ -488,6 +490,8 @@ public static class Native
             ["AOAHID_ERR_INTERNAL"] = 16,
             ["AOAHID_EVENT_CALLER_POLL"] = 1,
             ["AOAHID_EVENT_INTERNAL_THREAD"] = 2,
+            ["AOAHID_CHANNEL_READ_STREAM"] = 0,
+            ["AOAHID_CHANNEL_READ_REQUEST"] = 1,
             ["AOAHID_START_CURRENT_USB_MODE"] = 1,
             ["AOAHID_START_ACCESSORY_MODE"] = 2,
             ["AOAHID_INTERFACE_CLAIM_NONE"] = 1,

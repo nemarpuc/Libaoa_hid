@@ -5,6 +5,38 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-09-24
+
+### Added
+
+- `aoahid_channel_options.read_mode` and `aoahid_channel_read_mode`.
+  `AOAHID_CHANNEL_READ_STREAM` (zero) keeps the read-ahead byte stream.
+  `AOAHID_CHANNEL_READ_REQUEST` submits no read-ahead. Instead, a read with
+  nothing buffered submits one IN transfer of its capacity, rounded up to
+  `wMaxPacketSize` and capped at `transfer_bytes`, the way host adb reads a
+  length-prefixed payload. A request completes as soon as it is full, so a
+  packet-aligned message with no zero-length packet no longer waits for more
+  data. A timeout leaves the request pending for the next read, so no byte is
+  lost.
+- The Python, C#, and Rust bindings expose the new field and constants.
+
+### Changed (breaking)
+
+- `aoahid_channel_options` grows by one 32-bit field, so its `struct_size`
+  changes. Rebuild every caller against this header. Zero keeps the 2.x
+  behavior.
+
+### Documentation
+
+- `docs/API.md` explains when a stream-mode read waits (a Bulk IN transfer
+  completes only when full or on a short packet), with AOSP adb references.
+
+### Verification status
+
+Verified with fake-libusb tests (request sizing, pending timeout, buffered
+remainder, zero-length packet, unplug), plus ASan/UBSan and ThreadSanitizer.
+Nothing is hardware-verified.
+
 ## [2.0.1] - 2026-09-23
 
 ### Removed

@@ -90,6 +90,7 @@ std::vector<aoahid_fake_libusb_init_option_record> init_options;
 std::vector<libusb_transfer*> allocated_transfers;
 std::vector<std::unique_ptr<FakeConfig>> configs;
 std::vector<BulkOut> bulk_out;
+std::vector<int> bulk_in_submits;
 constexpr std::uint64_t never_ready = std::numeric_limits<std::uint64_t>::max();
 std::uint64_t poll_number{};
 std::size_t cancel_count{};
@@ -192,6 +193,7 @@ int submit_bulk_locked(libusb_transfer* transfer) {
     transfer->fake_submitted = 1;
     transfer->fake_cancel_requested = 0;
     if ((transfer->endpoint & LIBUSB_ENDPOINT_IN) != 0U) {
+        bulk_in_submits.push_back(transfer->length);
         auto* queue = bulk_queue_locked(device, transfer->endpoint);
         if (queue->empty()) {
             transfer->fake_completion_status = LIBUSB_TRANSFER_COMPLETED;
@@ -737,6 +739,7 @@ void aoahid_fake_libusb_reset(void) {
     allocated_transfers.clear();
     configs.clear();
     bulk_out.clear();
+    bulk_in_submits.clear();
     poll_number = 0U;
     cancel_count = 0U;
     open_handle_count = 0U;
@@ -925,6 +928,16 @@ void aoahid_fake_libusb_push_bulk_in(const size_t device_index, const uint8_t en
         }
     }
     bulk_queue_locked(device, endpoint)->push_back(std::move(chunk));
+}
+
+size_t aoahid_fake_libusb_bulk_in_submit_count(void) {
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    return bulk_in_submits.size();
+}
+
+int aoahid_fake_libusb_bulk_in_submit_length(const size_t index) {
+    const std::lock_guard<std::mutex> guard(global_mutex);
+    return index < bulk_in_submits.size() ? bulk_in_submits[index] : -1;
 }
 
 size_t aoahid_fake_libusb_bulk_out_count(void) {

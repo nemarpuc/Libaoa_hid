@@ -2044,9 +2044,12 @@ aoahid_result AOAHID_CALL aoahid_channel_open(aoahid_device* device,
         return AOAHID_ERR_PARAM;
     }
     if (options->reserved != 0U || options->reserved8 != 0U ||
-        !aoa::detail::valid_boolean(options->zero_length_termination)) {
+        !aoa::detail::valid_boolean(options->zero_length_termination) ||
+        (options->read_mode != AOAHID_CHANNEL_READ_STREAM &&
+         options->read_mode != AOAHID_CHANNEL_READ_REQUEST)) {
         set_error(AOAHID_ERR_UNSET_FIELD, "channel_options",
-                  "Reserved fields must be zero and zero_length_termination exactly zero or one.");
+                  "Reserved fields must be zero, zero_length_termination exactly zero or one, and "
+                  "read_mode STREAM or REQUEST.");
         return AOAHID_ERR_UNSET_FIELD;
     }
     aoa::transport::ChannelConfig config{};
@@ -2060,6 +2063,7 @@ aoahid_result AOAHID_CALL aoahid_channel_open(aoahid_device* device,
     config.transfer_bytes =
         options->transfer_bytes == 0U ? kFallbackChannelTransferBytes : options->transfer_bytes;
     config.zero_length_termination = options->zero_length_termination == 1U;
+    config.request_reads = options->read_mode == AOAHID_CHANNEL_READ_REQUEST;
     config.pump = device->context->options.event_mode == AOAHID_EVENT_CALLER_POLL
                       ? device->context->runtime
                       : nullptr;

@@ -27,6 +27,9 @@ ABI_NAMESPACE_BY_SOVERSION = {
     # 2.0.0 changed documented behavior (no library retry), so it starts
     # libaoahid.so.2 with its own AOAHID_2.0 node.
     "2": "2.0",
+    # 3.0.0 grew aoahid_channel_options, so it starts libaoahid.so.3 with its
+    # own AOAHID_3.0 node.
+    "3": "3.0",
 }
 
 

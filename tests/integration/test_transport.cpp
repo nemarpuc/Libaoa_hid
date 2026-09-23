@@ -1064,6 +1064,115 @@ void test_channel_shares_the_device_handle_internal_thread() {
     aoahid_fake_libusb_reset();
 }
 
+// Request mode: no read-ahead; each read with nothing buffered submits one IN
+// transfer sized from its capacity (whole packets, at most transfer_bytes).
+void test_channel_request_reads() {
+    aoahid_fake_libusb_reset();
+    const Candidate phone = add_adb_phone();
+    aoahid_context_options context_options = public_context_options();
+    context_options.event_mode = AOAHID_EVENT_INTERNAL_THREAD;
+    aoahid_context* context = nullptr;
+    AOAHID_CHECK(aoahid_context_create(&context_options, &context) == AOAHID_OK);
+    const aoahid_device_info selected = public_info(phone);
+    aoahid_device_options device_options = public_device_options();
+    aoahid_device* device = nullptr;
+    AOAHID_CHECK(aoahid_device_open(context, &selected, &device_options, &device) == AOAHID_OK);
+
+    aoahid_channel* channel = nullptr;
+    aoahid_channel_options options = adb_channel_options();
+    options.read_mode = 2;
+    AOAHID_CHECK(aoahid_channel_open(device, &options, &channel) == AOAHID_ERR_UNSET_FIELD);
+    options = adb_channel_options();
+    options.read_mode = AOAHID_CHANNEL_READ_REQUEST;
+    options.in_transfers = 7U;      // ignored in request mode
+    options.transfer_bytes = 4000U; // rounded up to 4096
+    AOAHID_CHECK(aoahid_channel_open(device, &options, &channel) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_fake_libusb_bulk_in_submit_count() == 0U);
+
+    std::vector<std::uint8_t> buffer(100000U);
+    std::size_t received = 0U;
+    // A 24-byte header read asks for one whole packet; a timeout keeps it
+    // pending instead of submitting a second transfer.
+    AOAHID_CHECK(aoahid_channel_read(channel, buffer.data(), 24U, &received, 0U) ==
+                 AOAHID_ERR_TIMEOUT);
+    AOAHID_CHECK(aoahid_channel_read(channel, buffer.data(), 24U, &received, 0U) ==
+                 AOAHID_ERR_TIMEOUT);
+    AOAHID_CHECK(aoahid_fake_libusb_bulk_in_submit_count() == 1U &&
+                 aoahid_fake_libusb_bulk_in_submit_length(0U) == kAdbMaxPacket);
+    std::vector<std::uint8_t> header(24U);
+    for (std::size_t index = 0U; index < header.size(); ++index)
+        header[index] = static_cast<std::uint8_t>(index + 1U);
+    aoahid_fake_libusb_push_bulk_in(0U, kAdbEndpointIn, header.data(), header.size());
+    AOAHID_CHECK(aoahid_channel_read(channel, buffer.data(), 24U, &received, 1000U) == AOAHID_OK &&
+                 received == 24U && std::equal(header.begin(), header.end(), buffer.begin()));
+
+    // A packet-aligned payload with no zero-length packet: the transfer is
+    // exactly the payload length, so it completes when full.
+    const std::vector<std::uint8_t> aligned(2U * kAdbMaxPacket, 0xA5U);
+    aoahid_fake_libusb_push_bulk_in(0U, kAdbEndpointIn, aligned.data(), aligned.size());
+    AOAHID_CHECK(aoahid_channel_read(channel, buffer.data(), aligned.size(), &received, 1000U) ==
+                     AOAHID_OK &&
+                 received == aligned.size());
+    AOAHID_CHECK(aoahid_fake_libusb_bulk_in_submit_count() == 2U &&
+                 aoahid_fake_libusb_bulk_in_submit_length(1U) == static_cast<int>(aligned.size()));
+
+    // A capacity above transfer_bytes is capped at transfer_bytes.
+    const std::vector<std::uint8_t> full(4096U, 0x3CU);
+    aoahid_fake_libusb_push_bulk_in(0U, kAdbEndpointIn, full.data(), full.size());
+    AOAHID_CHECK(aoahid_channel_read(channel, buffer.data(), buffer.size(), &received, 1000U) ==
+                     AOAHID_OK &&
+                 received == full.size());
+    AOAHID_CHECK(aoahid_fake_libusb_bulk_in_submit_length(2U) == 4096);
+
+    // Bytes beyond a smaller later capacity stay buffered; no new transfer
+    // is submitted until they are consumed.
+    std::vector<std::uint8_t> short_data(1000U);
+    for (std::size_t index = 0U; index < short_data.size(); ++index)
+        short_data[index] = static_cast<std::uint8_t>(index);
+    aoahid_fake_libusb_push_bulk_in(0U, kAdbEndpointIn, short_data.data(), short_data.size());
+    std::vector<std::uint8_t> stream;
+    AOAHID_CHECK(aoahid_channel_read(channel, buffer.data(), 600U, &received, 1000U) == AOAHID_OK &&
+                 received == 600U);
+    stream.insert(stream.end(), buffer.begin(), buffer.begin() + 600);
+    AOAHID_CHECK(aoahid_fake_libusb_bulk_in_submit_length(3U) == 1024);
+    AOAHID_CHECK(aoahid_channel_read(channel, buffer.data(), 16U, &received, 0U) == AOAHID_OK &&
+                 received == 16U);
+    stream.insert(stream.end(), buffer.begin(), buffer.begin() + 16);
+    AOAHID_CHECK(aoahid_channel_read(channel, buffer.data(), buffer.size(), &received, 0U) ==
+                     AOAHID_OK &&
+                 received == 384U);
+    stream.insert(stream.end(), buffer.begin(), buffer.begin() + 384);
+    AOAHID_CHECK(stream == short_data);
+    AOAHID_CHECK(aoahid_fake_libusb_bulk_in_submit_count() == 4U);
+
+    // A zero-length packet carries no data: the read waits past it.
+    AOAHID_CHECK(aoahid_channel_read(channel, buffer.data(), 24U, &received, 0U) ==
+                 AOAHID_ERR_TIMEOUT);
+    aoahid_fake_libusb_push_bulk_in(0U, kAdbEndpointIn, nullptr, 0U);
+    aoahid_fake_libusb_push_bulk_in(0U, kAdbEndpointIn, header.data(), header.size());
+    AOAHID_CHECK(aoahid_channel_read(channel, buffer.data(), 24U, &received, 1000U) == AOAHID_OK &&
+                 received == 24U);
+    AOAHID_CHECK(aoahid_fake_libusb_bulk_in_submit_count() == 6U);
+
+    // Writes are unchanged by the read mode.
+    std::size_t written = 0U;
+    AOAHID_CHECK(aoahid_channel_write(channel, header.data(), header.size(), &written, 1000U) ==
+                     AOAHID_OK &&
+                 written == header.size());
+
+    // Unplugging with a request pending loses the Channel.
+    AOAHID_CHECK(aoahid_channel_read(channel, buffer.data(), 24U, &received, 0U) ==
+                 AOAHID_ERR_TIMEOUT);
+    aoahid_fake_libusb_unplug(0U);
+    AOAHID_CHECK(aoahid_channel_read(channel, buffer.data(), 24U, &received, 1000U) ==
+                 AOAHID_ERR_NO_DEVICE);
+    AOAHID_CHECK(aoahid_channel_close(channel) == AOAHID_OK);
+    static_cast<void>(aoahid_device_close(device));
+    AOAHID_CHECK(aoahid_context_destroy(context) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_fake_libusb_open_handle_count() == 0U);
+    aoahid_fake_libusb_reset();
+}
+
 void test_channel_configures_an_unconfigured_device() {
     aoahid_fake_libusb_reset();
     const Candidate phone = add_adb_phone();
@@ -2758,6 +2867,7 @@ void test_transport() {
     test_accessory_start_rejects_and_reports_failures();
     test_channel_shares_the_device_handle_internal_thread();
     test_channel_configures_an_unconfigured_device();
+    test_channel_request_reads();
     test_hid_adb_and_accessory_bulk_run_together();
     test_channel_caller_poll_and_device_close();
     test_legacy_accessory_options_are_unsupported_before_io();

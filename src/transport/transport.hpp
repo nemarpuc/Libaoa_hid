@@ -199,14 +199,17 @@ struct ChannelConfig {
     std::uint32_t out_transfers{};
     std::uint32_t transfer_bytes{};
     bool zero_length_termination{};
+    // One IN transfer per read, sized by the reader, instead of read-ahead.
+    bool request_reads{};
     // Caller-poll mode only: the Runtime a blocking read/write pumps.
     Runtime* pump{};
 };
 
 /* A Bulk IN/OUT pair on a Device's Port. IN transfers stay submitted (read
- * ahead) and completions reach the reader through a single-producer,
- * single-consumer ring; OUT slots return to the writer the same way. The
- * libusb callback only publishes, counts, and wakes a waiting thread. */
+ * ahead), or in request mode one IN transfer sized by each read is, and
+ * completions reach the reader through a single-producer, single-consumer
+ * ring; OUT slots return to the writer the same way. The libusb callback only
+ * publishes, counts, and wakes a waiting thread. */
 class Channel final {
   public:
     static aoahid_result open(Port* port, const ChannelConfig& config, Channel** out);
