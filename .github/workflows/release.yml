@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  AOAHID_EXPECTED_REPOSITORY: nemarpuc/Libaoa_hid
+  AOAHID_EXPECTED_REPOSITORY: nemarpuc/libaoahid
 
 concurrency:
   group: release-${{ github.ref }}

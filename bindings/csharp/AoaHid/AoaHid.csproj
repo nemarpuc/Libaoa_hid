@@ -6,14 +6,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>AoaHid</PackageId>
-    <Version>3.0.3</Version>
+    <Version>3.0.4</Version>
     <Authors>libaoahid contributors</Authors>
     <Copyright>Copyright (c) 2026 libaoahid contributors</Copyright>
     <Description>Literal P/Invoke declarations for libaoahid; requires a separately installed, version-matched native libaoahid shared library and libusb runtime.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageProjectUrl>https://github.com/nemarpuc/Libaoa_hid</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/nemarpuc/Libaoa_hid</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/nemarpuc/libaoahid</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/nemarpuc/libaoahid</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>android;aoa;hid;pinvoke;native</PackageTags>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>

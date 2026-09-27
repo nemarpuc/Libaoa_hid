@@ -1,9 +1,9 @@
 # Contributing
 
 Use the canonical
-[issue tracker](https://github.com/nemarpuc/Libaoa_hid/issues) for proposed
+[issue tracker](https://github.com/nemarpuc/libaoahid/issues) for proposed
 changes and submit patches through
-[pull requests](https://github.com/nemarpuc/Libaoa_hid/pulls).
+[pull requests](https://github.com/nemarpuc/libaoahid/pulls).
 
 Every protocol or platform statement must cite an official primary source with
 an immutable revision where applicable, section or symbol, and retrieval date.

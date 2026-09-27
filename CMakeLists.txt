@@ -2,9 +2,9 @@
 # Copyright (c) 2026 libaoahid contributors
 cmake_minimum_required(VERSION 3.20)
 
-project(libaoahid VERSION 3.0.3
+project(libaoahid VERSION 3.0.4
     DESCRIPTION "Explicit host-side Android Open Accessory HID input library"
-    HOMEPAGE_URL "https://github.com/nemarpuc/Libaoa_hid"
+    HOMEPAGE_URL "https://github.com/nemarpuc/libaoahid"
     LANGUAGES C CXX)
 
 include(GNUInstallDirs)

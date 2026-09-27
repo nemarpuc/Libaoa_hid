@@ -5,6 +5,23 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [3.0.4] - 2026-09-27
+
+### Changed
+
+- The repository is renamed from `nemarpuc/Libaoa_hid` to
+  `nemarpuc/libaoahid`, matching the library (`libaoahid`), header
+  (`aoahid.h`), and CMake package (`aoahid`) names. Package metadata, release
+  validation (`AOAHID_EXPECTED_REPOSITORY`), and documentation links use the
+  new name. GitHub redirects the old URLs; the Pages URL is now
+  `https://nemarpuc.github.io/libaoahid/`. The library is unchanged.
+- 3.0.3 was tagged, but its release did not publish because the repository
+  was renamed while the release job ran. 3.0.4 contains all of 3.0.3.
+
+### Verification status
+
+No library code changed. Nothing is hardware-verified.
+
 ## [3.0.3] - 2026-09-27
 
 ### Changed

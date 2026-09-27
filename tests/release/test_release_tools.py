@@ -540,7 +540,7 @@ includedir=${prefix}/include
 Name: libaoahid
 Description: fixture
 Version: 0.1.0
-URL: https://github.com/nemarpuc/Libaoa_hid
+URL: https://github.com/nemarpuc/libaoahid
 Libs: -L${libdir} -laoahid
 Cflags: -I${includedir}
 """
@@ -554,7 +554,7 @@ Cflags: -I${includedir}
         )
         with self.assertRaisesRegex(pkg_config_metadata.PkgConfigError, "URL"):
             pkg_config_metadata.validate_relocatable(
-                fixture.replace(b"nemarpuc/Libaoa_hid", b"wrong/repository"),
+                fixture.replace(b"nemarpuc/libaoahid", b"wrong/repository"),
                 label="fixture",
                 expected_name="libaoahid",
                 expected_version="0.1.0",
@@ -608,7 +608,7 @@ Cflags: -I${includedir}
         workflow = (REPOSITORY / ".github/workflows/release.yml").read_text(
             encoding="utf-8"
         )
-        self.assertIn("AOAHID_EXPECTED_REPOSITORY: nemarpuc/Libaoa_hid", workflow)
+        self.assertIn("AOAHID_EXPECTED_REPOSITORY: nemarpuc/libaoahid", workflow)
         for label in (
             "Linux x86-64 (Ubuntu 22.04 glibc)",
             "Linux AArch64 (Ubuntu 22.04 glibc)",
@@ -751,8 +751,8 @@ Cflags: -I${includedir}
         setup = (REPOSITORY / "GITHUB_SETUP.md").read_text(encoding="utf-8")
         for expected in (
             "https://github.com/new",
-            "https://github.com/nemarpuc/Libaoa_hid.git",
-            "https://nemarpuc.github.io/Libaoa_hid/",
+            "https://github.com/nemarpuc/libaoahid.git",
+            "https://nemarpuc.github.io/libaoahid/",
             "https://github.com/actions/runner-images#available-images",
             "https://github.com/actions/runner-images/issues/14592",
             "https://docs.github.com/code-security/code-scanning/enabling-code-scanning/"

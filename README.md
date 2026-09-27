@@ -1,6 +1,6 @@
 # libaoahid
 
-[Canonical repository](https://github.com/nemarpuc/Libaoa_hid) ·
+[Canonical repository](https://github.com/nemarpuc/libaoahid) ·
 [first-push and release setup](GITHUB_SETUP.md)
 
 `libaoahid` is a C++20 host library with a stable C ABI for sending HID **Input**
@@ -165,11 +165,11 @@ use `svc usb setFunctions` through ADB. Hardware behavior of either path is not
 yet recorded; see `SOURCE_CONFLICTS.md` T-07 and `TARGET_MATRIX.md`.
 
 
-### Using ADB and Libaoa_hid Simultaneously (ADB Proxy)
+### Using ADB and libaoahid Simultaneously (ADB Proxy)
 
-On strict OSes like Windows, standard `adb.exe` uses an exclusive WinUSB lock, meaning you cannot run `adb` and a `Libaoa_hid` application simultaneously on the same device. 
+On strict OSes like Windows, standard `adb.exe` uses an exclusive WinUSB lock, meaning you cannot run `adb` and a `libaoahid` application simultaneously on the same device. 
 To completely solve this, we provide an official companion tool: **[aoahid_adb_proxy](https://github.com/nemarpuc/aoahid_adb_proxy)**. 
-By embedding this lightweight C ABI proxy module into your `Libaoa_hid` application, your app can claim the USB device for zero-latency HID control, while seamlessly routing standard ADB traffic to a local TCP port (e.g. `adb connect localhost:5555`). This perfectly bypasses the Windows restriction without modifying ADB itself.
+By embedding this lightweight C ABI proxy module into your `libaoahid` application, your app can claim the USB device for zero-latency HID control, while seamlessly routing standard ADB traffic to a local TCP port (e.g. `adb connect localhost:5555`). This perfectly bypasses the Windows restriction without modifying ADB itself.
 
 ## Releases
 

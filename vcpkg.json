@@ -1,9 +1,9 @@
 {
   "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
   "name": "libaoahid",
-  "version-semver": "3.0.3",
+  "version-semver": "3.0.4",
   "description": "Explicit, allocation-bounded Android Open Accessory HID library",
-  "homepage": "https://github.com/nemarpuc/Libaoa_hid",
+  "homepage": "https://github.com/nemarpuc/libaoahid",
   "license": "MIT",
   "builtin-baseline": "ddd0023b0eee70986e42ed49d9d4afb8098f212e",
   "dependencies": [

@@ -150,7 +150,7 @@ jobs:
               label="combined aoahid.pc",
               expected_name="libaoahid",
               expected_version=project_version,
-              expected_url="https://github.com/nemarpuc/Libaoa_hid",
+              expected_url="https://github.com/nemarpuc/libaoahid",
               expected_library="aoahid",
               expected_private_libraries=None,
           )
@@ -159,7 +159,7 @@ jobs:
               label="combined aoahid-static.pc",
               expected_name="libaoahid static",
               expected_version=project_version,
-              expected_url="https://github.com/nemarpuc/Libaoa_hid",
+              expected_url="https://github.com/nemarpuc/libaoahid",
               expected_library="aoahid_static",
               expected_requires_private=None,
               expected_private_libraries=("-lstdc++", "-lc++"),

@@ -118,7 +118,7 @@ def validate_repository_identity(root: Path) -> None:
         raise ValidationError("CMake package config does not expose the project homepage")
     if manifest.get("homepage") != REPOSITORY_URL:
         raise ValidationError("vcpkg homepage is not the canonical repository")
-    if "AOAHID_EXPECTED_REPOSITORY: nemarpuc/Libaoa_hid" not in workflow:
+    if "AOAHID_EXPECTED_REPOSITORY: nemarpuc/libaoahid" not in workflow:
         raise ValidationError("release workflow is not bound to the intended repository")
     if f"[Canonical repository]({REPOSITORY_URL})" not in readme:
         raise ValidationError("README does not link the canonical repository")

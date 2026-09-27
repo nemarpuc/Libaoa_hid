@@ -628,7 +628,7 @@ package_version = ".".join(
     str(versions[name])
     for name in ("AOAHID_VERSION_MAJOR", "AOAHID_VERSION_MINOR", "AOAHID_VERSION_PATCH")
 )
-repository = "https://github.com/nemarpuc/Libaoa_hid"
+repository = "https://github.com/nemarpuc/libaoahid"
 package_checks = (
     ("Python name", r'^name\s*=\s*"aoahid"\s*$', python_project),
     ("Python version", rf'^version\s*=\s*"{re.escape(package_version)}"\s*$', python_project),

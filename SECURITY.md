@@ -1,7 +1,7 @@
 # Security policy
 
 Report vulnerabilities privately through the repository's
-[GitHub Security Advisories form](https://github.com/nemarpuc/Libaoa_hid/security/advisories/new).
+[GitHub Security Advisories form](https://github.com/nemarpuc/libaoahid/security/advisories/new).
 Do not put
 device serial numbers, USB traces containing accessory strings, or undisclosed
 hardware identifiers in a public issue.

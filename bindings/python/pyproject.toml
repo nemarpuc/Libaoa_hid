@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aoahid"
-version = "3.0.3"
+version = "3.0.4"
 description = "Explicit ctypes bindings for libaoahid"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -12,9 +12,9 @@ license = "MIT"
 license-files = ["LICENSE"]
 
 [project.urls]
-Homepage = "https://github.com/nemarpuc/Libaoa_hid"
-Repository = "https://github.com/nemarpuc/Libaoa_hid"
-Issues = "https://github.com/nemarpuc/Libaoa_hid/issues"
+Homepage = "https://github.com/nemarpuc/libaoahid"
+Repository = "https://github.com/nemarpuc/libaoahid"
+Issues = "https://github.com/nemarpuc/libaoahid/issues"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

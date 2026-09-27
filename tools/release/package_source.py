@@ -15,7 +15,7 @@ import sys
 import tarfile
 
 
-REPOSITORY_SLUG = "nemarpuc/Libaoa_hid"
+REPOSITORY_SLUG = "nemarpuc/libaoahid"
 REPOSITORY_URL = f"https://github.com/{REPOSITORY_SLUG}"
 
 
