@@ -12,6 +12,11 @@ All notable changes to libaoahid are recorded here. This project follows
 - The C verification examples' "no USB device found" message names the
   platform's usual cause: the udev rule on Linux, and a driver libusb can open
   (such as WinUSB) on Windows. Before, every platform got the same text.
+- `docs/PORTING.md` and `docs/QUICKSTART.md`: the Windows section no longer
+  says the Google USB Driver is non-WinUSB (it is WinUSB-based). It now names
+  both causes, an `adb` server holding the interface and a manufacturer
+  driver instead of WinUSB, with the Samsung (`dg_ssudbus`) report as an
+  example.
 
 ### Verification status
 

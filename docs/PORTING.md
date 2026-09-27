@@ -65,29 +65,35 @@ interface **[implementation observation]**; the library therefore lets that
 backend select unless the caller explicitly names and claims an interface, and
 releases only that claim. **[project policy]** See `SOURCE_CONFLICTS.md` T-01.
 
-**A running `adb` server routinely blocks this entirely on Windows.** Windows
-binds one driver per USB interface, and the stock Android/Google USB driver
-binds its own (non-WinUSB) driver to the interface `adb` uses as soon as the
-phone enumerates -- commonly the same composite device this library also needs
-to reach over control transfers. With that driver bound, `aoahid_device_open`
-fails, typically as `AOAHID_ERR_ACCESS` or a similar libusb open/claim failure,
-even though `lsusb`-equivalent enumeration tools can still see the device.
-Before opening the device:
+**A running `adb` server or a manufacturer's USB driver can block this on
+Windows.** Windows binds one driver per USB function. In the audited libusb
+v1.0.30 backend, an interface is usable only when its driver is WinUSB,
+libusbK, or libusb0 (`winusbx_driver_names`); any other driver makes claiming
+it fail with `LIBUSB_ERROR_NOT_SUPPORTED` **[implementation observation]**.
+The Google USB Driver is WinUSB-based, so it does not cause this by itself,
+but while an `adb` server holds the ADB interface, opening or claiming it
+fails. Before opening the device:
 
 ```powershell
 adb kill-server
 ```
 
 and close Android Studio, Vysor, scrcpy, or anything else that keeps an ADB
-connection open, since any of them restarts the server. If the device still
-fails to open after that, use [Zadig](https://zadig.akeo.ie/) to replace the
-interface's driver with WinUSB (or libusb-win32/libusbK) for this one
-interface only; do not replace the driver Windows uses for its own composite
-device enumeration or you can lose Explorer file-transfer access to the
-phone. This is a Windows driver-model fact independent of this library's own
-Mode A/Mode B behavior: it applies to any libusb-based tool trying to reach a
-device `adb` is also watching, and it does not indicate that this library
-implements or requires the Android Debug Bridge protocol in any way.
+connection open, since any of them restarts the server.
+
+Some manufacturers bind their own driver instead of WinUSB. On a Samsung
+tablet with Samsung's `dg_ssudbus` driver, HID worked but
+`aoahid_channel_open` on the ADB interface failed with `AOAHID_ERR_UNSUPPORTED`
+and libusb status `-12`; replacing the ADB or MTP interface's driver did not
+help, and replacing the whole device's driver ("SAMSUNG Android" in
+[Zadig](https://zadig.akeo.ie/)) with WinUSB did. With the whole device on
+WinUSB, libusb reaches every interface through one WinUSB handle
+(`WinUsb_GetAssociatedInterface`) **[implementation observation]**, at the
+cost of Windows' own functions for that device, such as MTP file transfer.
+This is a user report, not a recorded `TARGET_MATRIX.md` run
+**[unverified on hardware]**; the step-by-step fix is in the aoahid_player
+README's Troubleshooting section. None of this means the library implements
+or requires the Android Debug Bridge protocol.
 
 The configured Windows x64 and ARM64 builds use native GitHub-hosted runners
 **[GitHub Actions contract]** and architecture inspection. Configured release

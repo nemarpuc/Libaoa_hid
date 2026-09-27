@@ -59,21 +59,23 @@ program with `sudo` first. If that works, the problem is likely USB
 permissions; install the udev rule above if you want to run the program
 without sudo.
 
-## 4. Windows: `adb` will block you if it is running
+## 4. Windows: `adb` or a manufacturer driver can block you
 
-If Android Studio, `adb`, `scrcpy`, Vysor, or anything else has ever
-connected to this phone over USB debugging, Windows may have bound its own
-(non-WinUSB) driver to the same interface this library needs, and
-`aoahid_device_open` will fail. Before trying anything else on Windows:
+On Windows, libusb can use the phone only through WinUSB (or libusbK /
+libusb0). Two things commonly get in the way:
 
-```powershell
-adb kill-server
-```
+- A running `adb` server holds the phone's ADB interface. Before trying
+  anything else on Windows:
 
-and close any app that might restart it. If it still fails, see
-`docs/PORTING.md`'s Windows section for the Zadig/WinUSB driver-swap steps.
-This is a Windows driver-model fact, not something this library's Mode A/Mode
-B choice controls.
+  ```powershell
+  adb kill-server
+  ```
+
+  and close any app that might restart it (Android Studio, scrcpy, Vysor).
+- The manufacturer installed its own driver instead of WinUSB. Samsung
+  devices are one example: HID can work while a Channel on the ADB interface
+  fails with libusb status `-12`. Replace the whole device's driver with
+  WinUSB using Zadig; see `docs/PORTING.md`'s Windows section.
 
 ## 5. Build against the real libusb backend
 
@@ -145,7 +147,7 @@ nonzero exit status on failure.
 |---|---|---|
 | Phone never appears in `lsusb` / Device Manager at all | Charge-only cable or hub port | Step 2 |
 | `AOAHID_ERR_ACCESS` on Linux | Missing udev permission | Step 3, or run with `sudo` first to isolate the cause |
-| Device open fails only on Windows | `adb` or another tool holds the interface | Step 4 |
+| Device open or Channel open fails only on Windows | `adb` holds the interface, or the phone has a manufacturer driver instead of WinUSB | Step 4 |
 | Program exits `0`, nothing visible happens | No focused text field (keyboard) or normal single-shot API demo (`aoahid_example_c`) rather than a sustained one | Use the programs in step 8 instead, and focus a text field first for the keyboard case |
 | A physical-keyboard indicator/icon flickers but no character appears | The Android input pipeline detected the HID keyboard, but no text field was focused at that instant | Refocus a text field and rerun; this is not a library-level failure |
 | `AOAHID_ERR_UNSUPPORTED` from `aoahid_device_open` with `AOAHID_START_ACCESSORY_MODE` | Mode B is an intentional, permanent ABI tombstone | Use `AOAHID_START_CURRENT_USB_MODE`; see `README.md` |
