@@ -19,6 +19,8 @@ refuses to assemble a release whose runtime bundle is missing any of them.
 Each binary archive contains the official `libusb-1.0.30.tar.bz2` source
 archive (SHA-256
 `fea36f34f9156400209595e300840767ab1a385ede1dc7ee893015aea9c6dbaf`).
+Linux archives build that source unmodified; the exact `configure` options
+are recorded as `libusb_build` in `share/doc/libaoahid/build-metadata.json`.
 Windows archives also contain the libusb port's exact `vcpkg.json` and
 `portfile.cmake` from pinned vcpkg commit
 `ddd0023b0eee70986e42ed49d9d4afb8098f212e`. No port patches exist at that

@@ -5,6 +5,18 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-09-27
+
+### Packaging
+
+- Linux archives record how the bundled libusb was built from the bundled
+  source (`libusb_build` in `share/doc/libaoahid/build-metadata.json`), and
+  `THIRD_PARTY_NOTICES.md` points to it. The library itself is unchanged.
+
+### Verification status
+
+No library code changed. Nothing is hardware-verified.
+
 ## [3.0.0] - 2026-09-24
 
 ### Added

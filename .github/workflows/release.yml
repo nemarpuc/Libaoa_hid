@@ -181,12 +181,12 @@ jobs:
           test -x "$source_dir/configure"
           cd "$source_dir"
           ./configure --help | grep -F -- '--prefix=PREFIX'
-          ./configure \
-            --prefix="$prefix" \
-            --disable-static \
-            --enable-shared \
-            --enable-tests-build \
-            --enable-udev
+          # Recorded in build-metadata.json, so each archive states how the
+          # bundled libusb was built from the bundled source.
+          configure_flags='--disable-static --enable-shared --enable-tests-build --enable-udev'
+          # shellcheck disable=SC2086
+          ./configure --prefix="$prefix" $configure_flags
+          printf 'AOAHID_LIBUSB_CONFIGURE=%s\n' "$configure_flags" >> "$GITHUB_ENV"
           make --jobs="$(nproc)"
           make check
           make install
@@ -382,7 +382,8 @@ jobs:
               --build-metadata 'glibc_baseline=ubuntu-22.04-glibc-2.35' \
               --build-metadata "glibc_maximum_required=$glibc_maximum" \
               --build-metadata 'libusb_source_commit=87a55632db62c9bdc58cd31d3ccfa673f1bb017f' \
-              --build-metadata 'libusb_source_archive_sha256=fea36f34f9156400209595e300840767ab1a385ede1dc7ee893015aea9c6dbaf'
+              --build-metadata 'libusb_source_archive_sha256=fea36f34f9156400209595e300840767ab1a385ede1dc7ee893015aea9c6dbaf' \
+              --build-metadata "libusb_build=unmodified source; ./configure $AOAHID_LIBUSB_CONFIGURE; make; make install"
           done
 
       - name: Check out pinned vcpkg
