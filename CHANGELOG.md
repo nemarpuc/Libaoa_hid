@@ -5,6 +5,18 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [3.0.3] - 2026-09-27
+
+### Changed
+
+- The C verification examples' "no USB device found" message names the
+  platform's usual cause: the udev rule on Linux, and a driver libusb can open
+  (such as WinUSB) on Windows. Before, every platform got the same text.
+
+### Verification status
+
+No library code changed. Nothing is hardware-verified.
+
 ## [3.0.2] - 2026-09-27
 
 ### Fixed

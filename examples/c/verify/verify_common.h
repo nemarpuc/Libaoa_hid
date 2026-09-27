@@ -122,6 +122,11 @@ static int verify_open_first_device(aoahid_context** out_context, aoahid_device*
     if (count == 0U) {
         fprintf(stderr, "no USB device found. Is the phone plugged in with a data-capable cable, "
                         "directly or through a data-capable hub port (not a charge-only one)? "
+#ifdef _WIN32
+                        "Does the phone have a driver libusb can open, such as WinUSB? "
+#else
+                        "Does the udev rule allow access to it? "
+#endif
                         "See docs/QUICKSTART.md.\n");
         aoahid_discovery_destroy(discovery);
         aoahid_context_destroy(*out_context);
