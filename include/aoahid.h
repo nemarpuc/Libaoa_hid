@@ -31,7 +31,7 @@ extern "C" {
 
 #define AOAHID_VERSION_MAJOR 3
 #define AOAHID_VERSION_MINOR 0
-#define AOAHID_VERSION_PATCH 1
+#define AOAHID_VERSION_PATCH 2
 
 typedef struct aoahid_context aoahid_context;
 typedef struct aoahid_discovery aoahid_discovery;
@@ -863,10 +863,12 @@ AOAHID_API uint16_t AOAHID_CALL aoahid_device_protocol_version(const aoahid_devi
  * receives one Channel owned by the caller and Device; it shares the Device's
  * USB handle. out_channel is null on every failure. aoahid_device_close also
  * closes every Channel still open on the Device.
- * Blocking: Selects configuration 1 only when the device is unconfigured (AOA
- * 1.0), reads the active configuration descriptor, claims the selected
- * interface, allocates a fixed transfer pool, and submits the read-ahead IN
- * transfers; it does not wait for data.
+ * Blocking: Waits up to the Device's close drain budget for in-flight report
+ * transfers (in caller-poll mode driving libusb events), selects configuration
+ * 1 only when the device is unconfigured (AOA 1.0), reads the active
+ * configuration descriptor, claims the selected interface, allocates a fixed
+ * transfer pool, and submits the read-ahead IN transfers; it does not wait for
+ * data.
  * Synchronization: Belongs to the parent Context domain and must be serialized
  * with all Device, Node, Channel open/close, and Context application calls.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid handles/options or a closing
@@ -874,9 +876,11 @@ AOAHID_API uint16_t AOAHID_CALL aoahid_device_protocol_version(const aoahid_devi
  * zero_length_termination other than zero or one; AOAHID_ERR_UNSUPPORTED when
  * no interface has the class triple and a Bulk IN/OUT pair, or for a mapped
  * backend status; AOAHID_ERR_ACCESS, AOAHID_ERR_BUSY, AOAHID_ERR_NO_DEVICE, or
- * AOAHID_ERR_IO for descriptor, claim, or submit failure; AOAHID_ERR_OVERFLOW
- * for a transfer size above the libusb limit; AOAHID_ERR_INTERNAL for
- * allocation or unexpected failure. */
+ * AOAHID_ERR_IO for descriptor, claim, or submit failure; AOAHID_ERR_TIMEOUT
+ * when report transfers are still in flight at the drain budget, or any mapped
+ * result for a caller-poll event-pump failure; AOAHID_ERR_OVERFLOW for a
+ * transfer size above the libusb limit; AOAHID_ERR_INTERNAL for allocation or
+ * unexpected failure. */
 AOAHID_API aoahid_result AOAHID_CALL aoahid_channel_open(aoahid_device* device,
                                                          const aoahid_channel_options* options,
                                                          aoahid_channel** out_channel);
@@ -886,8 +890,9 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_channel_open(aoahid_device* device,
  * lost Channel caller-owned for a retry or later Device close. After AOAHID_OK
  * the Channel pointer is invalid and must never be passed again.
  * Blocking: Cancels every transfer and waits up to the Device's close drain
- * budget for their completions; in caller-poll mode this call drives libusb
- * events.
+ * budget for their completions, then, within the same budget, for in-flight
+ * report transfers before releasing the interface; in caller-poll mode this
+ * call drives libusb events.
  * Synchronization: Belongs to the parent Context domain; never run it
  * concurrently with a read or write on the same Channel.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM for null; AOAHID_CLOSE_PENDING when a

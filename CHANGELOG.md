@@ -5,6 +5,22 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [3.0.2] - 2026-09-27
+
+### Fixed
+
+- On Windows, a Channel on the interface that libusb's WinUSB backend
+  auto-claims for control transfers (typically ADB) could lose its claim when
+  a HID report transfer in flight during `aoahid_channel_open` completed.
+  `aoahid_channel_open` now waits, within the Device's `close_drain_timeout_ms`,
+  until no report transfer is in flight before it claims the interface, and
+  returns `AOAHID_ERR_TIMEOUT` if one still is. `aoahid_channel_close` waits
+  the same way (best effort) before releasing it. See `FACT_AUDIT.md` A-25.
+
+### Verification status
+
+Fake-backend tests only. Nothing is hardware-verified.
+
 ## [3.0.1] - 2026-09-27
 
 ### Packaging

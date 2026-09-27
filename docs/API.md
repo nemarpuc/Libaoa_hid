@@ -203,6 +203,13 @@ accessory interface of a `0x2D00`/`0x2D01` device, which exists only when the
 manufacturer and model strings were sent. Channel transfers use their own pool,
 so Bulk traffic never takes a HID transfer slot.
 
+Before claiming, `aoahid_channel_open` waits, within the Device's
+`close_drain_timeout_ms`, until no report transfer is in flight, and returns
+`AOAHID_ERR_TIMEOUT` if one still is. `aoahid_channel_close` waits the same way
+(best effort) before releasing the interface. libusb's WinUSB backend claims
+an interface around each control transfer and releases it on completion, which
+would otherwise undo a Channel claim on that interface (`FACT_AUDIT.md` A-25).
+
 - `aoahid_channel_read` returns bytes in order: one call may return part of a
   USB transfer. The caller reassembles its own framing (for ADB, the 24-byte
   message header's length field).

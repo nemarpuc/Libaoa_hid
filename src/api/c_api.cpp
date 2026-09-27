@@ -814,6 +814,33 @@ bool graph_drained(const aoahid_device* device) noexcept {
                        [](const aoahid_channel* channel) { return channel->transport->drained(); });
 }
 
+// libusb's WinUSB backend sends a device-recipient control transfer through a
+// WinUSB interface it claims for that transfer and releases on completion. On
+// a phone that interface is usually the ADB one a Channel wants, and the
+// auto-release would undo a Channel claim made meanwhile (or a Channel release
+// would abort the transfer). So a Channel claims and releases its interface
+// only while no HID report transfer is in flight.
+bool wait_for_report_drain(aoahid_device* device,
+                           const std::chrono::steady_clock::time_point deadline,
+                           aoahid_result* poll_error) noexcept {
+    *poll_error = AOAHID_OK;
+    while (!device->transport->drained()) {
+        if (remaining_milliseconds(deadline) == 0U) {
+            return false;
+        }
+        if (device->context->options.event_mode == AOAHID_EVENT_CALLER_POLL) {
+            const aoahid_result poll = device->context->runtime->poll(1U);
+            if (poll != AOAHID_OK) {
+                *poll_error = poll;
+                return false;
+            }
+        } else {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+    }
+    return true;
+}
+
 void release_channel_storage(aoahid_channel* channel) noexcept {
     delete channel->transport;
     channel->transport = nullptr;
@@ -2075,6 +2102,19 @@ aoahid_result AOAHID_CALL aoahid_channel_open(aoahid_device* device,
     }
     // Reserve first so publishing an opened Channel cannot fail.
     device->channels.reserve(device->channels.size() + 1U);
+    aoahid_result poll = AOAHID_OK;
+    if (!wait_for_report_drain(device,
+                               std::chrono::steady_clock::now() +
+                                   std::chrono::milliseconds(device->close_drain_timeout_ms),
+                               &poll)) {
+        if (poll != AOAHID_OK) {
+            return finish_transport_result(poll, "context.poll", "libusb event handling failed.",
+                                           device);
+        }
+        set_error(AOAHID_ERR_TIMEOUT, "channel.open",
+                  "In-flight report transfers did not complete within the close drain budget.");
+        return AOAHID_ERR_TIMEOUT;
+    }
     const aoahid_result opened =
         aoa::transport::Channel::open(device->transport->port(), config, &channel->transport);
     if (opened != AOAHID_OK) {
@@ -2124,6 +2164,13 @@ aoahid_result AOAHID_CALL aoahid_channel_close(aoahid_channel* channel) try {
             // Cold path: cancellation completes on the event thread.
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
+    }
+    // Best effort: a report still in flight at the deadline does not keep the
+    // Channel open.
+    aoahid_result poll = AOAHID_OK;
+    if (!wait_for_report_drain(device, deadline, &poll) && poll != AOAHID_OK) {
+        return finish_transport_result(poll, "context.poll", "libusb event handling failed.",
+                                       device);
     }
     auto& channels = device->channels;
     channels.erase(std::remove(channels.begin(), channels.end(), channel), channels.end());
