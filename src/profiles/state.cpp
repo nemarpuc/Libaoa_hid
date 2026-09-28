@@ -90,17 +90,22 @@ bool store_bits(std::uint8_t* report, const std::size_t capacity, const FieldLay
     if (!allow_null && (value < field.logical_minimum || value > field.logical_maximum)) {
         return false;
     }
-    const std::uint64_t mask = field.bit_width == 32U ? std::numeric_limits<std::uint32_t>::max()
-                                                      : (std::uint64_t{1} << field.bit_width) - 1U;
-    const std::uint64_t encoded = static_cast<std::uint64_t>(value) & mask;
-    for (std::uint8_t bit = 0U; bit < field.bit_width; ++bit) {
-        const std::size_t position = field.bit_offset + bit;
-        const std::uint8_t bit_mask = static_cast<std::uint8_t>(1U << (position & 7U));
-        if (((encoded >> bit) & 1U) != 0U) {
-            report[position / 8U] = static_cast<std::uint8_t>(report[position / 8U] | bit_mask);
-        } else {
-            report[position / 8U] = static_cast<std::uint8_t>(report[position / 8U] & ~bit_mask);
-        }
+    std::uint64_t encoded =
+        static_cast<std::uint64_t>(value) & ((std::uint64_t{1} << field.bit_width) - 1U);
+    std::size_t position = field.bit_offset;
+    std::uint32_t remaining = field.bit_width;
+    // A field spans at most five bytes, so it is written a byte at a time.
+    while (remaining != 0U) {
+        const auto shift = static_cast<std::uint32_t>(position & 7U);
+        const std::uint32_t taken = std::min(remaining, 8U - shift);
+        const std::uint32_t byte_mask = ((1U << taken) - 1U) << shift;
+        std::uint8_t& target = report[position / 8U];
+        target =
+            static_cast<std::uint8_t>((static_cast<std::uint32_t>(target) & ~byte_mask) |
+                                      ((static_cast<std::uint32_t>(encoded) << shift) & byte_mask));
+        encoded >>= taken;
+        position += taken;
+        remaining -= taken;
     }
     return true;
 }
@@ -281,10 +286,16 @@ aoahid_result validate_serialized_report(const aoahid_spec* spec, const std::uin
             return AOAHID_ERR_INTERNAL;
         }
         std::uint64_t encoded = 0U;
-        for (std::uint8_t bit = 0U; bit < field.bit_width; ++bit) {
-            const std::size_t position = field.bit_offset + bit;
-            encoded |= static_cast<std::uint64_t>((report[position / 8U] >> (position & 7U)) & 1U)
-                       << bit;
+        std::size_t position = field.bit_offset;
+        for (std::uint32_t done = 0U; done < field.bit_width;) {
+            const auto shift = static_cast<std::uint32_t>(position & 7U);
+            const std::uint32_t taken = std::min(field.bit_width - done, 8U - shift);
+            encoded |= static_cast<std::uint64_t>(
+                           (static_cast<std::uint32_t>(report[position / 8U]) >> shift) &
+                           ((1U << taken) - 1U))
+                       << done;
+            position += taken;
+            done += taken;
         }
         std::int64_t value = static_cast<std::int64_t>(encoded);
         if (field.is_signed && (encoded & (std::uint64_t{1} << (field.bit_width - 1U))) != 0U) {

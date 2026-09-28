@@ -118,7 +118,6 @@ step-by-step walkthrough covering cables/hubs, Linux udev permissions, the
 Windows `adb`-conflict gotcha, and small programs under
 [examples/c/verify/](examples/c/verify) built specifically to be watched
 (typing text, dragging on the touchscreen, moving the mouse in circles) so you
-
 can confirm a real phone reacts before writing product code.
 
 The complete, fully explicit C session is
@@ -164,12 +163,16 @@ never sent). There is no call that leaves accessory mode: unplug the device or
 use `svc usb setFunctions` through ADB. Hardware behavior of either path is not
 yet recorded; see `SOURCE_CONFLICTS.md` T-07 and `TARGET_MATRIX.md`.
 
+### ADB on the same device
 
-### Using ADB and libaoahid Simultaneously (ADB Proxy)
-
-On strict OSes like Windows, standard `adb.exe` uses an exclusive WinUSB lock, meaning you cannot run `adb` and a `libaoahid` application simultaneously on the same device. 
-To completely solve this, we provide an official companion tool: **[aoahid_adb_proxy](https://github.com/nemarpuc/aoahid_adb_proxy)**. 
-By embedding this lightweight C ABI proxy module into your `libaoahid` application, your app can claim the USB device for zero-latency HID control, while seamlessly routing standard ADB traffic to a local TCP port (e.g. `adb connect localhost:5555`). This perfectly bypasses the Windows restriction without modifying ADB itself.
+On Windows a USB device can be opened by only one process, so `adb` and a
+libaoahid application cannot both hold the same phone. The companion library
+[aoahid_adb_proxy](https://github.com/nemarpuc/aoahid_adb_proxy) runs inside
+the application: it opens the phone's ADB interface as a Channel on the
+application's own USB handle and serves it on a loopback TCP port, so
+`adb connect 127.0.0.1:6555` reaches the phone while HID reports keep using
+EP0. Keep the port outside 5555-5585, which the adb server scans for
+emulators.
 
 ## Releases
 
@@ -281,7 +284,7 @@ Most of the code, tests, and documentation in this repository were written by
 an AI coding assistant. Architecture and design decisions, hardware
 verification steps, debugging, and review of the AI's output were done by a
 human. No claim in this repository - including the descriptor/Android
-support statuses below - has been independently re-verified beyond what is
+support statuses above - has been independently re-verified beyond what is
 described in [TARGET_MATRIX.md](docs/TARGET_MATRIX.md); treat it accordingly,
 especially before relying on it for anything security- or safety-relevant.
 

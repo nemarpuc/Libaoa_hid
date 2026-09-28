@@ -86,8 +86,7 @@ aoahid_result consume_completion(aoahid_node* node, const char* field) noexcept 
 }
 
 aoahid_result finish_transport_result(const aoahid_result result, const char* field,
-                                      const char* reason, const aoahid_device* device = nullptr,
-                                      const aoahid_node* node = nullptr,
+                                      const char* reason, const aoahid_node* node = nullptr,
                                       const std::int32_t fallback_request = 0,
                                       const std::uint32_t fallback_offset = 0U,
                                       const std::uint32_t fallback_length = 0U) noexcept {
@@ -106,7 +105,6 @@ aoahid_result finish_transport_result(const aoahid_result result, const char* fi
     const std::uint16_t hid_id = transport_error.hid_id != 0U
                                      ? transport_error.hid_id
                                      : (node == nullptr ? std::uint16_t{0} : node->hid_id);
-    static_cast<void>(device);
     const std::uint16_t transport_report_id =
         transport_error.aoa_request == 57 ? transport_error.report_id : report_id(node);
     set_error(result, field, reason, transport_error.native_status,
@@ -641,7 +639,7 @@ aoahid_result poll_until_idle(aoahid_node* node, const std::uint32_t deadline_ms
             const aoahid_result poll = node->device->context->runtime->poll(1U);
             if (poll != AOAHID_OK && poll != AOAHID_ERR_TIMEOUT) {
                 return finish_transport_result(poll, "context.poll",
-                                               "libusb event handling failed.", node->device, node);
+                                               "libusb event handling failed.", node);
             }
         } else {
             std::unique_lock<std::mutex> lock(node->completion_mutex);
@@ -1168,8 +1166,8 @@ aoahid_result AOAHID_CALL aoahid_discover(aoahid_context* context,
     std::vector<aoa::transport::Candidate> candidates;
     const aoahid_result result = context->runtime->discover(control_timeout_ms, &candidates);
     if (result != AOAHID_OK) {
-        return finish_transport_result(result, "discovery", "USB enumeration failed.", nullptr,
-                                       nullptr, 51, 0U, 2U);
+        return finish_transport_result(result, "discovery", "USB enumeration failed.", nullptr, 51,
+                                       0U, 2U);
     }
     discovery->entries.reserve(candidates.size());
     for (auto& candidate : candidates) {
@@ -1528,8 +1526,7 @@ aoahid_result AOAHID_CALL aoahid_node_open(aoahid_device* device, aoahid_spec* s
         if (reserved_slots != AOAHID_OK) {
             static_cast<void>(finish_transport_result(
                 reserved_slots, "node.reserved_slots",
-                "The requested transfer-pool reservation could not be installed.", device,
-                node.get()));
+                "The requested transfer-pool reservation could not be installed.", node.get()));
             static_cast<void>(aoa::detail::release_spec(spec));
             retained = false;
             return reserved_slots;
@@ -1554,7 +1551,7 @@ aoahid_result AOAHID_CALL aoahid_node_open(aoahid_device* device, aoahid_spec* s
                                         static_cast<std::uint32_t>(spec->descriptor.size())});
         static_cast<void>(finish_transport_result(
             registered, "node.register", "AOA HID registration or descriptor transfer failed.",
-            device, node.get(), 54, 0U, static_cast<std::uint32_t>(spec->descriptor.size())));
+            node.get(), 54, 0U, static_cast<std::uint32_t>(spec->descriptor.size())));
         static_cast<void>(device->transport->clear_reservation(node->reservation));
         static_cast<void>(aoa::detail::release_spec(spec));
         return registered;
@@ -1631,8 +1628,8 @@ aoahid_result AOAHID_CALL aoahid_node_submit(aoahid_node* node) try {
     if (acquired != AOAHID_OK) {
         node->transfer_inflight.store(false, std::memory_order_release);
         return finish_transport_result(
-            acquired, "node.submit", "No transfer slot could be acquired for AOA request 57.",
-            node->device, node, 57, 0U, static_cast<std::uint32_t>(node->spec->layout.wire_bytes));
+            acquired, "node.submit", "No transfer slot could be acquired for AOA request 57.", node,
+            57, 0U, static_cast<std::uint32_t>(node->spec->layout.wire_bytes));
     }
     auto* scan_touch = std::get_if<aoa::detail::TouchState>(&node->state);
     const auto* scan_config = std::get_if<aoa::detail::TouchConfig>(&node->spec->config);
@@ -1700,8 +1697,8 @@ aoahid_result AOAHID_CALL aoahid_node_submit(aoahid_node* node) try {
         if (completion_failure == AOAHID_OK) {
             return finish_transport_result(
                 result, "node.submit",
-                "libusb rejected AOA request 57 before asynchronous completion.", node->device,
-                node, 57, 0U, static_cast<std::uint32_t>(report_length));
+                "libusb rejected AOA request 57 before asynchronous completion.", node, 57, 0U,
+                static_cast<std::uint32_t>(report_length));
         }
         return result;
     }
@@ -1786,7 +1783,7 @@ aoahid_result AOAHID_CALL aoahid_raw_submit(aoahid_node* node, const std::uint8_
         node->transfer_inflight.store(false, std::memory_order_release);
         return finish_transport_result(result, "raw.submit",
                                        "No transfer slot could be acquired for raw AOA request 57.",
-                                       node->device, node, 57, 0U,
+                                       node, 57, 0U,
                                        static_cast<std::uint32_t>(std::min<std::size_t>(
                                            length, std::numeric_limits<std::uint32_t>::max())));
     }
@@ -1801,8 +1798,7 @@ aoahid_result AOAHID_CALL aoahid_raw_submit(aoahid_node* node, const std::uint8_
         if (completion_failure == AOAHID_OK) {
             return finish_transport_result(
                 result, "raw.submit",
-                "libusb rejected raw AOA request 57 before asynchronous completion.", node->device,
-                node, 57, 0U,
+                "libusb rejected raw AOA request 57 before asynchronous completion.", node, 57, 0U,
                 static_cast<std::uint32_t>(
                     std::min<std::size_t>(length, std::numeric_limits<std::uint32_t>::max())));
         }
@@ -1856,8 +1852,8 @@ aoahid_result AOAHID_CALL aoahid_node_close(aoahid_node* node) try {
         const aoahid_result unregister = node->device->transport->unregister_hid(node->hid_id);
         if (unregister != AOAHID_OK && unregister != AOAHID_ERR_NO_DEVICE) {
             return finish_transport_result(unregister, "node.unregister",
-                                           "AOA request 55 failed while closing the Node.",
-                                           node->device, node, 55);
+                                           "AOA request 55 failed while closing the Node.", node,
+                                           55);
         }
     }
     const aoahid_result clear_reservation =
@@ -1865,7 +1861,7 @@ aoahid_result AOAHID_CALL aoahid_node_close(aoahid_node* node) try {
     if (clear_reservation != AOAHID_OK) {
         return finish_transport_result(clear_reservation, "node.reserved_slots",
                                        "The Node still owns an in-use reserved transfer slot.",
-                                       node->device, node);
+                                       node);
     }
     aoa::detail::log_event(node->device->context, AOAHID_LOG_INFO, "node_close", node->device, node,
                            aoa::detail::LogEventStatus{AOAHID_OK, 0, 55});
@@ -1951,7 +1947,7 @@ static aoahid_result device_close_impl(aoahid_device* device, bool* consumed) tr
     const aoahid_result cancel = device->transport->cancel_all();
     if (cancel != AOAHID_OK && cancel != AOAHID_ERR_NO_DEVICE) {
         static_cast<void>(finish_transport_result(cancel, "device.cancel",
-                                                  "libusb transfer cancellation failed.", device));
+                                                  "libusb transfer cancellation failed."));
         remember_current_close_error(device, cancel, "device.cancel",
                                      "libusb transfer cancellation failed.", nullptr, 57);
     }
@@ -1968,8 +1964,8 @@ static aoahid_result device_close_impl(aoahid_device* device, bool* consumed) tr
             if (context->options.event_mode == AOAHID_EVENT_CALLER_POLL) {
                 const aoahid_result poll = context->runtime->poll(1U);
                 if (poll != AOAHID_OK) {
-                    static_cast<void>(finish_transport_result(
-                        poll, "context.poll", "libusb event handling failed.", device));
+                    static_cast<void>(finish_transport_result(poll, "context.poll",
+                                                              "libusb event handling failed."));
                     remember_current_close_error(device, poll, "context.poll",
                                                  "libusb event handling failed while Channel "
                                                  "transfers drained during Device teardown.");
@@ -2108,8 +2104,7 @@ aoahid_result AOAHID_CALL aoahid_channel_open(aoahid_device* device,
                                    std::chrono::milliseconds(device->close_drain_timeout_ms),
                                &poll)) {
         if (poll != AOAHID_OK) {
-            return finish_transport_result(poll, "context.poll", "libusb event handling failed.",
-                                           device);
+            return finish_transport_result(poll, "context.poll", "libusb event handling failed.");
         }
         set_error(AOAHID_ERR_TIMEOUT, "channel.open",
                   "In-flight report transfers did not complete within the close drain budget.");
@@ -2122,8 +2117,7 @@ aoahid_result AOAHID_CALL aoahid_channel_open(aoahid_device* device,
             opened, "channel.open",
             opened == AOAHID_ERR_UNSUPPORTED
                 ? "No interface has the requested class triple and a Bulk IN/OUT pair."
-                : "The Bulk interface could not be read, claimed, or started.",
-            device);
+                : "The Bulk interface could not be read, claimed, or started.");
     }
     channel->device = device;
     device->channels.push_back(channel.get());
@@ -2158,7 +2152,7 @@ aoahid_result AOAHID_CALL aoahid_channel_close(aoahid_channel* channel) try {
             const aoahid_result poll = device->context->runtime->poll(1U);
             if (poll != AOAHID_OK) {
                 return finish_transport_result(poll, "context.poll",
-                                               "libusb event handling failed.", device);
+                                               "libusb event handling failed.");
             }
         } else {
             // Cold path: cancellation completes on the event thread.
@@ -2169,8 +2163,7 @@ aoahid_result AOAHID_CALL aoahid_channel_close(aoahid_channel* channel) try {
     // Channel open.
     aoahid_result poll = AOAHID_OK;
     if (!wait_for_report_drain(device, deadline, &poll) && poll != AOAHID_OK) {
-        return finish_transport_result(poll, "context.poll", "libusb event handling failed.",
-                                       device);
+        return finish_transport_result(poll, "context.poll", "libusb event handling failed.");
     }
     auto& channels = device->channels;
     channels.erase(std::remove(channels.begin(), channels.end(), channel), channels.end());

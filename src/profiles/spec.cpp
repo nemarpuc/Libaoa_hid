@@ -21,7 +21,6 @@ namespace {
 using aoa::detail::set_error;
 using aoa::hid::DescriptorBuilder;
 using aoa::hid::FieldSemantic;
-using aoa::hid::ReportLayout;
 
 constexpr std::size_t kAoaDescriptorWireMaximum = 65535U;
 
@@ -141,7 +140,7 @@ bool validate_option_boolean(const std::uint32_t value, const char* field) noexc
     return true;
 }
 
-void pad_report(DescriptorBuilder& builder, const ReportLayout&) {
+void pad_report(DescriptorBuilder& builder) {
     const std::size_t padding = (8U - (builder.input_bits() & 7U)) & 7U;
     if (padding != 0U) {
         builder.constant_padding(static_cast<std::uint16_t>(padding));
@@ -164,7 +163,7 @@ aoahid_result build_generated_spec(const GeneratedSpecIdentity identity,
     *out_spec = nullptr;
     auto spec = std::make_unique<aoahid_spec>();
     DescriptorBuilder counting_builder(nullptr, kAoaDescriptorWireMaximum, &spec->layout);
-    const bool counted = emit(counting_builder, spec->layout);
+    const bool counted = emit(counting_builder);
     counting_builder.finish();
     if (!counted || !counting_builder.good()) {
         set_error(AOAHID_ERR_OVERFLOW, "spec.descriptor",
@@ -174,7 +173,7 @@ aoahid_result build_generated_spec(const GeneratedSpecIdentity identity,
     spec->requirements = counting_builder.requirements();
     std::vector<std::uint8_t> construction(counting_builder.descriptor_size());
     DescriptorBuilder emitting_builder(construction.data(), construction.size(), nullptr);
-    const bool emitted = emit(emitting_builder, spec->layout);
+    const bool emitted = emit(emitting_builder);
     emitting_builder.finish();
     if (!emitted || !emitting_builder.good() ||
         emitting_builder.descriptor_size() != construction.size() ||
@@ -310,8 +309,7 @@ bool controller_axis_domain_matches_usage(const aoahid_gamepad_axis& axis) noexc
     }
 }
 
-bool emit_usage_controls(DescriptorBuilder& builder, ReportLayout& layout,
-                         const aoahid_toggle_options& options) {
+bool emit_usage_controls(DescriptorBuilder& builder, const aoahid_toggle_options& options) {
     if (!builder.begin_application(options.application_page, options.application_usage) ||
         !builder.set_report_id(options.report_id.enabled == 1U, options.report_id.value)) {
         return false;
@@ -325,7 +323,7 @@ bool emit_usage_controls(DescriptorBuilder& builder, ReportLayout& layout,
             return false;
         }
     }
-    pad_report(builder, layout);
+    pad_report(builder);
     return builder.end_collection();
 }
 
@@ -436,9 +434,7 @@ aoahid_result create_usage_control_spec(const aoahid_toggle_options* options,
     config.options.expected_linux_codes = nullptr;
     return build_generated_spec(
         GeneratedSpecIdentity{AOAHID_PROFILE_TOGGLE, AOAHID_ANDROID_CONDITIONAL}, std::move(config),
-        [=](DescriptorBuilder& builder, ReportLayout& layout) {
-            return emit_usage_controls(builder, layout, *options);
-        },
+        [=](DescriptorBuilder& builder) { return emit_usage_controls(builder, *options); },
         out_spec);
 }
 
@@ -583,7 +579,7 @@ static aoahid_result aoahid_spec_create_keyboard_impl(const aoahid_keyboard_opti
     config.options = *options;
     return build_generated_spec(
         GeneratedSpecIdentity{AOAHID_PROFILE_KEYBOARD, AOAHID_ANDROID_CONDITIONAL}, config,
-        [=](DescriptorBuilder& builder, ReportLayout& layout) {
+        [=](DescriptorBuilder& builder) {
             if (!builder.begin_application(aoa::hid::usage::page_generic_desktop,
                                            aoa::hid::usage::keyboard) ||
                 !builder.set_report_id(options->report_id.enabled == 1U,
@@ -595,7 +591,7 @@ static aoahid_result aoahid_spec_create_keyboard_impl(const aoahid_keyboard_opti
                                         options->usage_maximum, 1U, FieldSemantic::key_bitmap)) {
                 return false;
             }
-            pad_report(builder, layout);
+            pad_report(builder);
             return builder.end_collection();
         },
         out_spec);
@@ -644,7 +640,7 @@ static aoahid_result aoahid_spec_create_mouse_impl(const aoahid_mouse_options* o
     config.options = *options;
     return build_generated_spec(
         GeneratedSpecIdentity{AOAHID_PROFILE_MOUSE, AOAHID_ANDROID_PORTABLE_CANDIDATE}, config,
-        [=](DescriptorBuilder& builder, ReportLayout& layout) {
+        [=](DescriptorBuilder& builder) {
             if (!builder.begin_application(aoa::hid::usage::page_generic_desktop,
                                            aoa::hid::usage::mouse) ||
                 !builder.set_report_id(options->report_id.enabled == 1U,
@@ -656,7 +652,7 @@ static aoahid_result aoahid_spec_create_mouse_impl(const aoahid_mouse_options* o
                                         FieldSemantic::buttons)) {
                 return false;
             }
-            pad_report(builder, layout);
+            pad_report(builder);
             if (!builder.variable(aoa::hid::usage::page_generic_desktop, aoa::hid::usage::x,
                                   options->x.logical_minimum, options->x.logical_maximum,
                                   static_cast<std::uint8_t>(options->x.bit_width), true, false,
@@ -670,7 +666,7 @@ static aoahid_result aoahid_spec_create_mouse_impl(const aoahid_mouse_options* o
             // X and Y widths are caller-declared (1-32 bits, see LIMITS.md);
             // realign to a byte boundary before Wheel/Pan so a wide,
             // misaligned field can never cross a fifth byte (HID 1.11 8.4).
-            pad_report(builder, layout);
+            pad_report(builder);
             if (options->enable_wheel == 1U &&
                 !builder.variable(aoa::hid::usage::page_generic_desktop, aoa::hid::usage::wheel,
                                   options->wheel.logical_minimum, options->wheel.logical_maximum,
@@ -678,7 +674,7 @@ static aoahid_result aoahid_spec_create_mouse_impl(const aoahid_mouse_options* o
                                   FieldSemantic::wheel, 0U, false, &options->wheel.physical)) {
                 return false;
             }
-            pad_report(builder, layout);
+            pad_report(builder);
             if (options->enable_pan == 1U &&
                 !builder.variable(aoa::hid::usage::page_consumer, aoa::hid::usage::ac_pan,
                                   options->pan.logical_minimum, options->pan.logical_maximum,
@@ -686,7 +682,7 @@ static aoahid_result aoahid_spec_create_mouse_impl(const aoahid_mouse_options* o
                                   FieldSemantic::pan, 0U, false, &options->pan.physical)) {
                 return false;
             }
-            pad_report(builder, layout);
+            pad_report(builder);
             return builder.end_collection() && builder.end_collection();
         },
         out_spec);
@@ -822,7 +818,7 @@ static aoahid_result create_controller_spec(const aoahid_gamepad_options* option
             : AOAHID_ANDROID_PORTABLE_CANDIDATE;
     return build_generated_spec(
         GeneratedSpecIdentity{AOAHID_PROFILE_GAMEPAD, android_status}, std::move(config),
-        [=](DescriptorBuilder& builder, ReportLayout& layout) {
+        [=](DescriptorBuilder& builder) {
             if (!builder.begin_application(aoa::hid::usage::page_generic_desktop,
                                            aoa::hid::usage::gamepad) ||
                 !builder.set_report_id(options->report_id.enabled == 1U,
@@ -833,7 +829,7 @@ static aoahid_result create_controller_spec(const aoahid_gamepad_options* option
                                         1U, FieldSemantic::buttons)) {
                 return false;
             }
-            pad_report(builder, layout);
+            pad_report(builder);
             if (options->dpad_representation == AOAHID_DPAD_HAT &&
                 !builder.variable(aoa::hid::usage::page_generic_desktop,
                                   aoa::hid::usage::hat_switch, options->hat_logical_minimum,
@@ -860,7 +856,7 @@ static aoahid_result create_controller_spec(const aoahid_gamepad_options* option
             // an axis width in HUT 1.7's full 1-32 bit range (see LIMITS.md)
             // could start at a nonzero bit offset and cross a fifth byte,
             // which HID 1.11 section 8.4 forbids for a single field.
-            pad_report(builder, layout);
+            pad_report(builder);
             for (std::size_t index = 0; index < options->axis_count; ++index) {
                 const aoahid_gamepad_axis& axis = options->axes[index];
                 if (!builder.variable(
@@ -876,9 +872,9 @@ static aoahid_result create_controller_spec(const aoahid_gamepad_options* option
                 // bit offset; realigning after each axis keeps that drift
                 // from ever compounding into a fifth-byte span two or more
                 // axes in, regardless of the declared width.
-                pad_report(builder, layout);
+                pad_report(builder);
             }
-            pad_report(builder, layout);
+            pad_report(builder);
             return builder.end_collection();
         },
         out_spec);
@@ -1036,7 +1032,7 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
     config.fields = fields;
     return build_generated_spec(
         GeneratedSpecIdentity{profile_kind, android_status}, config,
-        [=](DescriptorBuilder& builder, ReportLayout& layout) {
+        [=](DescriptorBuilder& builder) {
             if (!builder.begin_application(aoa::hid::usage::page_digitizers, application_usage) ||
                 !builder.set_report_id(fields.report_id.enabled == 1U, fields.report_id.value)) {
                 return false;
@@ -1056,7 +1052,7 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
                                       static_cast<std::uint16_t>(contact))) {
                     return false;
                 }
-                pad_report(builder, layout);
+                pad_report(builder);
                 if (!builder.variable(
                         aoa::hid::usage::page_digitizers, aoa::hid::usage::contact_identifier,
                         fields.contact_identifier.logical_minimum,
@@ -1081,7 +1077,7 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
                 // caller-declared 1-32 bit field (see LIMITS.md); realigning
                 // between them keeps any one of them from starting at a
                 // nonzero bit offset and crossing a fifth byte (HID 1.11 8.4).
-                pad_report(builder, layout);
+                pad_report(builder);
                 if (fields.enable_pressure == 1U &&
                     !builder.variable(
                         aoa::hid::usage::page_digitizers, aoa::hid::usage::tip_pressure,
@@ -1091,7 +1087,7 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
                         &fields.pressure.physical)) {
                     return false;
                 }
-                pad_report(builder, layout);
+                pad_report(builder);
                 if (fields.enable_width == 1U &&
                     !builder.variable(aoa::hid::usage::page_digitizers, aoa::hid::usage::width,
                                       fields.width.logical_minimum, fields.width.logical_maximum,
@@ -1101,7 +1097,7 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
                                       &fields.width.physical)) {
                     return false;
                 }
-                pad_report(builder, layout);
+                pad_report(builder);
                 if (fields.enable_height == 1U &&
                     !builder.variable(aoa::hid::usage::page_digitizers, aoa::hid::usage::height,
                                       fields.height.logical_minimum, fields.height.logical_maximum,
@@ -1111,7 +1107,7 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
                                       &fields.height.physical)) {
                     return false;
                 }
-                pad_report(builder, layout);
+                pad_report(builder);
                 if (fields.enable_azimuth == 1U &&
                     !builder.variable(
                         aoa::hid::usage::page_digitizers, aoa::hid::usage::azimuth,
@@ -1130,7 +1126,7 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
             // last enabled per-contact field above; realigning between them
             // keeps any one of them from starting at a nonzero bit offset
             // and crossing a fifth byte (HID 1.11 8.4).
-            pad_report(builder, layout);
+            pad_report(builder);
             if (fields.enable_scan_time == 1U &&
                 !builder.variable(
                     aoa::hid::usage::page_digitizers, aoa::hid::usage::scan_time,
@@ -1139,7 +1135,7 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
                     FieldSemantic::scan_time, 0U, false, &fields.scan_time.physical)) {
                 return false;
             }
-            pad_report(builder, layout);
+            pad_report(builder);
             if (!builder.variable(
                     aoa::hid::usage::page_digitizers, aoa::hid::usage::contact_count,
                     fields.contact_count.logical_minimum, fields.contact_count.logical_maximum,
@@ -1154,7 +1150,7 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
                     return false;
                 }
             }
-            pad_report(builder, layout);
+            pad_report(builder);
             return builder.end_collection();
         },
         out_spec);
@@ -1287,7 +1283,7 @@ static aoahid_result aoahid_spec_create_pen_impl(const aoahid_pen_options* optio
                                                       ? AOAHID_ANDROID_PORTABLE_CANDIDATE
                                                       : AOAHID_ANDROID_CONDITIONAL},
         config,
-        [=](DescriptorBuilder& builder, ReportLayout& layout) {
+        [=](DescriptorBuilder& builder) {
             const std::uint16_t application = options->mode == AOAHID_PEN_DIRECT_SCREEN
                                                   ? aoa::hid::usage::pen
                                                   : aoa::hid::usage::digitizer;
@@ -1320,7 +1316,7 @@ static aoahid_result aoahid_spec_create_pen_impl(const aoahid_pen_options* optio
                     return false;
                 }
             }
-            pad_report(builder, layout);
+            pad_report(builder);
             if (!builder.variable(aoa::hid::usage::page_generic_desktop, aoa::hid::usage::x,
                                   options->x.logical_minimum, options->x.logical_maximum,
                                   static_cast<std::uint8_t>(options->x.bit_width), false, false,
@@ -1335,7 +1331,7 @@ static aoahid_result aoahid_spec_create_pen_impl(const aoahid_pen_options* optio
             // independently caller-declared 1-32 bit field (see LIMITS.md);
             // realigning between them keeps any one of them from starting at
             // a nonzero bit offset and crossing a fifth byte (HID 1.11 8.4).
-            pad_report(builder, layout);
+            pad_report(builder);
             if (options->enable_pressure == 1U &&
                 !builder.variable(
                     aoa::hid::usage::page_digitizers, aoa::hid::usage::tip_pressure,
@@ -1344,7 +1340,7 @@ static aoahid_result aoahid_spec_create_pen_impl(const aoahid_pen_options* optio
                     FieldSemantic::pressure, 0U, false, &options->pressure.physical)) {
                 return false;
             }
-            pad_report(builder, layout);
+            pad_report(builder);
             if (options->enable_tilt == 1U &&
                 (!builder.variable(aoa::hid::usage::page_digitizers, aoa::hid::usage::x_tilt,
                                    options->tilt_x.logical_minimum, options->tilt_x.logical_maximum,
@@ -1358,7 +1354,7 @@ static aoahid_result aoahid_spec_create_pen_impl(const aoahid_pen_options* optio
                                    &options->tilt_y.physical))) {
                 return false;
             }
-            pad_report(builder, layout);
+            pad_report(builder);
             if (options->enable_twist_target_specific == 1U &&
                 !builder.variable(aoa::hid::usage::page_digitizers, aoa::hid::usage::twist,
                                   options->twist.logical_minimum, options->twist.logical_maximum,
@@ -1366,7 +1362,7 @@ static aoahid_result aoahid_spec_create_pen_impl(const aoahid_pen_options* optio
                                   FieldSemantic::twist, 0U, false, &options->twist.physical)) {
                 return false;
             }
-            pad_report(builder, layout);
+            pad_report(builder);
             return builder.end_collection() && builder.end_collection();
         },
         out_spec);
@@ -1400,7 +1396,7 @@ static aoahid_result aoahid_spec_create_battery_impl(const aoahid_battery_option
     config.options = *options;
     return build_generated_spec(
         GeneratedSpecIdentity{AOAHID_PROFILE_BATTERY, AOAHID_ANDROID_CONDITIONAL}, config,
-        [=](DescriptorBuilder& builder, ReportLayout& layout) {
+        [=](DescriptorBuilder& builder) {
             if (!builder.begin_application(aoa::hid::usage::page_generic_device_controls,
                                            aoa::hid::usage::background_nonuser_controls) ||
                 !builder.set_report_id(options->report_id.enabled == 1U,
@@ -1414,7 +1410,7 @@ static aoahid_result aoahid_spec_create_battery_impl(const aoahid_battery_option
                     false, &options->strength.physical)) {
                 return false;
             }
-            pad_report(builder, layout);
+            pad_report(builder);
             return builder.end_collection();
         },
         out_spec);

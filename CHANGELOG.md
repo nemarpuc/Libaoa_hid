@@ -5,6 +5,44 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [3.0.5] - 2026-09-28
+
+### Changed
+
+- Reports are serialized a byte at a time instead of a bit at a time, about
+  2.9 times faster for a 16-contact touchscreen report (766 ns to 267 ns on
+  one x86-64 machine). The bytes on the wire are unchanged; the new encoder
+  was checked against the old one over 2,000,000 random fields.
+- Internal cleanups with no behavior change: unused parameters, a duplicated
+  protocol-version check, and setup-packet fields rewritten on every submit
+  although acquiring the transfer slot had already written them.
+
+### Fixed
+
+- `examples/c/verify`: a failure could print "no field" and "no reason"
+  instead of the failing call's diagnostic, because `aoahid_result_name()`
+  clears the last-error record and C leaves argument evaluation order
+  unspecified. The record is now read first.
+- On Linux, the shared library now relinks when `cmake/aoahid.map` changes,
+  as the Apple build already did for its export list.
+- The integration tests compile with Clang 22: the replacement
+  `operator delete` overloads in `tests/integration/test_transport.cpp` no
+  longer take top-level `const` parameters.
+
+### Documentation
+
+- README: the ADB section no longer suggests `adb connect localhost:5555`, a
+  port the adb server scans for emulators, and describes how
+  aoahid_adb_proxy works (a Channel on the application's own USB handle).
+- QUICKSTART: `AOAHID_USE_FAKE_LIBUSB` is `OFF` unless a test configuration
+  turns it on, and `aoahid_verify_all` is listed with the other verify
+  programs. `examples/README.md` lists `touchpad.c`.
+
+### Verification status
+
+Fake-backend tests only (the dev, TSan, and ASan/UBSan configurations, and a
+Clang build). Nothing is hardware-verified.
+
 ## [3.0.4] - 2026-09-27
 
 ### Changed

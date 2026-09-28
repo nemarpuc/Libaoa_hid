@@ -355,8 +355,7 @@ struct Device::Impl {
                 notice = finish_locked(slot, result, native_status);
                 notify = true;
             } else {
-                store_le16(slot->buffer.data() + 2U, slot->hid_id);
-                store_le16(slot->buffer.data() + 6U, static_cast<std::uint16_t>(report_length));
+                // acquire() already wrote this slot's HID ID and wLength.
                 libusb_fill_control_transfer(slot->transfer, handle, slot->buffer.data(),
                                              transfer_callback, slot, config.send_timeout_ms);
                 slot->state = SlotState::submitted;
@@ -427,12 +426,7 @@ aoahid_result Device::open(Runtime* runtime, const Candidate& candidate, const D
         port->release();
         return result;
     }
-    if (protocol == 1U || (protocol > 2U && !config.accept_future_versions)) {
-        port->release();
-        record_error(AOAHID_ERR_VERSION, 0, accessory_get_protocol, 0U, 0U, 2U);
-        return AOAHID_ERR_VERSION;
-    }
-    if (protocol < 2U) {
+    if (protocol < 2U || (protocol > 2U && !config.accept_future_versions)) {
         port->release();
         record_error(AOAHID_ERR_VERSION, 0, accessory_get_protocol, 0U, 0U, 2U);
         return AOAHID_ERR_VERSION;

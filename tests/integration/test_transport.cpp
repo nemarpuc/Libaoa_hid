@@ -107,8 +107,8 @@ void* operator new[](const std::size_t size, const std::nothrow_t&) noexcept {
 }
 void operator delete(void* storage) noexcept { std::free(storage); }
 void operator delete[](void* storage) noexcept { std::free(storage); }
-void operator delete(void* storage, const std::size_t) noexcept { std::free(storage); }
-void operator delete[](void* storage, const std::size_t) noexcept { std::free(storage); }
+void operator delete(void* storage, std::size_t) noexcept { std::free(storage); }
+void operator delete[](void* storage, std::size_t) noexcept { std::free(storage); }
 void operator delete(void* storage, const std::nothrow_t&) noexcept { std::free(storage); }
 void operator delete[](void* storage, const std::nothrow_t&) noexcept { std::free(storage); }
 
@@ -135,22 +135,22 @@ void* operator new[](const std::size_t size, const std::align_val_t alignment,
         return nullptr;
     }
 }
-void operator delete(void* storage, const std::align_val_t) noexcept {
+void operator delete(void* storage, std::align_val_t) noexcept {
     allocation_probe::deallocate_aligned(storage);
 }
-void operator delete[](void* storage, const std::align_val_t) noexcept {
+void operator delete[](void* storage, std::align_val_t) noexcept {
     allocation_probe::deallocate_aligned(storage);
 }
-void operator delete(void* storage, const std::size_t, const std::align_val_t) noexcept {
+void operator delete(void* storage, std::size_t, std::align_val_t) noexcept {
     allocation_probe::deallocate_aligned(storage);
 }
-void operator delete[](void* storage, const std::size_t, const std::align_val_t) noexcept {
+void operator delete[](void* storage, std::size_t, std::align_val_t) noexcept {
     allocation_probe::deallocate_aligned(storage);
 }
-void operator delete(void* storage, const std::align_val_t, const std::nothrow_t&) noexcept {
+void operator delete(void* storage, std::align_val_t, const std::nothrow_t&) noexcept {
     allocation_probe::deallocate_aligned(storage);
 }
-void operator delete[](void* storage, const std::align_val_t, const std::nothrow_t&) noexcept {
+void operator delete[](void* storage, std::align_val_t, const std::nothrow_t&) noexcept {
     allocation_probe::deallocate_aligned(storage);
 }
 #endif

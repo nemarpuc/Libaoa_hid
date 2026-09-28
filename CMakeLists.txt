@@ -2,7 +2,7 @@
 # Copyright (c) 2026 libaoahid contributors
 cmake_minimum_required(VERSION 3.20)
 
-project(libaoahid VERSION 3.0.4
+project(libaoahid VERSION 3.0.5
     DESCRIPTION "Explicit host-side Android Open Accessory HID input library"
     HOMEPAGE_URL "https://github.com/nemarpuc/libaoahid"
     LANGUAGES C CXX)
@@ -287,7 +287,9 @@ if(AOAHID_BUILD_SHARED)
     set_property(TARGET aoahid APPEND PROPERTY LINK_DEPENDS
         "${AOAHID_APPLE_EXPORT_LIST}")
   elseif(UNIX)
-    target_link_options(aoahid PRIVATE "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/cmake/aoahid.map")
+    set(AOAHID_VERSION_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/cmake/aoahid.map")
+    target_link_options(aoahid PRIVATE "-Wl,--version-script=${AOAHID_VERSION_SCRIPT}")
+    set_property(TARGET aoahid APPEND PROPERTY LINK_DEPENDS "${AOAHID_VERSION_SCRIPT}")
   endif()
 endif()
 

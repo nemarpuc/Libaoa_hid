@@ -24,6 +24,7 @@ cc -std=c17 -O2 -Iinclude examples/c/profiles/mouse.c       lib/libaoahid.a -lst
 cc -std=c17 -O2 -Iinclude examples/c/profiles/toggle.c      lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o toggle
 cc -std=c17 -O2 -Iinclude examples/c/profiles/gamepad.c     lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o gamepad
 cc -std=c17 -O2 -Iinclude examples/c/profiles/touchscreen.c lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o touchscreen
+cc -std=c17 -O2 -Iinclude examples/c/profiles/touchpad.c    lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o touchpad
 cc -std=c17 -O2 -Iinclude examples/c/profiles/pen.c         lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o pen
 cc -std=c17 -O2 -Iinclude examples/c/profiles/battery.c     lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o battery
 cc -std=c17 -O2 -Iinclude examples/c/profiles/raw.c         lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o raw

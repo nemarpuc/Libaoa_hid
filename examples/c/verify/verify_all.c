@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 libaoahid contributors
-/* Runs all three profiles this library ships a runtime API for -- touch,
- * keyboard, and mouse -- against one real phone, first one at a time so each
- * effect is easy to attribute, then interleaved so fast it looks simultaneous
- * on screen.
+/* Runs the touch, keyboard, and mouse profiles against one real phone, first
+ * one at a time so each effect is easy to attribute, then interleaved so fast
+ * it looks simultaneous on screen.
  *
  * "Simultaneous" here means interleaved from a single thread, not concurrent
  * OS threads: every aoahid_result docstring in aoahid.h requires the caller

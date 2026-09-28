@@ -27,7 +27,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #else
-#define _POSIX_C_SOURCE 200809L
 #include <time.h>
 #endif
 
@@ -48,10 +47,12 @@ static void verify_sleep_ms(int milliseconds) {
 /* Prints the field/reason from the calling thread's last error and returns 1,
  * so every failure path in a verify program can just `return verify_fail(...)`. */
 static int verify_fail(const char* what, aoahid_result result) {
+    /* Read before aoahid_result_name(), a public call that replaces the record;
+     * argument evaluation order would otherwise decide which one is printed. */
     const aoahid_error_detail* detail = aoahid_last_error();
-    fprintf(stderr, "%s failed: %s (%s: %s)\n", what, aoahid_result_name(result),
-            detail != NULL && detail->field != NULL ? detail->field : "no field",
-            detail != NULL && detail->reason != NULL ? detail->reason : "no reason");
+    const char* field = detail != NULL && detail->field != NULL ? detail->field : "no field";
+    const char* reason = detail != NULL && detail->reason != NULL ? detail->reason : "no reason";
+    fprintf(stderr, "%s failed: %s (%s: %s)\n", what, aoahid_result_name(result), field, reason);
     return 1;
 }
 
