@@ -10,7 +10,6 @@
  * They remain true even when a consumer enables a short-enum compiler mode. */
 _Static_assert(sizeof(aoahid_result) == sizeof(int32_t), "aoahid_result ABI width");
 _Static_assert(sizeof(aoahid_event_mode) == sizeof(int32_t), "aoahid_event_mode ABI width");
-_Static_assert(sizeof(aoahid_startup_mode) == sizeof(int32_t), "aoahid_startup_mode ABI width");
 _Static_assert(sizeof(aoahid_interface_claim_policy) == sizeof(int32_t),
                "aoahid_interface_claim_policy ABI width");
 _Static_assert(sizeof(aoahid_log_level) == sizeof(int32_t), "aoahid_log_level ABI width");

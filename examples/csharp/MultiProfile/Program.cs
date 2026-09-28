@@ -81,8 +81,6 @@ internal static class Program
     {
         StructSize = checked((uint)Marshal.SizeOf<DeviceOptions>()),
         Reserved = 0,
-        StartupMode = StartupMode.CurrentUsbMode,
-        AcceptFutureProtocolVersions = 0,
         ControlTimeoutMs = timeoutMs,
         SendTimeoutMs = timeoutMs,
         DescriptorFragmentBytes = 64, // Explicit policy; AOA fixes no fragment size.
@@ -296,7 +294,7 @@ internal static class Program
         var ports = string.Join(".", ReportedPortPath(info).Select(value => value.ToString()));
         Console.WriteLine(
             $"bus={info.BusNumber} address={info.DeviceAddress} port={ports} " +
-            $"vid:pid={info.VendorId:x4}:{info.ProductId:x4} " +
+            $"vid:pid={info.VendorId:x4}:{info.ProductId:x4} aoa={info.ProtocolVersion} " +
             $"product={Marshal.PtrToStringUTF8(info.Product) ?? ""} " +
             $"serial={Marshal.PtrToStringUTF8(info.Serial) ?? ""}");
     }
@@ -305,6 +303,14 @@ internal static class Program
         nint context, DeviceInfo info, Locator locator, Specs specs, uint timeoutMs,
         out Result openStatus)
     {
+        // Open sends no AOA request, so the version check is the caller's.
+        if (info.ProtocolVersion < 2)
+        {
+            Console.Error.WriteLine(
+                $"device open: AOA {info.ProtocolVersion} has no HID; version 2 is required");
+            openStatus = Result.NotAoa;
+            return null;
+        }
         var deviceOptions = DeviceConfiguration(timeoutMs);
         var status = Native.DeviceOpen(context, in info, in deviceOptions, out var device);
         if (status != Result.Ok)

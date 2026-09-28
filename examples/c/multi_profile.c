@@ -156,8 +156,6 @@ static aoahid_device_options device_options(void) {
     aoahid_device_options options = {0};
     options.struct_size = sizeof(options);
     options.reserved = 0U;
-    options.startup_mode = AOAHID_START_CURRENT_USB_MODE;
-    options.accept_future_protocol_versions = 0U;
     options.control_timeout_ms = k_control_timeout_ms;
     options.send_timeout_ms = k_control_timeout_ms;
     options.descriptor_fragment_bytes = 64U; /* Explicit policy; AOA fixes no fragment size. */
@@ -316,13 +314,20 @@ static void print_info(const aoahid_device_info* info) {
            (unsigned int)info->device_address);
     for (size_t index = 0U; index < info->port_path_length; ++index)
         printf("%s%u", index == 0U ? "" : ".", (unsigned int)info->port_path[index]);
-    printf(" vid:pid=%04x:%04x product=\"%s\" serial=\"%s\"\n", (unsigned int)info->vendor_id,
-           (unsigned int)info->product_id, info->product == NULL ? "" : info->product,
+    printf(" vid:pid=%04x:%04x aoa=%u product=\"%s\" serial=\"%s\"\n",
+           (unsigned int)info->vendor_id, (unsigned int)info->product_id,
+           (unsigned int)info->protocol_version, info->product == NULL ? "" : info->product,
            info->serial == NULL ? "" : info->serial);
 }
 
 static aoahid_result open_session(aoahid_context* context, const aoahid_device_info* info,
                                   const specs* definitions, session* value) {
+    /* Open sends no AOA request, so the version check is the caller's. */
+    if (info->protocol_version < 2U) {
+        fprintf(stderr, "device open: AOA %u has no HID; version 2 is required\n",
+                (unsigned int)info->protocol_version);
+        return AOAHID_ERR_NOT_AOA;
+    }
     const aoahid_device_options open_options = device_options();
     const aoahid_node_options nodes = node_options();
     aoahid_result status = aoahid_device_open(context, info, &open_options, &value->device);

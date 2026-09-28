@@ -95,8 +95,6 @@ const char* result_name(const aoahid_result result) noexcept {
         return "AOAHID_ERR_UNSUPPORTED";
     case AOAHID_ERR_NOT_AOA:
         return "AOAHID_ERR_NOT_AOA";
-    case AOAHID_ERR_VERSION:
-        return "AOAHID_ERR_VERSION";
     case AOAHID_ERR_ACCESS:
         return "AOAHID_ERR_ACCESS";
     case AOAHID_ERR_BUSY:
@@ -175,10 +173,6 @@ void log_event(const aoahid_context* context, const aoahid_log_level level, cons
         append_key(line, "pid");
         line.append("0x");
         line.append_integer(device->product_id, 16);
-        append_key(line, "protocol");
-        line.append_integer(device->protocol_version);
-        append_key(line, "startup_mode");
-        line.append_integer(static_cast<std::uint32_t>(AOAHID_START_CURRENT_USB_MODE));
     }
     if (node != nullptr) {
         append_key(line, "hid_id");

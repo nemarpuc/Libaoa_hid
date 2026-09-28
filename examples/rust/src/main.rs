@@ -75,20 +75,12 @@ fn device_options(timeout_ms: u32) -> sys::aoahid_device_options {
     sys::aoahid_device_options {
         struct_size: struct_size::<sys::aoahid_device_options>(),
         reserved: 0,
-        startup_mode: sys::AOAHID_START_CURRENT_USB_MODE,
-        accept_future_protocol_versions: 0,
         control_timeout_ms: timeout_ms,
         send_timeout_ms: timeout_ms,
-        // Retained only by the stable C ABI layout; Mode B is unsupported.
-        reenumeration_timeout_ms: 0,
         descriptor_fragment_bytes: 64, // Explicit policy; AOA fixes no fragment size.
         transfer_pool_slots: POOL_SLOTS,
         maximum_report_bytes: HOST_REPORT_POLICY_BYTES,
         close_drain_timeout_ms: CLOSE_DRAIN_TIMEOUT_MS,
-        // Ignored since 2.0.0: the library never retries a report.
-        first_report_attempts: 0,
-        first_report_backoff_us: 0,
-        validate_reports: 1,
         aoa_descriptor_wire_policy_bytes: DESCRIPTOR_POLICY_BYTES,
         linux_descriptor_policy_bytes: DESCRIPTOR_POLICY_BYTES,
         // These policies name the audited Linux revision in docs/FACT_AUDIT.md.
@@ -101,16 +93,7 @@ fn device_options(timeout_ms: u32) -> sys::aoahid_device_options {
         host_control_buffer_policy_bytes: HOST_REPORT_POLICY_BYTES,
         interface_claim_policy: sys::AOAHID_INTERFACE_CLAIM_NONE,
         interface_number: -1, // No interface number accompanies the no-claim policy.
-        // Retained only by the stable C ABI layout; Mode B is unsupported.
-        accessory_strings: sys::aoahid_aoa_strings {
-            manufacturer: ptr::null(),
-            model: ptr::null(),
-            description: ptr::null(),
-            version: ptr::null(),
-            uri: ptr::null(),
-            serial: ptr::null(),
-        },
-        enable_deprecated_audio_mode: 0,
+        validate_reports: 1,
     }
 }
 
@@ -275,12 +258,13 @@ unsafe fn print_info(info: &sys::aoahid_device_info) {
         .collect::<Vec<_>>()
         .join(".");
     println!(
-        "bus={} address={} port={} vid:pid={:04x}:{:04x} product={:?} serial={:?}",
+        "bus={} address={} port={} vid:pid={:04x}:{:04x} aoa={} product={:?} serial={:?}",
         info.bus_number,
         info.device_address,
         ports,
         info.vendor_id,
         info.product_id,
+        info.protocol_version,
         text(info.product),
         text(info.serial)
     );
@@ -343,6 +327,14 @@ unsafe fn open_session(
     specs: &Specs,
     timeout_ms: u32,
 ) -> Result<Session, sys::aoahid_result> {
+    // Open sends no AOA request, so the version check is the caller's.
+    if info.protocol_version < 2 {
+        eprintln!(
+            "device open: AOA {} has no HID; version 2 is required",
+            info.protocol_version
+        );
+        return Err(sys::AOAHID_ERR_NOT_AOA);
+    }
     let options = device_options(timeout_ms);
     let mut session = Session {
         locator,

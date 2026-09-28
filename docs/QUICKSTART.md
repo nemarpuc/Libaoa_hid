@@ -154,7 +154,7 @@ nonzero exit status on failure.
 | Device open or Channel open fails only on Windows | `adb` holds the interface, or the phone has a manufacturer driver instead of WinUSB | Step 4 |
 | Program exits `0`, nothing visible happens | No focused text field (keyboard) or normal single-shot API demo (`aoahid_example_c`) rather than a sustained one | Use the programs in step 8 instead, and focus a text field first for the keyboard case |
 | A physical-keyboard indicator/icon flickers but no character appears | The Android input pipeline detected the HID keyboard, but no text field was focused at that instant | Refocus a text field and rerun; this is not a library-level failure |
-| `AOAHID_ERR_UNSUPPORTED` from `aoahid_device_open` with `AOAHID_START_ACCESSORY_MODE` | Mode B is an intentional, permanent ABI tombstone | Use `AOAHID_START_CURRENT_USB_MODE`; see `README.md` |
+| `AOAHID_ERR_STALL` from the first `aoahid_node_open` | The device has no AOA 2.0 HID (open does not check), or its kernel accepts HID requests only after `ACCESSORY_START` | Check the `protocol_version` discovery reported; otherwise try `aoahid_accessory_start`; see `README.md` |
 
 None of the "what you should see" descriptions above are a hardware
 verification claim in the sense `docs/TARGET_MATRIX.md` uses that phrase; they

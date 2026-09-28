@@ -127,8 +127,11 @@ program per HID profile kind, all nine of which run without a device. In
 outline:
 
 1. Create a context and explicitly select caller-poll or internal-thread mode.
-2. Discover and select a physical USB device.
-3. Open the device in its current USB mode (Mode A, target-conditional), or
+2. Discover and select a physical USB device. Discovery sends AOA request 51
+   to each device and reports its AOA version; the caller checks for version 2.
+   To send no request 51 at all, fill `aoahid_device_info` yourself instead.
+3. Open the device in its current USB mode (target-conditional; open sends no
+   AOA request), or
    first switch it with `aoahid_accessory_start`, rediscover the re-enumerated
    accessory-mode device, and open that. The library never waits for
    re-enumeration and never retries; each step is an explicit call.
@@ -154,9 +157,7 @@ Explicit nonzero values remain unchanged. Node reservation `0/0` means no
 reservation. Exact device, descriptor, target-parser, and product-profile
 policies remain mandatory and are never guessed.
 
-For binary compatibility, `AOAHID_START_ACCESSORY_MODE` and the former Mode-B
-members of `aoahid_device_options` remain in the public layout as legacy ABI
-tombstones; `aoahid_device_open` itself never switches modes. Devices whose
+`aoahid_device_open` never switches modes. Devices whose
 firmware accepts AOA HID requests only after `ACCESSORY_START` are reached with
 `aoahid_accessory_start` instead (requests 51, 52, and 53; request 58 audio is
 never sent). There is no call that leaves accessory mode: unplug the device or

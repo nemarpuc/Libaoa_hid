@@ -30,6 +30,9 @@ ABI_NAMESPACE_BY_SOVERSION = {
     # 3.0.0 grew aoahid_channel_options, so it starts libaoahid.so.3 with its
     # own AOAHID_3.0 node.
     "3": "3.0",
+    # 4.0.0 reshaped aoahid_device_info and aoahid_device_options, so it starts
+    # libaoahid.so.4 with its own AOAHID_4.0 node.
+    "4": "4.0",
 }
 
 

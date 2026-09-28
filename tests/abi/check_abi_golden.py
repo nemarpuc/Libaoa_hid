@@ -64,6 +64,7 @@ class DeviceInfo(c.Structure):
         ("port_path_length", SIZE),
         ("vendor_id", U16),
         ("product_id", U16),
+        ("protocol_version", U16),
         ("serial", CHAR_PTR),
         ("product", CHAR_PTR),
     ]
@@ -84,18 +85,12 @@ class DeviceOptions(c.Structure):
     _fields_ = [
         ("struct_size", U32),
         ("reserved", U32),
-        ("startup_mode", I32),
-        ("accept_future_protocol_versions", U32),
         ("control_timeout_ms", U32),
         ("send_timeout_ms", U32),
-        ("reenumeration_timeout_ms", U32),
         ("descriptor_fragment_bytes", U32),
         ("transfer_pool_slots", U32),
         ("maximum_report_bytes", U32),
         ("close_drain_timeout_ms", U32),
-        ("first_report_attempts", U32),
-        ("first_report_backoff_us", U32),
-        ("validate_reports", U32),
         ("aoa_descriptor_wire_policy_bytes", U32),
         ("linux_descriptor_policy_bytes", U32),
         ("linux_hid_fields_per_report_policy", U32),
@@ -107,8 +102,7 @@ class DeviceOptions(c.Structure):
         ("host_control_buffer_policy_bytes", U32),
         ("interface_claim_policy", I32),
         ("interface_number", I32),
-        ("accessory_strings", AoaStrings),
-        ("enable_deprecated_audio_mode", U32),
+        ("validate_reports", U32),
     ]
 
 
@@ -441,15 +435,14 @@ GOLDEN_STRUCTS = {
 
 
 GOLDEN_CONSTANTS = {
-    "AOAHID_VERSION_MAJOR": 3,
+    "AOAHID_VERSION_MAJOR": 4,
     "AOAHID_VERSION_MINOR": 0,
-    "AOAHID_VERSION_PATCH": 5,
+    "AOAHID_VERSION_PATCH": 0,
     "AOAHID_OK": 0,
     "AOAHID_ERR_PARAM": 1,
     "AOAHID_ERR_UNSET_FIELD": 2,
     "AOAHID_ERR_UNSUPPORTED": 3,
     "AOAHID_ERR_NOT_AOA": 4,
-    "AOAHID_ERR_VERSION": 5,
     "AOAHID_ERR_ACCESS": 6,
     "AOAHID_ERR_BUSY": 7,
     "AOAHID_ERR_NO_DEVICE": 8,
@@ -465,8 +458,6 @@ GOLDEN_CONSTANTS = {
     "AOAHID_EVENT_INTERNAL_THREAD": 2,
     "AOAHID_CHANNEL_READ_STREAM": 0,
     "AOAHID_CHANNEL_READ_REQUEST": 1,
-    "AOAHID_START_CURRENT_USB_MODE": 1,
-    "AOAHID_START_ACCESSORY_MODE": 2,
     "AOAHID_INTERFACE_CLAIM_NONE": 1,
     "AOAHID_INTERFACE_CLAIM_EXPLICIT": 2,
     "AOAHID_LOG_DISABLED": 1,

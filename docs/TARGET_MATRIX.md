@@ -79,15 +79,13 @@ Each row represents one exact combination. Do not combine results from two devic
 | Android 17 MR2 preview / platform version 37.2 (preview API 10000) | Not assigned | Not recorded | Not recorded | Not recorded | Not recorded | `Not run` | `Not run` | `Not run` | `Not run` | `Not run` |
 
 Add a separate row for each current USB configuration and ADB state, each host
-OS/backend, and each kernel/vendor build that materially changes the path. This
-library does not initiate Accessory Mode, so a target that accepts requests
-54-57 only after `ACCESSORY_START` is an unsupported connection result, not a
-Mode-B fallback candidate. Do not overwrite a failing row with a later success;
+OS/backend, and each kernel/vendor build that materially changes the path. A
+target that accepts requests 54-57 only after `ACCESSORY_START` is a separate
+row reached through `aoahid_accessory_start`. Do not overwrite a failing row with a later success;
 add the new build as another row.
 
 Mode A remains **target-conditional** and **unverified on hardware** for every
-row above. Removing the Mode-B runtime path did not change any `Not run` status
-and did not convert source inspection into device evidence.
+row above. Source inspection is not device evidence.
 
 The Android 16-and-later labels follow the exact `BAKLAVA`, `BAKLAVA_1`,
 `CINNAMON_BUN`, `CINNAMON_BUN_1`, and `CINNAMON_BUN_2` symbols recorded in the

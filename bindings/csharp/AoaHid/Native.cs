@@ -13,7 +13,6 @@ public enum Result : int
     UnsetField = 2,
     Unsupported = 3,
     NotAoa = 4,
-    Version = 5,
     Access = 6,
     Busy = 7,
     NoDevice = 8,
@@ -29,12 +28,6 @@ public enum Result : int
 
 public enum EventMode : int { CallerPoll = 1, InternalThread = 2 }
 public enum ChannelReadMode : int { Stream = 0, Request = 1 }
-public enum StartupMode : int
-{
-    CurrentUsbMode = 1,
-    [Obsolete("Mode B is an ABI tombstone; DeviceOpen returns Result.Unsupported.")]
-    AccessoryMode = 2,
-}
 public enum ClaimPolicy : int { None = 1, Explicit = 2 }
 public enum LogLevel : int { Disabled = 1, Error = 2, Info = 3, Trace = 4 }
 public enum PenMode : int { DirectScreen = 1, IndirectTablet = 2 }
@@ -105,6 +98,7 @@ public struct DeviceInfo
     public nuint PortPathLength;
     public ushort VendorId;
     public ushort ProductId;
+    public ushort ProtocolVersion;
     public nint Serial;
     public nint Product;
 }
@@ -112,8 +106,7 @@ public struct DeviceInfo
 [StructLayout(LayoutKind.Sequential)]
 public struct AoaStrings
 {
-    // AOA request-52 strings. AccessoryStart requires Manufacturer and Model;
-    // inside DeviceOptions every pointer must remain zero (legacy tombstone).
+    // AOA request-52 strings. AccessoryStart requires Manufacturer and Model.
     public nint Manufacturer;
     public nint Model;
     public nint Description;
@@ -127,21 +120,12 @@ public struct DeviceOptions
 {
     public uint StructSize;
     public uint Reserved;
-    public StartupMode StartupMode;
-    public uint AcceptFutureProtocolVersions;
     public uint ControlTimeoutMs;
     public uint SendTimeoutMs;
-    [Obsolete("Legacy Mode-B ABI tombstone; leave zero.")]
-    public uint ReenumerationTimeoutMs;
     public uint DescriptorFragmentBytes;
     public uint TransferPoolSlots;
     public uint MaximumReportBytes;
     public uint CloseDrainTimeoutMs;
-    [Obsolete("Ignored since 2.0.0; the library never retries a report.")]
-    public uint FirstReportAttempts;
-    [Obsolete("Ignored since 2.0.0; the library never retries a report.")]
-    public uint FirstReportBackoffUs;
-    public uint ValidateReports;
     public uint AoaDescriptorWirePolicyBytes;
     public uint LinuxDescriptorPolicyBytes;
     public uint LinuxHidFieldsPerReportPolicy;
@@ -153,10 +137,7 @@ public struct DeviceOptions
     public uint HostControlBufferPolicyBytes;
     public ClaimPolicy InterfaceClaimPolicy;
     public int InterfaceNumber;
-    [Obsolete("Legacy Mode-B ABI tombstone; leave zero-initialized.")]
-    public AoaStrings AccessoryStrings;
-    [Obsolete("Legacy Mode-B ABI tombstone; leave zero.")]
-    public uint EnableDeprecatedAudioMode;
+    public uint ValidateReports;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -464,9 +445,9 @@ public static class Native
 {
     private const string Library = "aoahid";
     private const CallingConvention Call = CallingConvention.Cdecl;
-    public const uint AOAHID_VERSION_MAJOR = 3;
+    public const uint AOAHID_VERSION_MAJOR = 4;
     public const uint AOAHID_VERSION_MINOR = 0;
-    public const uint AOAHID_VERSION_PATCH = 5;
+    public const uint AOAHID_VERSION_PATCH = 0;
 
     public static readonly IReadOnlyDictionary<string, int> AbiConstants =
         new Dictionary<string, int>
@@ -476,7 +457,6 @@ public static class Native
             ["AOAHID_ERR_UNSET_FIELD"] = 2,
             ["AOAHID_ERR_UNSUPPORTED"] = 3,
             ["AOAHID_ERR_NOT_AOA"] = 4,
-            ["AOAHID_ERR_VERSION"] = 5,
             ["AOAHID_ERR_ACCESS"] = 6,
             ["AOAHID_ERR_BUSY"] = 7,
             ["AOAHID_ERR_NO_DEVICE"] = 8,
@@ -492,8 +472,6 @@ public static class Native
             ["AOAHID_EVENT_INTERNAL_THREAD"] = 2,
             ["AOAHID_CHANNEL_READ_STREAM"] = 0,
             ["AOAHID_CHANNEL_READ_REQUEST"] = 1,
-            ["AOAHID_START_CURRENT_USB_MODE"] = 1,
-            ["AOAHID_START_ACCESSORY_MODE"] = 2,
             ["AOAHID_INTERFACE_CLAIM_NONE"] = 1,
             ["AOAHID_INTERFACE_CLAIM_EXPLICIT"] = 2,
             ["AOAHID_LOG_DISABLED"] = 1,
@@ -607,8 +585,6 @@ public static class Native
     public static extern Result DeviceClose(nint device);
     [DllImport(Library, EntryPoint = "aoahid_device_latched_error", ExactSpelling = true, CallingConvention = Call)]
     public static extern Result DeviceLatchedError(nint device);
-    [DllImport(Library, EntryPoint = "aoahid_device_protocol_version", ExactSpelling = true, CallingConvention = Call)]
-    public static extern ushort DeviceProtocolVersion(nint device);
 
     [DllImport(Library, EntryPoint = "aoahid_channel_open", ExactSpelling = true, CallingConvention = Call)]
     public static extern Result ChannelOpen(nint device, in ChannelOptions options, out nint channel);

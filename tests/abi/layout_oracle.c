@@ -23,7 +23,6 @@ int main(void) {
     AOAHID_CONSTANT(AOAHID_ERR_UNSET_FIELD);
     AOAHID_CONSTANT(AOAHID_ERR_UNSUPPORTED);
     AOAHID_CONSTANT(AOAHID_ERR_NOT_AOA);
-    AOAHID_CONSTANT(AOAHID_ERR_VERSION);
     AOAHID_CONSTANT(AOAHID_ERR_ACCESS);
     AOAHID_CONSTANT(AOAHID_ERR_BUSY);
     AOAHID_CONSTANT(AOAHID_ERR_NO_DEVICE);
@@ -39,8 +38,6 @@ int main(void) {
     AOAHID_CONSTANT(AOAHID_EVENT_INTERNAL_THREAD);
     AOAHID_CONSTANT(AOAHID_CHANNEL_READ_STREAM);
     AOAHID_CONSTANT(AOAHID_CHANNEL_READ_REQUEST);
-    AOAHID_CONSTANT(AOAHID_START_CURRENT_USB_MODE);
-    AOAHID_CONSTANT(AOAHID_START_ACCESSORY_MODE);
     AOAHID_CONSTANT(AOAHID_INTERFACE_CLAIM_NONE);
     AOAHID_CONSTANT(AOAHID_INTERFACE_CLAIM_EXPLICIT);
     AOAHID_CONSTANT(AOAHID_LOG_DISABLED);
@@ -117,6 +114,7 @@ int main(void) {
     AOAHID_FIELD(aoahid_device_info, port_path_length);
     AOAHID_FIELD(aoahid_device_info, vendor_id);
     AOAHID_FIELD(aoahid_device_info, product_id);
+    AOAHID_FIELD(aoahid_device_info, protocol_version);
     AOAHID_FIELD(aoahid_device_info, serial);
     AOAHID_FIELD(aoahid_device_info, product);
 
@@ -131,18 +129,12 @@ int main(void) {
     AOAHID_BEGIN(aoahid_device_options);
     AOAHID_FIELD(aoahid_device_options, struct_size);
     AOAHID_FIELD(aoahid_device_options, reserved);
-    AOAHID_FIELD(aoahid_device_options, startup_mode);
-    AOAHID_FIELD(aoahid_device_options, accept_future_protocol_versions);
     AOAHID_FIELD(aoahid_device_options, control_timeout_ms);
     AOAHID_FIELD(aoahid_device_options, send_timeout_ms);
-    AOAHID_FIELD(aoahid_device_options, reenumeration_timeout_ms);
     AOAHID_FIELD(aoahid_device_options, descriptor_fragment_bytes);
     AOAHID_FIELD(aoahid_device_options, transfer_pool_slots);
     AOAHID_FIELD(aoahid_device_options, maximum_report_bytes);
     AOAHID_FIELD(aoahid_device_options, close_drain_timeout_ms);
-    AOAHID_FIELD(aoahid_device_options, first_report_attempts);
-    AOAHID_FIELD(aoahid_device_options, first_report_backoff_us);
-    AOAHID_FIELD(aoahid_device_options, validate_reports);
     AOAHID_FIELD(aoahid_device_options, aoa_descriptor_wire_policy_bytes);
     AOAHID_FIELD(aoahid_device_options, linux_descriptor_policy_bytes);
     AOAHID_FIELD(aoahid_device_options, linux_hid_fields_per_report_policy);
@@ -154,8 +146,7 @@ int main(void) {
     AOAHID_FIELD(aoahid_device_options, host_control_buffer_policy_bytes);
     AOAHID_FIELD(aoahid_device_options, interface_claim_policy);
     AOAHID_FIELD(aoahid_device_options, interface_number);
-    AOAHID_FIELD(aoahid_device_options, accessory_strings);
-    AOAHID_FIELD(aoahid_device_options, enable_deprecated_audio_mode);
+    AOAHID_FIELD(aoahid_device_options, validate_reports);
 
     AOAHID_BEGIN(aoahid_accessory_options);
     AOAHID_FIELD(aoahid_accessory_options, struct_size);

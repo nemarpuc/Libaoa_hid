@@ -316,29 +316,9 @@ aoahid_result prepare_device_options(const aoahid_device_options* options,
         return AOAHID_ERR_PARAM;
     }
     *effective = *options;
-    if (effective->startup_mode == AOAHID_START_ACCESSORY_MODE) {
-        set_error(AOAHID_ERR_UNSUPPORTED, "device.startup_mode",
-                  "Accessory-mode startup was retired; only current-USB-mode AOA HID requests "
-                  "are supported.");
-        return AOAHID_ERR_UNSUPPORTED;
-    }
-    const std::array<const char*, 6U> legacy_accessory_values{
-        effective->accessory_strings.manufacturer, effective->accessory_strings.model,
-        effective->accessory_strings.description,  effective->accessory_strings.version,
-        effective->accessory_strings.uri,          effective->accessory_strings.serial};
-    if (effective->enable_deprecated_audio_mode != 0U ||
-        std::any_of(legacy_accessory_values.begin(), legacy_accessory_values.end(),
-                    [](const char* value) { return value != nullptr; })) {
-        set_error(AOAHID_ERR_UNSUPPORTED, "device.legacy_accessory_fields",
-                  "Accessory strings and the deprecated audio request are retained only as ABI "
-                  "tombstones and must remain zero/null.");
-        return AOAHID_ERR_UNSUPPORTED;
-    }
     apply_tuning_fallbacks(effective);
     if (effective->reserved != 0U || !required_product_policies_nonzero(*effective) ||
-        !aoa::detail::valid_boolean(effective->accept_future_protocol_versions) ||
         !aoa::detail::valid_boolean(effective->validate_reports) ||
-        effective->startup_mode != AOAHID_START_CURRENT_USB_MODE ||
         (effective->interface_claim_policy != AOAHID_INTERFACE_CLAIM_NONE &&
          effective->interface_claim_policy != AOAHID_INTERFACE_CLAIM_EXPLICIT) ||
         (effective->interface_claim_policy == AOAHID_INTERFACE_CLAIM_NONE &&
@@ -346,7 +326,7 @@ aoahid_result prepare_device_options(const aoahid_device_options* options,
         (effective->interface_claim_policy == AOAHID_INTERFACE_CLAIM_EXPLICIT &&
          (effective->interface_number < 0 || effective->interface_number > 255))) {
         set_error(AOAHID_ERR_UNSET_FIELD, "device_options",
-                  "Every required product policy, mode, flag, and claim choice must be valid; "
+                  "Every required product policy, flag, and claim choice must be valid; "
                   "only documented tuning fields accept zero as a fallback request.");
         return AOAHID_ERR_UNSET_FIELD;
     }
@@ -374,6 +354,7 @@ aoa::transport::Candidate copy_candidate(const aoahid_device_info& info) {
     }
     candidate.vendor_id = info.vendor_id;
     candidate.product_id = info.product_id;
+    candidate.protocol_version = info.protocol_version;
     if (info.serial != nullptr)
         candidate.serial = info.serial;
     if (info.product != nullptr)
@@ -384,7 +365,6 @@ aoa::transport::Candidate copy_candidate(const aoahid_device_info& info) {
 aoa::transport::DeviceConfig copy_config(const aoahid_device_options& options,
                                          const aoahid_event_mode event_mode) noexcept {
     return aoa::transport::DeviceConfig{event_mode,
-                                        options.accept_future_protocol_versions == 1U,
                                         options.control_timeout_ms,
                                         options.send_timeout_ms,
                                         options.descriptor_fragment_bytes,
@@ -402,6 +382,7 @@ void refresh_discovery_views(aoahid_discovery* discovery) noexcept {
                                                entry.candidate.port_path.size(),
                                                entry.candidate.vendor_id,
                                                entry.candidate.product_id,
+                                               entry.candidate.protocol_version,
                                                entry.candidate.serial.c_str(),
                                                entry.candidate.product.c_str()};
     }
@@ -1340,9 +1321,8 @@ aoahid_result AOAHID_CALL aoahid_device_open(aoahid_context* context,
         device->port_path = candidate.port_path;
         device->vendor_id = candidate.vendor_id;
         device->product_id = candidate.product_id;
-        const aoahid_result result =
-            aoa::transport::Device::open(context->runtime, candidate, device->config,
-                                         &device->transport, &device->protocol_version);
+        const aoahid_result result = aoa::transport::Device::open(
+            context->runtime, candidate, device->config, &device->transport);
         if (result != AOAHID_OK) {
             return finish_transport_result(result, "device.open",
                                            "The selected USB/AOA device could not be opened.");
@@ -1366,10 +1346,7 @@ aoahid_result AOAHID_CALL aoahid_device_open(aoahid_context* context,
         throw;
     }
     *out_device = device.release();
-    aoa::detail::log_event(context, AOAHID_LOG_INFO,
-                           (*out_device)->protocol_version > 2U ? "device_open_future_protocol"
-                                                                : "device_open",
-                           *out_device, nullptr);
+    aoa::detail::log_event(context, AOAHID_LOG_INFO, "device_open", *out_device, nullptr);
     aoa::detail::clear_error();
     return AOAHID_OK;
 }
@@ -2027,17 +2004,6 @@ aoahid_result AOAHID_CALL aoahid_device_latched_error(aoahid_device* device) try
     return result;
 }
 AOAHID_C_RESULT_CATCH("device.latched_error")
-
-std::uint16_t AOAHID_CALL aoahid_device_protocol_version(const aoahid_device* device) try {
-    aoa::detail::clear_error();
-    if (device == nullptr || device->closing.load(std::memory_order_acquire)) {
-        set_error(AOAHID_ERR_PARAM, "device.protocol_version",
-                  "A live, open Device handle is required; zero is the failure sentinel.");
-        return 0U;
-    }
-    return device->protocol_version;
-}
-AOAHID_C_VALUE_CATCH("device.protocol_version", 0U)
 
 aoahid_result AOAHID_CALL aoahid_channel_open(aoahid_device* device,
                                               const aoahid_channel_options* options,

@@ -24,8 +24,6 @@
 namespace {
 
 constexpr std::uint8_t request_type_out_vendor_device = 0x40U;
-constexpr std::uint8_t request_type_in_vendor_device = 0xC0U;
-constexpr std::uint8_t accessory_get_protocol = 51U;
 constexpr std::uint8_t accessory_register_hid = 54U;
 constexpr std::uint8_t accessory_unregister_hid = 55U;
 constexpr std::uint8_t accessory_set_hid_report_desc = 56U;
@@ -45,22 +43,6 @@ void restore_error(const aoa::transport::ErrorInfo& error) noexcept {
                                  error.offset, error.length);
 }
 
-aoahid_result exact_control_result(const int status, const std::size_t expected, const bool probe,
-                                   const std::uint8_t request, const std::uint16_t hid_id,
-                                   const std::uint32_t offset,
-                                   const std::uint32_t length) noexcept {
-    aoahid_result result = AOAHID_OK;
-    if (status < 0) {
-        result = aoa::transport::map_libusb_error(status, probe);
-    } else if (static_cast<std::size_t>(status) != expected) {
-        result = AOAHID_ERR_SHORT_TRANSFER;
-    }
-    if (result != AOAHID_OK) {
-        aoa::transport::record_error(result, status, request, hid_id, offset, length);
-    }
-    return result;
-}
-
 struct ControlOutPolicy {
     std::uint32_t timeout_ms{};
     std::uint32_t diagnostic_length{std::numeric_limits<std::uint32_t>::max()};
@@ -76,41 +58,20 @@ aoahid_result control_out(libusb_device_handle* handle, const std::uint8_t reque
     const std::uint16_t hid_id =
         request >= accessory_register_hid && request <= accessory_send_hid_event ? value : 0U;
     const std::uint32_t offset = request == accessory_set_hid_report_desc ? index : 0U;
-    return exact_control_result(status, length, false, request, hid_id, offset,
-                                policy.diagnostic_length ==
-                                        std::numeric_limits<std::uint32_t>::max()
-                                    ? length
-                                    : policy.diagnostic_length);
-}
-
-aoahid_result read_protocol(libusb_device_handle* handle, const std::uint32_t timeout_ms,
-                            std::uint16_t* protocol) noexcept {
-    std::array<unsigned char, 2U> bytes{};
-    const int status = libusb_control_transfer(
-        handle, request_type_in_vendor_device, accessory_get_protocol, 0U, 0U, bytes.data(),
-        static_cast<std::uint16_t>(bytes.size()), timeout_ms);
-    const aoahid_result transfer_result =
-        exact_control_result(status, bytes.size(), true, accessory_get_protocol, 0U, 0U,
-                             static_cast<std::uint32_t>(bytes.size()));
-    if (transfer_result != AOAHID_OK) {
-        if (transfer_result == AOAHID_ERR_SHORT_TRANSFER) {
-            // AOA defines request 51 as an exactly two-byte protocol response.
-            // Keep the observed transfer count, but align the transport detail
-            // with the capability result returned to the caller.
-            aoa::transport::record_error(AOAHID_ERR_NOT_AOA, status, accessory_get_protocol, 0U, 0U,
-                                         static_cast<std::uint32_t>(bytes.size()));
-            return AOAHID_ERR_NOT_AOA;
-        }
-        return transfer_result;
+    aoahid_result result = AOAHID_OK;
+    if (status < 0) {
+        result = aoa::transport::map_libusb_error(status, false);
+    } else if (status != length) {
+        result = AOAHID_ERR_SHORT_TRANSFER;
     }
-    *protocol = static_cast<std::uint16_t>(bytes[0]) |
-                static_cast<std::uint16_t>(static_cast<std::uint16_t>(bytes[1]) << 8U);
-    if (*protocol == 0U) {
-        aoa::transport::record_error(AOAHID_ERR_NOT_AOA, status, accessory_get_protocol, 0U, 0U,
-                                     static_cast<std::uint32_t>(bytes.size()));
-        return AOAHID_ERR_NOT_AOA;
+    if (result != AOAHID_OK) {
+        aoa::transport::record_error(result, status, request, hid_id, offset,
+                                     policy.diagnostic_length ==
+                                             std::numeric_limits<std::uint32_t>::max()
+                                         ? length
+                                         : policy.diagnostic_length);
     }
-    return AOAHID_OK;
+    return result;
 }
 
 void store_le16(std::uint8_t* bytes, const std::uint16_t value) noexcept {
@@ -387,14 +348,13 @@ struct Device::Impl {
 };
 
 aoahid_result Device::open(Runtime* runtime, const Candidate& candidate, const DeviceConfig& config,
-                           Device** out, std::uint16_t* protocol_version) {
+                           Device** out) {
     reset_error();
-    if (out == nullptr || protocol_version == nullptr) {
+    if (out == nullptr) {
         record_error(AOAHID_ERR_PARAM);
         return AOAHID_ERR_PARAM;
     }
     *out = nullptr;
-    *protocol_version = 0U;
     if (runtime == nullptr || runtime->native_context() == nullptr ||
         config.event_mode != runtime->event_mode_ ||
         (config.event_mode != AOAHID_EVENT_CALLER_POLL &&
@@ -419,18 +379,6 @@ aoahid_result Device::open(Runtime* runtime, const Candidate& candidate, const D
         return port_result;
     }
     auto* handle = static_cast<libusb_device_handle*>(port->native_handle());
-
-    std::uint16_t protocol = 0U;
-    aoahid_result result = read_protocol(handle, config.control_timeout_ms, &protocol);
-    if (result != AOAHID_OK) {
-        port->release();
-        return result;
-    }
-    if (protocol < 2U || (protocol > 2U && !config.accept_future_versions)) {
-        port->release();
-        record_error(AOAHID_ERR_VERSION, 0, accessory_get_protocol, 0U, 0U, 2U);
-        return AOAHID_ERR_VERSION;
-    }
 
     bool claimed = false;
     int claimed_interface = -1;
@@ -493,7 +441,6 @@ aoahid_result Device::open(Runtime* runtime, const Candidate& candidate, const D
         delete device;
         throw;
     }
-    *protocol_version = protocol;
     *out = device;
     return AOAHID_OK;
 }

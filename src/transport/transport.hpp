@@ -29,13 +29,13 @@ struct Candidate {
     std::vector<std::uint8_t> port_path;
     std::uint16_t vendor_id{};
     std::uint16_t product_id{};
+    std::uint16_t protocol_version{};
     std::string serial;
     std::string product;
 };
 
 struct DeviceConfig {
     aoahid_event_mode event_mode{};
-    bool accept_future_versions{};
     std::uint32_t control_timeout_ms{};
     std::uint32_t send_timeout_ms{};
     std::uint32_t descriptor_fragment_bytes{};
@@ -159,8 +159,7 @@ class Port final {
 class Device final {
   public:
     static aoahid_result open(Runtime* runtime, const Candidate& candidate,
-                              const DeviceConfig& config, Device** out,
-                              std::uint16_t* protocol_version);
+                              const DeviceConfig& config, Device** out);
     ~Device() noexcept;
 
     Device(const Device&) = delete;

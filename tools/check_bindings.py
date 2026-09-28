@@ -205,7 +205,6 @@ CSHARP_ENUM_TYPES = {
     "aoahid_result": "Result",
     "aoahid_event_mode": "EventMode",
     "aoahid_channel_read_mode": "ChannelReadMode",
-    "aoahid_startup_mode": "StartupMode",
     "aoahid_interface_claim_policy": "ClaimPolicy",
     "aoahid_log_level": "LogLevel",
     "aoahid_profile_kind": "ProfileKind",
@@ -219,7 +218,6 @@ CSHARP_ENUM_TYPES = {
 CSHARP_ENUM_CONSTANT_PREFIXES = {
     "aoahid_event_mode": "AOAHID_EVENT_",
     "aoahid_channel_read_mode": "AOAHID_CHANNEL_READ_",
-    "aoahid_startup_mode": "AOAHID_START_",
     "aoahid_interface_claim_policy": "AOAHID_INTERFACE_CLAIM_",
     "aoahid_log_level": "AOAHID_LOG_",
     "aoahid_profile_kind": "AOAHID_PROFILE_",

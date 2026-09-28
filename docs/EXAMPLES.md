@@ -190,19 +190,16 @@ mouse.pan = (aoahid_integer_field){0, 0, 0};
 The ranges above are a caller selection. The factory proves that relative axes
 can represent negative, zero, and positive values; it does not choose them.
 
-## Current-USB Mode A and legacy ABI members
+## Current USB mode and the AOA version
 
-Every example selects `AOAHID_START_CURRENT_USB_MODE`. The library sends no AOA
-identification strings, deprecated audio request, or `ACCESSORY_START`, and it
-does not wait for a new VID/PID. A physical port path remains useful for stable
-discovery identity, but it is not used for a Mode-B re-enumeration loop.
+Every example opens the device in its current USB mode. `aoahid_device_open`
+sends no AOA request: no `GET_PROTOCOL`, identification strings, audio request,
+or `ACCESSORY_START`, and it does not wait for a new VID/PID. A physical port
+path remains useful for stable discovery identity.
 
-The public `AOAHID_START_ACCESSORY_MODE` value and former Mode-B option members
-remain ABI tombstones. C, Python, and C# examples leave those members in their
-zero-initialized state; the Rust FFI structure must spell out the retained
-fields to construct the exact C layout and sets each one to zero. Selecting the
-legacy mode returns `AOAHID_ERR_UNSUPPORTED` before USB I/O. **[Project policy;
-ABI compatibility only]**
+Discovery reports each device's AOA version in `protocol_version`. The library
+applies no version policy, so each example prints the version and refuses to
+open a device below version 2 with `AOAHID_ERR_NOT_AOA`. **[Example policy]**
 
 ## Bindings
 

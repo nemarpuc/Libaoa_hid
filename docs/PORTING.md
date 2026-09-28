@@ -12,12 +12,12 @@ or later and rejects a future major/minor line pending an official compatibility
 audit. See `SOURCE_CONFLICTS.md` T-16. Grant the invoking user explicit USB
 permissions. `udev/51-aoahid.rules` grants access by udev's `uaccess` tag,
 which is what this library actually needs: every device it opens keeps its
-OEM VID/PID (this library implements Mode A only, so there is no fixed
-Google Accessory VID/PID to match), and most current distributions already
-grant the logged-in seat that same access by default. The historical
-Google-Accessory-range (`18d1:2d00`-`2d05`) rule is also present but inert,
-kept only for a possible future Mode-B implementation; review both against
-the distribution's group policy before installing.
+OEM VID/PID (`aoahid_device_open` uses Mode A, so there is no fixed Google
+Accessory VID/PID to match), and most current distributions already grant the
+logged-in seat that same access by default. The Google-Accessory-range
+(`18d1:2d00`-`2d05`) rule covers a device that `aoahid_accessory_start`
+switched; review both against the distribution's group policy before
+installing.
 
 A running `adb` server is a much less frequent blocker on Linux than on
 Windows (libusb can typically still claim the device even while `adb` is

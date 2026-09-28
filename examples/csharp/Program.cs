@@ -54,7 +54,7 @@ if (status == Result.Ok)
         }
         var device = Marshal.PtrToStructure<DeviceInfo>(pointer);
         Console.WriteLine(
-            $"{device.VendorId:x4}:{device.ProductId:x4} " +
+            $"{device.VendorId:x4}:{device.ProductId:x4} aoa={device.ProtocolVersion} " +
             $"{Marshal.PtrToStringUTF8(device.Product)} {Marshal.PtrToStringUTF8(device.Serial)}");
     }
     Native.DiscoveryDestroy(discovery);

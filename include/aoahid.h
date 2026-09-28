@@ -29,9 +29,9 @@
 extern "C" {
 #endif
 
-#define AOAHID_VERSION_MAJOR 3
+#define AOAHID_VERSION_MAJOR 4
 #define AOAHID_VERSION_MINOR 0
-#define AOAHID_VERSION_PATCH 5
+#define AOAHID_VERSION_PATCH 0
 
 typedef struct aoahid_context aoahid_context;
 typedef struct aoahid_discovery aoahid_discovery;
@@ -50,7 +50,6 @@ enum {
     AOAHID_ERR_UNSET_FIELD = 2,
     AOAHID_ERR_UNSUPPORTED = 3,
     AOAHID_ERR_NOT_AOA = 4,
-    AOAHID_ERR_VERSION = 5,
     AOAHID_ERR_ACCESS = 6,
     AOAHID_ERR_BUSY = 7,
     AOAHID_ERR_NO_DEVICE = 8,
@@ -73,17 +72,6 @@ enum {
     /* One library event thread advances the context. Pool and error-latch access
      * is synchronized, adding contention that caller-poll mode does not have. */
     AOAHID_EVENT_INTERNAL_THREAD = 2
-};
-
-typedef int32_t aoahid_startup_mode;
-enum {
-    /* Send AOA HID requests on the device's current EP0. The AOA 2.0 page says
-     * HID needs no new USB interface, but target firmware support must be tested. */
-    AOAHID_START_CURRENT_USB_MODE = 1,
-    /* Retained only to preserve the 0.1 C ABI value. Passing it to
-     * aoahid_device_open returns AOAHID_ERR_UNSUPPORTED before USB I/O; switch
-     * a device with aoahid_accessory_start() and open it after it reappears. */
-    AOAHID_START_ACCESSORY_MODE = 2
 };
 
 typedef int32_t aoahid_interface_claim_policy;
@@ -200,6 +188,9 @@ typedef struct aoahid_device_info {
     size_t port_path_length;
     uint16_t vendor_id;
     uint16_t product_id;
+    /* The request-51 AOA protocol version aoahid_discover() read. Zero when the
+     * caller fills this structure itself; aoahid_device_open() ignores it. */
+    uint16_t protocol_version;
     const char* serial;
     const char* product;
 } aoahid_device_info;
@@ -207,9 +198,7 @@ typedef struct aoahid_device_info {
 typedef struct aoahid_aoa_strings {
     /* AOA identification strings (request 52, string IDs 0-5), each a
      * NUL-terminated string or null. aoahid_accessory_start() requires a
-     * nonempty manufacturer and model and sends only the non-null others.
-     * Inside aoahid_device_options this structure is a legacy tombstone and
-     * every pointer must be null. */
+     * nonempty manufacturer and model and sends only the non-null others. */
     const char* manufacturer;
     const char* model;
     const char* description;
@@ -221,16 +210,12 @@ typedef struct aoahid_aoa_strings {
 typedef struct aoahid_device_options {
     uint32_t struct_size;
     uint32_t reserved;
-    aoahid_startup_mode startup_mode;
-    uint32_t accept_future_protocol_versions;
     /* Tuning fields: zero selects the documented bounded fallback. These are
      * project policies, not USB/AOA requirements or libusb recommendations. */
     /* zero -> 500 ms */
     uint32_t control_timeout_ms;
     /* zero -> 500 ms */
     uint32_t send_timeout_ms;
-    /* Legacy ABI tombstone; ignored when zero or nonzero. */
-    uint32_t reenumeration_timeout_ms;
     /* zero -> 64 bytes */
     uint32_t descriptor_fragment_bytes;
     /* zero -> 8 slots */
@@ -239,11 +224,6 @@ typedef struct aoahid_device_options {
     uint32_t maximum_report_bytes;
     /* zero -> 1000 ms */
     uint32_t close_drain_timeout_ms;
-    /* Legacy ABI tombstones since 2.0.0; ignored when zero or nonzero. The
-     * library never retries a report; a STALL is returned to the caller. */
-    uint32_t first_report_attempts;
-    uint32_t first_report_backoff_us;
-    uint32_t validate_reports;
     /* Four independent byte policies prevent a Linux descriptor ceiling from
      * being mistaken for the AOA 16-bit descriptor wire field or either
      * control-transfer buffer. None is a default or a discovered limit. */
@@ -260,10 +240,8 @@ typedef struct aoahid_device_options {
     uint32_t host_control_buffer_policy_bytes;
     aoahid_interface_claim_policy interface_claim_policy;
     int32_t interface_number;
-    /* Legacy Mode-B ABI tombstones. Every pointer/flag must remain zero/null;
-     * nonzero input returns AOAHID_ERR_UNSUPPORTED. */
-    aoahid_aoa_strings accessory_strings;
-    uint32_t enable_deprecated_audio_mode;
+    /* 0 or 1. 1 decodes every generated report again before request 57. */
+    uint32_t validate_reports;
 } aoahid_device_options;
 
 typedef struct aoahid_accessory_options {
@@ -714,8 +692,10 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_context_destroy_blocking(aoahid_cont
  * Ownership: Borrows Context; on success, out_discovery receives a caller-owned
  * snapshot containing every returned info/string. A nonnull output is set to
  * null before validation and stays null on failure.
- * Blocking: Enumerates USB devices and may wait control_timeout_ms for each AOA
- * protocol probe; it allocates the snapshot.
+ * Blocking: Enumerates USB devices, sends AOA request 51 to each one, and may
+ * wait control_timeout_ms for each response; it allocates the snapshot. Only
+ * devices that report a nonzero version are listed, each with that version in
+ * protocol_version. HID needs version 2 or later; the caller decides.
  * Synchronization: Belongs to the Context domain and must be serialized with all
  * other calls on that Context. The resulting snapshot has its own lifetime.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM for a null argument or zero timeout;
@@ -793,20 +773,18 @@ aoahid_accessory_start(aoahid_context* context, const aoahid_device_info* select
  * retained values and normalizes documented zero-valued tuning fields only in
  * that copy, never in caller storage. On success, out_device receives one Device
  * owned by the caller and parent Context. A nonnull output stays null on failure.
- * Blocking: Opens and probes the selected device in its current USB mode,
- * optionally claims the exact selected interface, and allocates a fixed pool.
- * It never sends AOA requests 52, 53, or 58 and never waits for re-enumeration.
+ * Blocking: Opens the selected device in its current USB mode, optionally
+ * claims the exact selected interface, and allocates a fixed pool. It sends no
+ * AOA request and never waits for re-enumeration, so selected may be filled by
+ * the caller instead of aoahid_discover(). A device without AOA 2.0 HID support
+ * opens normally and fails at aoahid_node_open() with AOAHID_ERR_STALL.
  * Synchronization: Belongs to the parent Context domain and must be serialized
  * with every other application call touching that Context.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid pointers/ABI fields/identity;
- * AOAHID_ERR_UNSET_FIELD for a missing required product policy, mode, or flag;
- * AOAHID_ERR_UNSUPPORTED for the retired Mode-B value, nonnull legacy accessory
- * strings, a nonzero deprecated-audio flag, or a mapped backend status; the
- * legacy reenumeration timeout is an ignored ABI tombstone;
- * AOAHID_ERR_NOT_AOA for failed request-51 capability probing;
- * AOAHID_ERR_VERSION for a rejected AOA version; AOAHID_ERR_ACCESS,
- * AOAHID_ERR_BUSY, AOAHID_ERR_NO_DEVICE, AOAHID_ERR_STALL, AOAHID_ERR_TIMEOUT,
- * AOAHID_ERR_SHORT_TRANSFER, or AOAHID_ERR_IO for USB/open failure;
+ * AOAHID_ERR_UNSET_FIELD for a missing required product policy;
+ * AOAHID_ERR_UNSUPPORTED, AOAHID_ERR_ACCESS, AOAHID_ERR_BUSY,
+ * AOAHID_ERR_NO_DEVICE, AOAHID_ERR_STALL, AOAHID_ERR_TIMEOUT, or AOAHID_ERR_IO
+ * for USB open/claim failure;
  * AOAHID_ERR_OVERFLOW for port/wire/buffer policy overflow;
  * AOAHID_ERR_INTERNAL for allocation or unexpected ABI-boundary failure. */
 AOAHID_API aoahid_result AOAHID_CALL aoahid_device_open(aoahid_context* context,
@@ -847,16 +825,6 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_device_close(aoahid_device* device);
  * AOAHID_ERR_OVERFLOW for the retained completion/control/event error;
  * AOAHID_ERR_INTERNAL for a retained or unexpected internal failure. */
 AOAHID_API aoahid_result AOAHID_CALL aoahid_device_latched_error(aoahid_device* device);
-
-/* aoahid_device_protocol_version
- * Ownership: Borrows a live Device and creates no reference.
- * Blocking: Does not block, allocate, or perform I/O.
- * Synchronization: Belongs to the parent Context domain and must be serialized
- * against Device/Context teardown.
- * Returns: The nonzero request-51 protocol version captured at open. Zero is the
- * failure sentinel with AOAHID_ERR_PARAM for an invalid/closing Device or
- * AOAHID_ERR_INTERNAL for an unexpected ABI-boundary failure in last_error. */
-AOAHID_API uint16_t AOAHID_CALL aoahid_device_protocol_version(const aoahid_device* device);
 
 /* aoahid_channel_open
  * Ownership: Borrows Device and options for the call. On success, out_channel

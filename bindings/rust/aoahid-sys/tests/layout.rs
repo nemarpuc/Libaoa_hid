@@ -27,7 +27,6 @@ macro_rules! constants {
     }};
 }
 
-#[allow(deprecated)]
 fn rust_constants() -> BTreeMap<String, usize> {
     let mut values = BTreeMap::new();
     constants!(
@@ -41,7 +40,6 @@ fn rust_constants() -> BTreeMap<String, usize> {
             AOAHID_ERR_UNSET_FIELD,
             AOAHID_ERR_UNSUPPORTED,
             AOAHID_ERR_NOT_AOA,
-            AOAHID_ERR_VERSION,
             AOAHID_ERR_ACCESS,
             AOAHID_ERR_BUSY,
             AOAHID_ERR_NO_DEVICE,
@@ -57,8 +55,6 @@ fn rust_constants() -> BTreeMap<String, usize> {
             AOAHID_EVENT_INTERNAL_THREAD,
             AOAHID_CHANNEL_READ_STREAM,
             AOAHID_CHANNEL_READ_REQUEST,
-            AOAHID_START_CURRENT_USB_MODE,
-            AOAHID_START_ACCESSORY_MODE,
             AOAHID_INTERFACE_CLAIM_NONE,
             AOAHID_INTERFACE_CLAIM_EXPLICIT,
             AOAHID_LOG_DISABLED,
@@ -155,6 +151,7 @@ fn rust_layout() -> BTreeMap<String, usize> {
             port_path_length,
             vendor_id,
             product_id,
+            protocol_version,
             serial,
             product
         ]
@@ -172,18 +169,12 @@ fn rust_layout() -> BTreeMap<String, usize> {
         [
             struct_size,
             reserved,
-            startup_mode,
-            accept_future_protocol_versions,
             control_timeout_ms,
             send_timeout_ms,
-            reenumeration_timeout_ms,
             descriptor_fragment_bytes,
             transfer_pool_slots,
             maximum_report_bytes,
             close_drain_timeout_ms,
-            first_report_attempts,
-            first_report_backoff_us,
-            validate_reports,
             aoa_descriptor_wire_policy_bytes,
             linux_descriptor_policy_bytes,
             linux_hid_fields_per_report_policy,
@@ -195,8 +186,7 @@ fn rust_layout() -> BTreeMap<String, usize> {
             host_control_buffer_policy_bytes,
             interface_claim_policy,
             interface_number,
-            accessory_strings,
-            enable_deprecated_audio_mode
+            validate_reports
         ]
     );
     layout!(

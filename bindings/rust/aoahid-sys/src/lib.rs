@@ -25,7 +25,6 @@ opaque!(
 pub type aoahid_result = i32;
 pub type aoahid_event_mode = i32;
 pub type aoahid_channel_read_mode = i32;
-pub type aoahid_startup_mode = i32;
 pub type aoahid_interface_claim_policy = i32;
 pub type aoahid_log_level = i32;
 pub type aoahid_profile_kind = i32;
@@ -35,15 +34,14 @@ pub type aoahid_axis_role = i32;
 pub type aoahid_dpad_representation = i32;
 pub type aoahid_usage_semantic = i32;
 
-pub const AOAHID_VERSION_MAJOR: u32 = 3;
+pub const AOAHID_VERSION_MAJOR: u32 = 4;
 pub const AOAHID_VERSION_MINOR: u32 = 0;
-pub const AOAHID_VERSION_PATCH: u32 = 5;
+pub const AOAHID_VERSION_PATCH: u32 = 0;
 pub const AOAHID_OK: i32 = 0;
 pub const AOAHID_ERR_PARAM: i32 = 1;
 pub const AOAHID_ERR_UNSET_FIELD: i32 = 2;
 pub const AOAHID_ERR_UNSUPPORTED: i32 = 3;
 pub const AOAHID_ERR_NOT_AOA: i32 = 4;
-pub const AOAHID_ERR_VERSION: i32 = 5;
 pub const AOAHID_ERR_ACCESS: i32 = 6;
 pub const AOAHID_ERR_BUSY: i32 = 7;
 pub const AOAHID_ERR_NO_DEVICE: i32 = 8;
@@ -60,9 +58,6 @@ pub const AOAHID_EVENT_CALLER_POLL: i32 = 1;
 pub const AOAHID_EVENT_INTERNAL_THREAD: i32 = 2;
 pub const AOAHID_CHANNEL_READ_STREAM: i32 = 0;
 pub const AOAHID_CHANNEL_READ_REQUEST: i32 = 1;
-pub const AOAHID_START_CURRENT_USB_MODE: i32 = 1;
-#[deprecated(note = "Mode B is an ABI tombstone; device_open returns AOAHID_ERR_UNSUPPORTED")]
-pub const AOAHID_START_ACCESSORY_MODE: i32 = 2;
 pub const AOAHID_INTERFACE_CLAIM_NONE: i32 = 1;
 pub const AOAHID_INTERFACE_CLAIM_EXPLICIT: i32 = 2;
 pub const AOAHID_LOG_DISABLED: i32 = 1;
@@ -138,7 +133,8 @@ c_struct!(aoahid_context_options {
 });
 c_struct!(aoahid_device_info {
     bus_number: u8, device_address: u8, port_path: *const u8, port_path_length: usize,
-    vendor_id: u16, product_id: u16, serial: *const c_char, product: *const c_char,
+    vendor_id: u16, product_id: u16, protocol_version: u16, serial: *const c_char,
+    product: *const c_char,
 });
 c_struct!(aoahid_aoa_strings {
     manufacturer: *const c_char, model: *const c_char, description: *const c_char,
@@ -147,18 +143,12 @@ c_struct!(aoahid_aoa_strings {
 c_struct!(aoahid_device_options {
     struct_size: u32,
     reserved: u32,
-    startup_mode: aoahid_startup_mode,
-    accept_future_protocol_versions: u32,
     control_timeout_ms: u32,
     send_timeout_ms: u32,
-    reenumeration_timeout_ms: u32,
     descriptor_fragment_bytes: u32,
     transfer_pool_slots: u32,
     maximum_report_bytes: u32,
     close_drain_timeout_ms: u32,
-    first_report_attempts: u32,
-    first_report_backoff_us: u32,
-    validate_reports: u32,
     aoa_descriptor_wire_policy_bytes: u32,
     linux_descriptor_policy_bytes: u32,
     linux_hid_fields_per_report_policy: u32,
@@ -170,8 +160,7 @@ c_struct!(aoahid_device_options {
     host_control_buffer_policy_bytes: u32,
     interface_claim_policy: aoahid_interface_claim_policy,
     interface_number: i32,
-    accessory_strings: aoahid_aoa_strings,
-    enable_deprecated_audio_mode: u32,
+    validate_reports: u32,
 });
 c_struct!(aoahid_accessory_options {
     struct_size: u32,
@@ -411,7 +400,6 @@ extern "C" {
     ) -> aoahid_result;
     pub fn aoahid_device_close(device: *mut aoahid_device) -> aoahid_result;
     pub fn aoahid_device_latched_error(device: *mut aoahid_device) -> aoahid_result;
-    pub fn aoahid_device_protocol_version(device: *const aoahid_device) -> u16;
     pub fn aoahid_channel_open(
         device: *mut aoahid_device,
         options: *const aoahid_channel_options,

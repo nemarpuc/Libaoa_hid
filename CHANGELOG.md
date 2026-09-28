@@ -5,6 +5,49 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-09-28
+
+### Changed (breaking)
+
+- `aoahid_device_open` sends no AOA request. It no longer sends request 51 to
+  re-check the version, so it no longer returns `AOAHID_ERR_NOT_AOA` or a
+  version error. A device without AOA 2.0 HID opens and then fails at
+  `aoahid_node_open` with `AOAHID_ERR_STALL`.
+- The library applies no AOA version policy. `aoahid_discover` still sends
+  request 51 to each device and lists those with a nonzero version; the new
+  `aoahid_device_info.protocol_version` reports that version, and the caller
+  decides what to open. A caller that fills `aoahid_device_info` itself sends
+  no request 51 at all, which also avoids Android's accessory-handshake
+  broadcast (`SOURCE_CONFLICTS.md` T-12).
+- `aoahid_device_info` gains `protocol_version`. It fits in existing padding,
+  so the size and the offsets of `serial` and `product` are unchanged.
+- `aoahid_device_options` drops every member that did nothing:
+  `startup_mode`, `accept_future_protocol_versions`,
+  `reenumeration_timeout_ms`, `first_report_attempts`,
+  `first_report_backoff_us`, `accessory_strings`, and
+  `enable_deprecated_audio_mode`. `validate_reports` moves to the end so the
+  structure has no interior padding. Rebuild every caller against this header.
+- Removed: `aoahid_device_protocol_version()`, `aoahid_startup_mode`,
+  `AOAHID_START_CURRENT_USB_MODE`, `AOAHID_START_ACCESSORY_MODE`, and
+  `AOAHID_ERR_VERSION` (code 5 is now unassigned; no other code changes). Use
+  `aoahid_accessory_start` to switch a device to accessory mode.
+- The shared library is `libaoahid.so.4` with the `AOAHID_4.0` symbol node.
+- The Python, C#, and Rust bindings follow the new layouts and drop the
+  removed names. The C#, Python, Rust, and C examples print each device's AOA
+  version and refuse a version below 2 themselves.
+
+### Documentation
+
+- The guide, API, design, and example documents describe probe-free open and
+  caller-side version checks, and no longer describe ABI placeholders. The
+  guide's first-report policy now matches the library, which has never retried
+  since 2.0.0.
+
+### Verification status
+
+Fake-backend tests only (the dev, TSan, and ASan/UBSan configurations).
+Nothing is hardware-verified.
+
 ## [3.0.5] - 2026-09-28
 
 ### Changed

@@ -64,7 +64,10 @@ def main() -> int:
             device = device_pointer.contents
             product = device.product.decode(errors="replace") if device.product else ""
             serial = device.serial.decode(errors="replace") if device.serial else ""
-            print(f"{device.vendor_id:04x}:{device.product_id:04x} {product} {serial}")
+            print(
+                f"{device.vendor_id:04x}:{device.product_id:04x} "
+                f"aoa={device.protocol_version} {product} {serial}"
+            )
         library.aoahid_discovery_destroy(discovery)
     close_status = library.aoahid_context_destroy_blocking(context, timeout_ms)
     return int(status if status != AOAHID_OK else close_status)

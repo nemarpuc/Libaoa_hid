@@ -260,6 +260,7 @@ aoahid_result Runtime::discover(const std::uint32_t timeout_ms, std::vector<Cand
                         candidate.port_path = port_path(device);
                         candidate.vendor_id = descriptor.idVendor;
                         candidate.product_id = descriptor.idProduct;
+                        candidate.protocol_version = protocol;
                         candidate.serial = read_ascii_string(handle, descriptor.iSerialNumber);
                         candidate.product = read_ascii_string(handle, descriptor.iProduct);
                         out->push_back(std::move(candidate));

@@ -61,7 +61,6 @@ static int verify_fail(const char* what, aoahid_result result) {
 static aoahid_device_options verify_device_options(void) {
     aoahid_device_options device_options = {0};
     device_options.struct_size = (uint32_t)sizeof device_options;
-    device_options.startup_mode = AOAHID_START_CURRENT_USB_MODE;
     device_options.control_timeout_ms = 500U;
     device_options.send_timeout_ms = 500U;
     device_options.descriptor_fragment_bytes = 4096U;
@@ -96,8 +95,8 @@ static aoahid_result verify_submit(aoahid_node* node) {
     return result;
 }
 
-/* Discovers the first USB device this host can see and opens it as an AOA
- * Mode A device. On success the caller owns *out_context and *out_device and
+/* Discovers the first AOA device this host can see and opens it in its current
+ * USB mode. On success the caller owns *out_context and *out_device and
  * must close/destroy them; on failure both are left null and a message has
  * already been printed. */
 static int verify_open_first_device(aoahid_context** out_context, aoahid_device** out_device) {
@@ -139,6 +138,14 @@ static int verify_open_first_device(aoahid_context** out_context, aoahid_device*
            info != NULL && info->product != NULL ? info->product : "(no name)",
            info != NULL ? (unsigned)info->vendor_id : 0U,
            info != NULL ? (unsigned)info->product_id : 0U);
+    if (info == NULL || info->protocol_version < 2U) {
+        fprintf(stderr, "device has AOA %u; HID needs version 2\n",
+                info != NULL ? (unsigned)info->protocol_version : 0U);
+        aoahid_discovery_destroy(discovery);
+        aoahid_context_destroy(*out_context);
+        *out_context = NULL;
+        return 1;
+    }
 
     const aoahid_device_options device_options = verify_device_options();
 

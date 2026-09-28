@@ -111,8 +111,6 @@ def device_options(control_timeout_ms: int) -> DeviceOptions:  # noqa: F405
     options = DeviceOptions()  # noqa: F405
     options.struct_size = c.sizeof(DeviceOptions)  # noqa: F405
     options.reserved = 0
-    options.startup_mode = AOAHID_START_CURRENT_USB_MODE  # noqa: F405
-    options.accept_future_protocol_versions = 0
     options.control_timeout_ms = control_timeout_ms
     options.send_timeout_ms = control_timeout_ms
     options.descriptor_fragment_bytes = 64  # Explicit policy; AOA fixes no fragment size.
@@ -248,7 +246,8 @@ def print_info(info: DeviceInfo) -> None:  # noqa: F405
     ports = ".".join(str(value) for value in reported_port_path(info))
     print(
         f"bus={info.bus_number} address={info.device_address} port={ports} "
-        f"vid:pid={info.vendor_id:04x}:{info.product_id:04x} product={product!r} serial={serial!r}"
+        f"vid:pid={info.vendor_id:04x}:{info.product_id:04x} aoa={info.protocol_version} "
+        f"product={product!r} serial={serial!r}"
     )
 
 
@@ -260,6 +259,10 @@ def open_session(
     specs: Specs,
     control_timeout_ms: int,
 ) -> tuple[Optional[Session], int]:
+    # Open sends no AOA request, so the version check is the caller's.
+    if info.protocol_version < 2:
+        print(f"device open: AOA {info.protocol_version} has no HID; version 2 is required")
+        return None, AOAHID_ERR_NOT_AOA  # noqa: F405
     device = DeviceP()  # noqa: F405
     options = device_options(control_timeout_ms)
     status = library.aoahid_device_open(context, c.byref(info), c.byref(options), c.byref(device))

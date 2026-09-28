@@ -82,9 +82,15 @@ contract to concurrent calls the caller is required to serialize.
 
 1. `aoahid_context_create`.
 2. `aoahid_discover`; choose an entry while the discovery object is alive.
-3. `aoahid_device_open` with every product/target policy supplied. Set a host-
-   transport tuning field explicitly, or leave that field zero to select its
-   documented fallback.
+   Discovery sends request 51 to each USB device, lists only those that answer
+   with a nonzero version, and reports that version in `protocol_version`. HID
+   needs version 2; the library applies no version policy, so the caller checks
+   it. To send no request 51 at all, skip discovery and fill
+   `aoahid_device_info` from the application's own libusb enumeration
+   (`protocol_version` stays 0).
+3. `aoahid_device_open` with every product/target policy supplied. It sends no
+   AOA request. Set a host-transport tuning field explicitly, or leave that
+   field zero to select its documented fallback.
 4. Create immutable specs with the profile factories.
 5. `aoahid_node_open` for each spec. It allocates Node state, reserves final
    publication capacity, retains the Spec, and installs the transfer-pool
@@ -97,7 +103,7 @@ contract to concurrent calls the caller is required to serialize.
 
 ### Switching a device to accessory mode
 
-AOA HID works in two USB modes. In the current (Mode A) mode the host sends
+AOA HID works in two USB modes. In the current USB mode the host sends
 requests 54-57 without restarting the device (target-conditional, T-07). The
 standard AOA flow instead switches the device first; the library exposes that
 switch as one explicit call and leaves every other step to the application:
@@ -164,25 +170,20 @@ target EP0 or host-control-buffer policy is below 1024 bytes, set
 `maximum_report_bytes` to a compatible explicit nonzero value or open fails
 with `AOAHID_ERR_OVERFLOW`; the library does not enlarge the target policy.
 
-These fallbacks do not apply to `startup_mode`, event mode, validation policy,
+These fallbacks do not apply to event mode, validation policy,
 interface policy, descriptor/EP0/control-buffer policies, the five exact-target
 HID parser policies, or any profile Usage, range, width, count, Report ID, or
 physical/unit setting. Those values define a product or target contract and
 remain caller supplied.
 
 The runtime sends HID requests only on the selected device's current EP0. This
-Mode-A path is target-conditional: AOA 2.0 says HID needs no new USB interface,
-but does not guarantee that every vendor kernel routes requests 54-57 before
-`ACCESSORY_START`. The library does not send requests 52, 53, or 58 and does not
-perform re-enumeration. See `SOURCE_CONFLICTS.md` T-07.
+path is target-conditional: AOA 2.0 says HID needs no new USB interface, but
+does not guarantee that every vendor kernel routes requests 54-57 before
+`ACCESSORY_START`. `aoahid_device_open` sends no AOA request, not even 51, and
+does not perform re-enumeration; a device without AOA 2.0 HID fails at
+`aoahid_node_open` with `AOAHID_ERR_STALL`. See `SOURCE_CONFLICTS.md` T-07.
 
-`aoahid_device_open` itself never switches modes. `AOAHID_START_ACCESSORY_MODE`,
-`reenumeration_timeout_ms`, `accessory_strings`, `enable_deprecated_audio_mode`,
-and (since 2.0.0) `first_report_attempts` and `first_report_backoff_us` remain
-in `aoahid_device_options` only to preserve the established structure size,
-offsets, and language-binding layouts. The retained mode, non-null accessory
-strings, and a nonzero audio flag return `AOAHID_ERR_UNSUPPORTED` before USB
-I/O; the other retained members are ignored. Switch modes with
+`aoahid_device_open` never switches modes. Switch modes with
 `aoahid_accessory_start`, which uses `aoahid_aoa_strings` through
 `aoahid_accessory_options`.
 
@@ -446,11 +447,12 @@ descriptor rejection. `AOAHID_ERR_SHORT_TRANSFER` compares control
 `actual_length` with payload length, excluding the eight-byte setup packet.
 An asynchronous `LIBUSB_TRANSFER_OVERFLOW` completion maps specifically to
 `AOAHID_ERR_OVERFLOW`, preserving libusb's "device sent more data than
-requested" status rather than collapsing it into generic I/O. A successful
-request-51 probe that returns fewer than the required two protocol bytes is a
-capability failure and returns `AOAHID_ERR_NOT_AOA`; its diagnostic retains the
-observed positive byte count and expected length 2. Other short AOA control
-requests remain `AOAHID_ERR_SHORT_TRANSFER`. `AOAHID_ERR_NO_DEVICE` is sticky
+requested" status rather than collapsing it into generic I/O. In
+`aoahid_accessory_start`, a request-51 response shorter than the required two
+protocol bytes is a capability failure and returns `AOAHID_ERR_NOT_AOA`; its
+diagnostic retains the observed positive byte count and expected length 2.
+Discovery lists no device whose request-51 response is short or zero. Other
+short AOA control requests remain `AOAHID_ERR_SHORT_TRANSFER`. `AOAHID_ERR_NO_DEVICE` is sticky
 for the device.
 
 No C++ exception crosses the public C ABI. Allocation failure and any other
@@ -467,7 +469,7 @@ before the error is returned.
 Logging is disabled unless the Context supplies both a non-disabled level and
 a sink. Lifecycle and other cold-path records use Info or Error. Submission,
 report acceptance, and completion contain no logging calls. Cold-path records contain available bus/port path, physical
-VID/PID, AOA version and startup mode, HID/Report IDs, request, offset/length,
+VID/PID, HID/Report IDs, request, offset/length,
 result, and native status. Report payload bytes are never logged.
 
 The sink runs synchronously in the domain that produced the record, including

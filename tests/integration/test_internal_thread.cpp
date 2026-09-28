@@ -29,8 +29,6 @@ bool require_ok(const aoahid_result result, const char* operation) noexcept {
 aoahid_device_options make_device_options() noexcept {
     aoahid_device_options options{};
     options.struct_size = static_cast<std::uint32_t>(sizeof(options));
-    options.startup_mode = AOAHID_START_CURRENT_USB_MODE;
-    options.accept_future_protocol_versions = 0U;
     options.control_timeout_ms = 100U;
     options.send_timeout_ms = 100U;
     options.descriptor_fragment_bytes = 64U;
@@ -189,8 +187,8 @@ int main() {
     aoahid_discovery_destroy(deferred_discovery);
 
     const aoahid_device_info selected{
-        fake.bus,       fake.address,    fake.port_path, fake.port_path_length,
-        fake.vendor_id, fake.product_id, fake.serial,    fake.product};
+        fake.bus,        fake.address, fake.port_path, fake.port_path_length, fake.vendor_id,
+        fake.product_id, 0U,           fake.serial,    fake.product};
     aoahid_device_options device_options = make_device_options();
     aoahid_device* device = nullptr;
     if (!require_ok(aoahid_device_open(context, &selected, &device_options, &device),

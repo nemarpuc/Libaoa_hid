@@ -302,7 +302,6 @@ struct aoahid_device {
     aoahid_context* context{};
     aoa::transport::Device* transport{};
     aoa::transport::DeviceConfig config{};
-    std::uint16_t protocol_version{};
     std::uint32_t close_drain_timeout_ms{};
     std::uint32_t aoa_descriptor_policy_bytes{};
     std::uint32_t linux_descriptor_policy_bytes{};

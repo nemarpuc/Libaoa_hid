@@ -15,15 +15,14 @@ from typing import Union
 
 
 # All public enum domains in aoahid.h are exactly int32_t.
-AOAHID_VERSION_MAJOR = 3
+AOAHID_VERSION_MAJOR = 4
 AOAHID_VERSION_MINOR = 0
-AOAHID_VERSION_PATCH = 5
+AOAHID_VERSION_PATCH = 0
 AOAHID_OK = 0
 AOAHID_ERR_PARAM = 1
 AOAHID_ERR_UNSET_FIELD = 2
 AOAHID_ERR_UNSUPPORTED = 3
 AOAHID_ERR_NOT_AOA = 4
-AOAHID_ERR_VERSION = 5
 AOAHID_ERR_ACCESS = 6
 AOAHID_ERR_BUSY = 7
 AOAHID_ERR_NO_DEVICE = 8
@@ -40,9 +39,6 @@ AOAHID_EVENT_CALLER_POLL = 1
 AOAHID_EVENT_INTERNAL_THREAD = 2
 AOAHID_CHANNEL_READ_STREAM = 0
 AOAHID_CHANNEL_READ_REQUEST = 1
-AOAHID_START_CURRENT_USB_MODE = 1
-# Legacy ABI value only; device_open returns AOAHID_ERR_UNSUPPORTED.
-AOAHID_START_ACCESSORY_MODE = 2
 AOAHID_INTERFACE_CLAIM_NONE = 1
 AOAHID_INTERFACE_CLAIM_EXPLICIT = 2
 AOAHID_LOG_DISABLED = 1
@@ -164,6 +160,7 @@ class DeviceInfo(c.Structure):
         ("port_path_length", c.c_size_t),
         ("vendor_id", c.c_uint16),
         ("product_id", c.c_uint16),
+        ("protocol_version", c.c_uint16),
         ("serial", c.c_char_p),
         ("product", c.c_char_p),
     ]
@@ -171,7 +168,7 @@ class DeviceInfo(c.Structure):
 
 class AoaStrings(c.Structure):
     # AOA request-52 strings. aoahid_accessory_start requires manufacturer and
-    # model; inside DeviceOptions every pointer must remain null (tombstone).
+    # model.
     _fields_ = [
         ("manufacturer", c.c_char_p),
         ("model", c.c_char_p),
@@ -186,20 +183,12 @@ class DeviceOptions(c.Structure):
     _fields_ = [
         ("struct_size", c.c_uint32),
         ("reserved", c.c_uint32),
-        ("startup_mode", c.c_int32),
-        ("accept_future_protocol_versions", c.c_uint32),
         ("control_timeout_ms", c.c_uint32),
         ("send_timeout_ms", c.c_uint32),
-        # Legacy Mode-B ABI tombstone; leave zero.
-        ("reenumeration_timeout_ms", c.c_uint32),
         ("descriptor_fragment_bytes", c.c_uint32),
         ("transfer_pool_slots", c.c_uint32),
         ("maximum_report_bytes", c.c_uint32),
         ("close_drain_timeout_ms", c.c_uint32),
-        # Ignored since 2.0.0; the library never retries a report.
-        ("first_report_attempts", c.c_uint32),
-        ("first_report_backoff_us", c.c_uint32),
-        ("validate_reports", c.c_uint32),
         ("aoa_descriptor_wire_policy_bytes", c.c_uint32),
         ("linux_descriptor_policy_bytes", c.c_uint32),
         ("linux_hid_fields_per_report_policy", c.c_uint32),
@@ -211,9 +200,7 @@ class DeviceOptions(c.Structure):
         ("host_control_buffer_policy_bytes", c.c_uint32),
         ("interface_claim_policy", c.c_int32),
         ("interface_number", c.c_int32),
-        # Legacy Mode-B fields retained only to mirror the stable ABI layout.
-        ("accessory_strings", AoaStrings),
-        ("enable_deprecated_audio_mode", c.c_uint32),
+        ("validate_reports", c.c_uint32),
     ]
 
 
@@ -574,7 +561,6 @@ def load(path: Union[os.PathLike, str]) -> c.CDLL:
     declare("aoahid_device_open", [ContextP, c.POINTER(DeviceInfo), c.POINTER(DeviceOptions), c.POINTER(DeviceP)], result)
     declare("aoahid_device_close", [DeviceP], result)
     declare("aoahid_device_latched_error", [DeviceP], result)
-    declare("aoahid_device_protocol_version", [DeviceP], c.c_uint16)
     declare("aoahid_channel_open", [DeviceP, c.POINTER(ChannelOptions), c.POINTER(ChannelP)], result)
     declare("aoahid_channel_close", [ChannelP], result)
     declare("aoahid_channel_write", [ChannelP, c.POINTER(c.c_uint8), c.c_size_t, c.POINTER(c.c_size_t), c.c_uint32], result)

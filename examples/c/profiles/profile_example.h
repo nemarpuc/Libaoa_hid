@@ -82,7 +82,7 @@ static int aoahid_example_run(const char* name, aoahid_profile_kind expected_kin
     printf("\nTo send this profile to a real device:\n");
     printf("  1. aoahid_context_create()   select caller-poll or internal-thread mode\n");
     printf("  2. aoahid_discover()         then aoahid_discovery_count() to pick a device\n");
-    printf("  3. aoahid_device_open()      current-USB Mode A; no ACCESSORY_START is sent\n");
+    printf("  3. aoahid_device_open()      current USB mode; sends no AOA request\n");
     printf("  4. aoahid_node_open()        registers this Spec as its own AOA HID ID\n");
     step = 5U;
     for (index = 0U; send_sequence != NULL && send_sequence[index] != NULL; ++index) {
