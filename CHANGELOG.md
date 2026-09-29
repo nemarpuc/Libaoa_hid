@@ -5,6 +5,12 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [4.0.1] - 2026-09-29
+
+No library code changed. Hardware-verified on a Samsung Galaxy Tab S11 and a
+POCO F6 Pro (Windows 10 x64 and Arch Linux): the profiles and paths marked
+`Verified` in `docs/TARGET_MATRIX.md`; every other row is still unverified.
+
 ### Documentation
 
 - README: a Demo section with a video of aoahid_player, an app built on this
