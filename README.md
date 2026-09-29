@@ -18,6 +18,9 @@ The app in the video is
 [aoahid_player](https://github.com/nemarpuc/aoahid_player), a script player
 and recorder built on this library.
 
+For an overview of how the library works and why it was built, see
+[the introduction on DEV](https://dev.to/nemarpuc/libaoahid-a-c-abi-library-for-sending-hid-input-to-android-over-usb-1h6f).
+
 No profile in this repository has yet completed the four-level physical-device
 gate (`getevent`, `dumpsys input`, application API, and kernel device). The
 statuses below are source-backed candidates or conditional paths, not a claim

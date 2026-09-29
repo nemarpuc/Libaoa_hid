@@ -5,6 +5,10 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+### Documentation
+
+- README: link to the introduction article on DEV.
+
 ## [4.0.1] - 2026-09-29
 
 No library code changed. Hardware-verified on a Samsung Galaxy Tab S11 and a
