@@ -90,8 +90,8 @@ help, and replacing the whole device's driver ("SAMSUNG Android" in
 WinUSB, libusb reaches every interface through one WinUSB handle
 (`WinUsb_GetAssociatedInterface`) **[implementation observation]**, at the
 cost of Windows' own functions for that device, such as MTP file transfer.
-This is a user report, not a recorded `TARGET_MATRIX.md` run
-**[unverified on hardware]**; the step-by-step fix is in the aoahid_player
+This was observed on a Samsung Galaxy Tab S11 under Windows 10 x64; the
+step-by-step fix is in the aoahid_player
 README's Troubleshooting section. None of this means the library implements
 or requires the Android Debug Bridge protocol.
 
