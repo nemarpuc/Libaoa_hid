@@ -123,5 +123,5 @@ Pro, from Windows 10 x64 and Arch Linux hosts, for touchscreen, keyboard,
 mouse, gamepad, and media keys. Pen and the other profiles have not been
 tested on hardware yet.
 
-See also: [README.md](../README.md), [ARCHITECTURE.md](ARCHITECTURE.md),
+See also: [README.md](https://github.com/nemarpuc/libaoahid#readme), [ARCHITECTURE.md](ARCHITECTURE.md),
 [QUICKSTART.md](QUICKSTART.md), [LIMITS.md](LIMITS.md).
