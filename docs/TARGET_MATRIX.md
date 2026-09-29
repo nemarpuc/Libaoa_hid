@@ -96,21 +96,27 @@ target; no later-version row inherits evidence from an earlier one.
 
 | Profile | Descriptor/static tests | Audited Linux source path | Physical kernel parse | Android classification | Event stream | Application API | Release wording allowed now |
 |---|---|---|---|---|---|---|---|
-| Keyboard, full-NKRO bitmap (also reached via the former Barcode/MSR wedge factory) | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; hardware unverified" |
-| Mouse | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Implemented; hardware unverified" |
-| Toggle: Consumer control | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; target mapping unverified" |
+| Keyboard, full-NKRO bitmap (also reached via the former Barcode/MSR wedge factory) | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Verified` (input observed on Galaxy Tab S11 and POCO F6 Pro) | "Conditional; took effect on Galaxy Tab S11 and POCO F6 Pro" |
+| Mouse | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Verified` (input observed on Galaxy Tab S11 and POCO F6 Pro) | "Implemented; took effect on Galaxy Tab S11 and POCO F6 Pro" |
+| Toggle: Consumer control | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Verified` (input observed on Galaxy Tab S11 and POCO F6 Pro) | "Conditional; took effect on Galaxy Tab S11 and POCO F6 Pro" |
 | Toggle: System control | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; target mapping unverified" |
 | Toggle: Camera keys (`field_page = 0x90`) | Not recorded | Camera Usage/OSC form `Source-reviewed`; collection placement is guide policy | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; target mapping and interception unverified" |
 | Toggle: Telephony keys | Not recorded | Telephony Usage form `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; target mapping and call-policy behavior unverified" |
-| Gamepad, canonical Hat | Not recorded | Specified Linux revision, Android 17 ACK, and CDD §7.2.6.1 `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Portable candidate only for Game Pad + canonical Hat + contiguous Button range from 1 with count at least 5; hardware unverified" |
-| Gamepad, raw D-pad OOC fields | Not recorded | HUT form plus Android 17 ACK individual-field dispatch `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; D-pad combination behavior unverified" |
-| Gamepad, no D-pad | Not recorded | Gamepad collection and declared axis/button paths `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; canonical CDD Hat absent; hardware unverified" |
-| Touchscreen, fixed MT (the only Multi-Touch form) | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Portable candidate; hardware unverified" |
+| Gamepad, canonical Hat | Not recorded | Specified Linux revision, Android 17 ACK, and CDD §7.2.6.1 `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Verified` (input observed on Galaxy Tab S11 and POCO F6 Pro) | "Portable candidate only for Game Pad + canonical Hat + contiguous Button range from 1 with count at least 5; took effect on Galaxy Tab S11 and POCO F6 Pro" |
+| Gamepad, raw D-pad OOC fields | Not recorded | HUT form plus Android 17 ACK individual-field dispatch `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Verified` (input observed on Galaxy Tab S11 and POCO F6 Pro) | "Conditional; took effect on Galaxy Tab S11 and POCO F6 Pro" |
+| Gamepad, no D-pad | Not recorded | Gamepad collection and declared axis/button paths `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Verified` (input observed on Galaxy Tab S11 and POCO F6 Pro) | "Conditional; canonical CDD Hat absent; took effect on Galaxy Tab S11 and POCO F6 Pro" |
+| Touchscreen, fixed MT (the only Multi-Touch form) | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Verified` (input observed on Galaxy Tab S11 and POCO F6 Pro) | "Portable candidate; took effect on Galaxy Tab S11 and POCO F6 Pro" |
 | Touchpad | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; Android surfaces contacts as mouse-source motion; hardware unverified" |
 | Direct pen | Not recorded | Legacy descriptor-order path and Android 17 ACK priority order `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Portable candidate; hardware unverified" |
 | Indirect pen/tablet | Not recorded | Legacy descriptor-order path and Android 17 ACK priority order `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; classification unverified" |
 | Battery Strength metadata | Not recorded | `Source-reviewed`; kernel option dependent | `Not run` | `Not run` | Not an ordinary input event | `Not run` | "Conditional metadata; hardware unverified" |
 | Raw Input report | Not recorded | Parser rules source-reviewed | `Not run` | Not claimed | Not claimed | Not claimed | "No Android semantic support claimed" |
+
+`Verified` in the Application API column means the maintainer drove the
+profile through aoahid_player on a Samsung Galaxy Tab S11 and a POCO F6 Pro
+(HyperOS), on Windows 10 x64 and Arch Linux, and the input took effect on the
+device; the kernel-parse, classification and event-stream columns were not
+captured separately.
 
 `Source-reviewed` in the third column means only that the corresponding branch in the specified Linux revision was inspected. It does not mean that `libaoahid` generated bytes have executed through that branch.
 
