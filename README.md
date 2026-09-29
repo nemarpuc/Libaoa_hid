@@ -10,6 +10,14 @@ product/target choice such as ranges, widths, Report IDs, Usage sets, parser
 policies, and event mode. A zero in one of the documented host-transport tuning
 fields selects a bounded project-policy fallback; see [API.md](docs/API.md).
 
+## Demo
+
+<!-- demo video -->
+
+The app in the video is
+[aoahid_player](https://github.com/nemarpuc/aoahid_player), a script player
+and recorder built on this library.
+
 No profile in this repository has yet completed the four-level physical-device
 gate (`getevent`, `dumpsys input`, application API, and kernel device). The
 statuses below are source-backed candidates or conditional paths, not a claim

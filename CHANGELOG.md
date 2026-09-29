@@ -7,6 +7,8 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ### Documentation
 
+- README: a Demo section with a video of aoahid_player, an app built on this
+  library.
 - `docs/TARGET_MATRIX.md`: rows 1, 2, 3 and 6 of the accessory mode and Bulk
   Channel table are verified on hardware (Samsung Galaxy Tab S11 and POCO F6
   Pro, on Windows 10 x64 and Arch Linux).
