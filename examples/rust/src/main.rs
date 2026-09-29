@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 libaoahid contributors
 //! Exercises caller-owned discovery, multi-profile state, reconnection, and
-//! shutdown through the literal Rust FFI. The binding supplies no option values.
-//! Usage and protocol evidence is recorded in `docs/EXAMPLES.md` and
-//! `docs/FACT_AUDIT.md`.
+//! shutdown through the literal Rust FFI. The binding provides no option values.
+//! `docs/EXAMPLES.md` explains the Usage and protocol choices.
 
 use aoahid_sys as sys;
 use core::ffi::CStr;
@@ -12,13 +11,13 @@ use std::slice;
 use std::thread;
 
 // Every value in this block is this caller's reviewed example policy or input.
-// None is selected by libaoahid; docs/EXAMPLES.md records the value ledger.
+// None is selected by libaoahid; docs/EXAMPLES.md lists the example values.
 const DESCRIPTOR_POLICY_BYTES: u32 = 4096;
 const HOST_REPORT_POLICY_BYTES: u32 = 4088;
 const POOL_SLOTS: u32 = 8;
 const RESERVED_SLOTS_PER_NODE: u32 = 1;
 const CLOSE_DRAIN_TIMEOUT_MS: u32 = 1000;
-const KEYBOARD_A_USAGE: u16 = 0x04; // HUT 1.7 section 10; see FACT_AUDIT.md.
+const KEYBOARD_A_USAGE: u16 = 0x04; // HUT 1.7 section 10.
 const KEYBOARD_APPLICATION_USAGE: u16 = 0x65; // HUT 1.7 section 10.
 const POINTER_BUTTON_COUNT: u32 = 3;
 const RELATIVE_MINIMUM: i32 = -127;
@@ -83,7 +82,8 @@ fn device_options(timeout_ms: u32) -> sys::aoahid_device_options {
         close_drain_timeout_ms: CLOSE_DRAIN_TIMEOUT_MS,
         aoa_descriptor_wire_policy_bytes: DESCRIPTOR_POLICY_BYTES,
         linux_descriptor_policy_bytes: DESCRIPTOR_POLICY_BYTES,
-        // These policies name the audited Linux revision in docs/FACT_AUDIT.md.
+        // These policies mirror Linux HID core limits
+        // (include/linux/hid.h); check them against the target kernel.
         linux_hid_fields_per_report_policy: 256,
         linux_hid_global_stack_depth_policy: 4,
         linux_hid_usages_policy: 12288,
@@ -455,7 +455,7 @@ fn update_then_submit(
     let mut result = sys::AOAHID_OK;
     let mut ready = Vec::new();
     // Prepare every node first. USB submission is a second pass so one device
-    // does not delay the next device's preparation (DESIGN.md section 3.5).
+    // does not delay the next device's preparation.
     for (index, session) in sessions.iter_mut().enumerate() {
         if session.device.is_null() {
             continue;

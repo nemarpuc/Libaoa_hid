@@ -26,8 +26,8 @@ constexpr std::size_t kMaximumAccessoryStringBytes = 256U;
 constexpr std::uint32_t kInternalEventPollTimeoutMs = 60'000U;
 
 // Zero-valued tuning inputs use bounded project-policy fallbacks. These are
-// not protocol limits or libusb recommendations; the source ledger and API
-// documentation record their provenance and keep product policies mandatory.
+// not protocol limits or libusb recommendations; docs/API.md lists them.
+// Product policies stay mandatory.
 constexpr std::uint32_t kFallbackControlTimeoutMs = 500U;
 constexpr std::uint32_t kFallbackSendTimeoutMs = 500U;
 constexpr std::uint32_t kFallbackDescriptorFragmentBytes = 64U;
@@ -498,7 +498,7 @@ bool has_non_neutral_state(const aoahid_node* node) noexcept {
 // vector access in its own non-inlined function also keeps GCC 14's
 // -Wstringop-overflow analysis from unifying value ranges across unrelated
 // sibling if/else-if arms of one large function, which produced a false
-// positive at -O3 on musl (docs/SOURCE_CONFLICTS.md C-26). MSVC does not
+// positive at -O3 on musl. MSVC does not
 // recognize the gnu:: attribute namespace and, under /WX, turns its own
 // warning about that into a hard error, so this is spelled per compiler
 // rather than as a portable [[gnu::noinline]] attribute.

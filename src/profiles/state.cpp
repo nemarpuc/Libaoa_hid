@@ -228,9 +228,9 @@ bool validate_contact(const aoa::detail::TouchConfig& config_value,
         (options.enable_pressure == 1U && !in_range(contact.pressure, options.pressure)) ||
         (options.enable_width == 1U && !in_range(contact.width, options.width)) ||
         (options.enable_height == 1U && !in_range(contact.height, options.height)) ||
-        // The audited hid-multitouch.c revision defines Azimuth samples as
-        // [0, Logical Maximum), despite HID's inclusive descriptor extent;
-        // FACT_AUDIT.md A-14b records that exact-revision conflict.
+        // Linux hid-multitouch.c treats Azimuth samples as [0, Logical
+        // Maximum): the maximum is the full-turn endpoint, not a valid sample,
+        // even though HID logical extents are otherwise inclusive.
         (options.enable_azimuth == 1U &&
          (contact.azimuth < 0 || contact.azimuth >= options.azimuth.logical_maximum)) ||
         (options.enable_pressure == 0U && contact.pressure != 0) ||

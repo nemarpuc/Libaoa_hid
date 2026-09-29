@@ -41,7 +41,7 @@ POCO F6 Pro (Windows 10 x64 and Arch Linux): the profiles and paths marked
   `aoahid_device_info.protocol_version` reports that version, and the caller
   decides what to open. A caller that fills `aoahid_device_info` itself sends
   no request 51 at all, which also avoids Android's accessory-handshake
-  broadcast (`SOURCE_CONFLICTS.md` T-12).
+  broadcast.
 - `aoahid_device_info` gains `protocol_version`. It fits in existing padding,
   so the size and the offsets of `serial` and `product` are unchanged.
 - `aoahid_device_options` drops every member that did nothing:
@@ -153,7 +153,7 @@ No library code changed. Nothing is hardware-verified.
   `aoahid_channel_open` now waits, within the Device's `close_drain_timeout_ms`,
   until no report transfer is in flight before it claims the interface, and
   returns `AOAHID_ERR_TIMEOUT` if one still is. `aoahid_channel_close` waits
-  the same way (best effort) before releasing it. See `FACT_AUDIT.md` A-25.
+  the same way (best effort) before releasing it.
 
 ### Verification status
 
@@ -207,8 +207,8 @@ Nothing is hardware-verified.
 
 ### Removed
 
-- `docs/ARCHITECTURE_USB_HUB.md`, which still described a rejected automatic
-  design and an unimplemented ADB-server plan. `docs/API.md` now cites the
+- An outdated design note describing a rejected automatic design and an
+  unimplemented ADB-server plan. `docs/API.md` now cites the
   Android 10-second accessory-request timeout directly from AOSP
   `UsbDeviceManager.java`.
 - An unused internal Channel query and two fake-libusb test helpers left over
@@ -593,7 +593,7 @@ verification claim -- both forms were already **not hardware-verified**, and
 no profile in this release has completed that gate. The Android
 kernel/`EventHub`/`Generic.kl` source citations above establish which
 Application Collection Android's generic input stack favors; they are
-`[Specified Linux/AOSP implementation observation]`, not a claim that this
+source observations, not a claim that this
 library's own generated descriptors have been exercised through that code
 path on a physical device. See `TARGET_MATRIX.md`.
 
@@ -679,7 +679,7 @@ path on a physical device. See `TARGET_MATRIX.md`.
   fails the release if any license file is missing, if the libusb runtime is
   absent, if a bundled byte differs from the complete archive, or if an
   unexpected member appears. The release asset total is unchanged at 23.
-  See `docs/SOURCE_CONFLICTS.md` C-15.
+ 
 - **License metadata:** raised the SPDX documents from package-level
   declarations with `NOASSERTION` on every file to per-file licensing.
   `generate_spdx.file_license` classifies each packaged file by installed
@@ -689,7 +689,7 @@ path on a physical device. See `TARGET_MATRIX.md`.
   `MIT AND LGPL-2.1-or-later` for the archive while still declaring `MIT` for
   libaoahid itself. Both `generate_spdx.validate_document` and
   `collect_release.validate_sidecar` reject a document whose file entries or
-  package summary disagree. See `docs/SOURCE_CONFLICTS.md` C-15a.
+  package summary disagree.
 - **License provenance:** added an `SPDX-License-Identifier: MIT` tag and
   copyright line to every first-party source file, so a file copied out of this
   repository stays identifiable without the root `LICENSE`. The new
@@ -708,8 +708,6 @@ path on a physical device. See `TARGET_MATRIX.md`.
   only granted access for the unused Mode-B Google-Accessory VID/PID range;
   they now grant access through udev's `uaccess` tag, which is what Mode A
   (this library's only implemented mode) actually needs.
-- Filled in a leftover `YOUR_GITHUB_EMAIL` template placeholder in
-  `GITHUB_SETUP.md`'s first-push instructions.
 
 ### Added
 
@@ -788,9 +786,7 @@ and kernel device); Android device/profile behavior remains
 - Limited Gamepad portable-candidate manifests to the Android 17 CDD shape:
   Game Pad collection, canonical Hat, and a contiguous Button range beginning
   at `1` with at least five fields so A/B/X/Y Usages `1`, `2`, `4`, and `5`
-  are present. No-D-pad Gamepads remain conditional. The CDD's contradictory
-  value-1 Hat prose and its clockwise rule are recorded in
-  `docs/SOURCE_CONFLICTS.md` A-05.
+  are present. No-D-pad Gamepads remain conditional.
 - Ordered eraser-enabled pen Variable fields as Invert, Tip Switch, then In
   Range, matching the audited legacy descriptor-order dependency and the
   Android 17 ACK priority relation. Close-time neutralization also clears raw
@@ -822,8 +818,7 @@ and kernel device); Android device/profile behavior remains
   sends AOA HID requests only on the selected device's current EP0 and never
   sends identification strings, deprecated audio request 58, or
   `ACCESSORY_START`, and never waits for re-enumeration. Mode A remains
-  target-conditional rather than a blanket Android compatibility claim; see
-  `docs/SOURCE_CONFLICTS.md` T-07.
+  target-conditional rather than a blanket Android compatibility claim.
 
 ### Compatibility
 

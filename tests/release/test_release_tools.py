@@ -367,9 +367,7 @@ class ReleaseIdentityTests(unittest.TestCase):
         self.assertIn("release-manifest.json", assets)
         self.assertIn("SHA256SUMS", assets)
         readme = (REPOSITORY / "README.md").read_text(encoding="utf-8")
-        setup = (REPOSITORY / "GITHUB_SETUP.md").read_text(encoding="utf-8")
         self.assertIn("exactly 23 uploaded assets", readme)
-        self.assertIn("expected to have 23 uploaded assets", setup)
 
     def test_runtime_bundle_carries_every_license_obligation(self) -> None:
         elf = bytearray(64)
@@ -746,23 +744,6 @@ Cflags: -I${includedir}
 
     def test_repository_metadata_is_consistent(self) -> None:
         validate_release.validate_repository_identity(REPOSITORY)
-
-    def test_setup_urls_are_exact(self) -> None:
-        setup = (REPOSITORY / "GITHUB_SETUP.md").read_text(encoding="utf-8")
-        for expected in (
-            "https://github.com/new",
-            "https://github.com/nemarpuc/libaoahid.git",
-            "https://nemarpuc.github.io/libaoahid/",
-            "https://github.com/actions/runner-images#available-images",
-            "https://github.com/actions/runner-images/issues/14592",
-            "https://docs.github.com/code-security/code-scanning/enabling-code-scanning/"
-            "configuring-default-setup-for-code-scanning",
-            "https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/"
-            "manage-your-dependency-security/configure-dependency-review-action",
-        ):
-            with self.subTest(expected=expected):
-                self.assertIn(expected, setup)
-
 
 if __name__ == "__main__":
     unittest.main()

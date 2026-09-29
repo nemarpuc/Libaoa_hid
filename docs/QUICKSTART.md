@@ -1,9 +1,7 @@
 # Quickstart: verifying against a real phone
 
-This is a practical "does it actually work" walkthrough, distinct from the
-rest of `docs/`, which is written as an engineering/evidence audit. Nothing
-here changes any claim made elsewhere; it exists so a first-time user can get
-from a fresh checkout to a phone reacting to real HID reports.
+This walkthrough takes you from a fresh checkout to a phone reacting to real
+HID reports.
 
 ## 1. Install build tools
 
@@ -20,8 +18,10 @@ sudo pacman -S cmake gcc libusb
 ```
 
 Windows: install CMake, a recent Visual Studio (or the Build Tools) with the
-C++ workload, and a libusb 1.0.30+ development package (for example via
-vcpkg; `vcpkg.json` in this repository already declares the dependency).
+C++ workload, and libusb 1.0.30 or newer (for example through vcpkg;
+`vcpkg.json` in this repository declares the dependency).
+
+libusb 1.0.30 or newer is required on every platform.
 
 ## 2. Cable and hub check (the most common silent failure)
 
@@ -36,7 +36,9 @@ confirm the phone is even visible before touching this library at all.
 
 ## 3. Linux: USB permissions
 
-For normal user access, install the udev rule:
+Your distribution may already give the logged-in user access to the phone
+(for example through `uaccess` rules shipped for MTP or ADB). If not, install
+the udev rule, which tags USB devices with `uaccess`:
 
     sudo cp udev/51-aoahid.rules /etc/udev/rules.d/
     sudo udevadm control --reload-rules
@@ -46,19 +48,10 @@ Then reconnect the phone.
 
 For a quick test, you can skip the udev setup and run the programs with sudo:
 
-    sudo ./aoahid_example_c
     sudo ./aoahid_verify_keyboard
-    sudo ./aoahid_verify_touch
-    sudo ./aoahid_verify_mouse
-    sudo ./aoahid_verify_toggle
-    sudo ./aoahid_verify_battery
-    sudo ./aoahid_verify_all
-    sudo ./aoahid_verify_accessory "Your Company" "Your Model"
 
-If `aoahid_device_open` fails with `AOAHID_ERR_ACCESS`, try running the
-program with `sudo` first. If that works, the problem is likely USB
-permissions; install the udev rule above if you want to run the program
-without sudo.
+If `aoahid_device_open` fails with `AOAHID_ERR_ACCESS` but works with `sudo`,
+the problem is USB permissions; install the udev rule above.
 
 ## 4. Windows: `adb` or a manufacturer driver can block you
 
@@ -75,21 +68,24 @@ libusb0). Two things commonly get in the way:
   and close any app that might restart it (Android Studio, scrcpy, Vysor).
 - The manufacturer installed its own driver instead of WinUSB. Samsung
   devices are one example: HID can work while a Channel on the ADB interface
-  fails with libusb status `-12`. Replace the whole device's driver with
-  WinUSB using Zadig; see `docs/PORTING.md`'s Windows section.
+  fails with libusb status `-12` (`LIBUSB_ERROR_NOT_SUPPORTED`). Replace the
+  whole device's driver with WinUSB using [Zadig](https://zadig.akeo.ie/); see
+  the Windows section of [PORTING.md](PORTING.md#windows).
 
 ## 5. Build against the real libusb backend
 
-`AOAHID_USE_FAKE_LIBUSB` selects the deterministic test double used by
-`ctest`, which never touches real USB hardware. It is `OFF` unless a test
-configuration (such as the `dev` or `tsan` preset) turns it on; keep it `OFF`
-for a real device:
+`AOAHID_USE_FAKE_LIBUSB` selects the test-only libusb stand-in used by
+`ctest`, which never touches real USB hardware. It defaults to `OFF`; the
+`dev` and `tsan` presets turn it on. Keep it `OFF` for a real device:
 
 ```sh
-mkdir build && cd build
-cmake .. -DAOAHID_USE_FAKE_LIBUSB=OFF -DAOAHID_BUILD_EXAMPLES=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build .
+cmake -S . -B build -DAOAHID_USE_FAKE_LIBUSB=OFF -DAOAHID_BUILD_EXAMPLES=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+cd build
 ```
+
+With a multi-config generator such as Visual Studio, the programs are in
+`build/Release/` instead.
 
 ## 6. Confirm the phone is visible to the host at all
 
@@ -112,20 +108,18 @@ sudo ./aoahid_example_c
 (On Linux, `sudo` is the fast path if you skipped step 3; on Windows no
 elevation is normally required once the driver binding in step 4 is correct.)
 A successful run prints the discovered device's bus/address/VID:PID/serial
-and exits with status `0`. This program deliberately keeps every state change
-brief, because it also runs unattended in CI against zero fake devices; it is
-correctness evidence, not a demo you are meant to watch.
+and exits with status `0`. Every state change is brief, because the same
+program also runs unattended in CI; it is not meant to be watched.
 
 ## 8. Run the human-observable verification programs
 
-`examples/c/verify/` contains small, heavily commented programs built
-specifically to be watched, each printing what to do before it starts and
-pausing so you have time to react:
+`examples/c/verify/` contains small programs meant to be watched. Each prints
+what to do before it starts and pauses so you have time to react:
 
 | Program | What to do first | What you should see |
 |---|---|---|
 | `aoahid_verify_keyboard` | Open a text field (Notes, a search box, anything with a text cursor) | The literal text `hello from libaoahid` typed out, three times |
-| `aoahid_verify_mouse` | Nothing required | The cursor moves in a circle for a few seconds -- many phones do not show a visible cursor at all without an accessibility/DeX-style pointer mode enabled; a clean exit with no error is still useful evidence even with nothing visible |
+| `aoahid_verify_mouse` | Nothing required | The cursor moves in a circle for a few seconds -- many phones do not show a visible cursor at all without an accessibility/DeX-style pointer mode enabled; a clean exit means the reports were accepted |
 | `aoahid_verify_touch` | Have any screen open | The screen shows a left-right dragging motion, repeated five times |
 | `aoahid_verify_toggle` | Unlock the phone and put a media app in the foreground (ideally a paused track) | Play/Pause, Volume Increment, Mute, and "AC New" each fire in turn; watch the media app and/or `adb shell getevent -lt` for the accessory's `/dev/input/eventN` (only Consumer Control Usages are sent -- see the comment at the top of the file for why System Control is deliberately excluded) |
 | `aoahid_verify_accessory <manufacturer> <model>` | Open a text field; the two strings are your product values (Android matches them against an app's accessory filter and may show a "no app" prompt) | The phone disconnects and reconnects in AOA accessory mode (`18d1:2d00`, or `2d01` with USB debugging), one `a` is typed, and with `2d01` an ADB Channel opens and closes on the same USB handle. Unplug and replug to leave accessory mode |
@@ -139,7 +133,10 @@ sudo ./aoahid_verify_mouse
 sudo ./aoahid_verify_toggle
 sudo ./aoahid_verify_battery
 sudo ./aoahid_verify_all
+sudo ./aoahid_verify_accessory "Your Company" "Your Model"
 ```
+
+Drop `sudo` once USB permissions are set up (step 3), and on Windows.
 
 Each one prints a clear error (with the field/reason from
 `aoahid_last_error()`) instead of failing silently, and each returns a
@@ -152,11 +149,9 @@ nonzero exit status on failure.
 | Phone never appears in `lsusb` / Device Manager at all | Charge-only cable or hub port | Step 2 |
 | `AOAHID_ERR_ACCESS` on Linux | Missing udev permission | Step 3, or run with `sudo` first to isolate the cause |
 | Device open or Channel open fails only on Windows | `adb` holds the interface, or the phone has a manufacturer driver instead of WinUSB | Step 4 |
-| Program exits `0`, nothing visible happens | No focused text field (keyboard) or normal single-shot API demo (`aoahid_example_c`) rather than a sustained one | Use the programs in step 8 instead, and focus a text field first for the keyboard case |
+| Program exits `0`, nothing visible happens | No focused text field (keyboard), or you ran `aoahid_example_c`, whose changes are too brief to see | Use the programs in step 8 instead, and focus a text field first for the keyboard case |
 | A physical-keyboard indicator/icon flickers but no character appears | The Android input pipeline detected the HID keyboard, but no text field was focused at that instant | Refocus a text field and rerun; this is not a library-level failure |
-| `AOAHID_ERR_STALL` from the first `aoahid_node_open` | The device has no AOA 2.0 HID (open does not check), or its kernel accepts HID requests only after `ACCESSORY_START` | Check the `protocol_version` discovery reported; otherwise try `aoahid_accessory_start`; see `README.md` |
+| `AOAHID_ERR_STALL` from the first `aoahid_node_open` | The device has no AOA 2.0 HID support (open does not check), or its kernel accepts HID requests only after `ACCESSORY_START` | Check the `protocol_version` discovery reported; otherwise try `aoahid_accessory_start` (see [PROTOCOL.md](PROTOCOL.md)) |
 
-None of the "what you should see" descriptions above are a hardware
-verification claim in the sense `docs/TARGET_MATRIX.md` uses that phrase; they
-are a first sanity check, not a substitute for that matrix's four evidence
-layers.
+These programs are a quick sanity check. For the devices and profiles already
+confirmed on real hardware, see [TARGET_MATRIX.md](TARGET_MATRIX.md).

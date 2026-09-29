@@ -8,9 +8,8 @@ of it carries no license information of its own. Machine license scanners and
 SBOM generators also work per file. This check therefore requires the two-line
 SPDX header on every first-party source file in the extensions listed below.
 
-Data, markup, and preserved-input formats are deliberately out of scope: JSON
-and the byte-identical documents under docs/inputs/ cannot carry a comment
-without changing their content or checksum.
+Data and markup formats are deliberately out of scope: JSON cannot carry a
+comment.
 """
 
 from __future__ import annotations
@@ -33,9 +32,8 @@ SLASH_COMMENT_SUFFIXES = frozenset(
 HASH_COMMENT_SUFFIXES = frozenset({".py", ".cmake", ".sh"})
 HASH_COMMENT_NAMES = frozenset({"CMakeLists.txt"})
 
-# Directories with no first-party source, or whose contents are preserved
-# byte-for-byte and validated by tools/check_input_provenance.py.
-EXCLUDED_DIRECTORIES = ("docs/inputs", "build", ".git")
+# Directories with no first-party source.
+EXCLUDED_DIRECTORIES = ("build", ".git")
 
 
 def in_scope(path: Path) -> bool:

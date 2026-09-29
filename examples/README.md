@@ -1,9 +1,7 @@
 # Compiling these examples
 
-Every command below was actually run and verified against a real build of
-this package before being written down here. If a command fails for you
-exactly as written, that is a bug in this file or the library, not a step
-you are missing -- please open an issue.
+These commands build the examples against an extracted release archive. If a
+command fails as written, please open an issue.
 
 ## C examples
 
@@ -12,36 +10,39 @@ Even the **static** archive (`lib/libaoahid.a`) still needs the C++ standard
 library at link time, so every command below includes `-lstdc++`. Forgetting
 it produces `undefined reference to std::...` linker errors.
 
-From the directory this README is in (i.e. the package root, one level above
-`examples/`):
+Run the commands from the package root (the directory that holds `include/`
+and `lib/`). In a release archive the examples are installed under
+`share/doc/libaoahid/examples/`:
 
 ```sh
+EX=share/doc/libaoahid/examples
+
 # One example per HID profile kind. None of these opens a device; each builds a
 # complete Spec, prints the descriptor it produced, and then prints the exact
 # call sequence that would send that profile to a real phone.
-cc -std=c17 -O2 -Iinclude examples/c/profiles/keyboard.c    lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o keyboard
-cc -std=c17 -O2 -Iinclude examples/c/profiles/mouse.c       lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o mouse
-cc -std=c17 -O2 -Iinclude examples/c/profiles/toggle.c      lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o toggle
-cc -std=c17 -O2 -Iinclude examples/c/profiles/gamepad.c     lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o gamepad
-cc -std=c17 -O2 -Iinclude examples/c/profiles/touchscreen.c lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o touchscreen
-cc -std=c17 -O2 -Iinclude examples/c/profiles/touchpad.c    lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o touchpad
-cc -std=c17 -O2 -Iinclude examples/c/profiles/pen.c         lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o pen
-cc -std=c17 -O2 -Iinclude examples/c/profiles/battery.c     lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o battery
-cc -std=c17 -O2 -Iinclude examples/c/profiles/raw.c         lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o raw
+cc -std=c17 -O2 -Iinclude $EX/c/profiles/keyboard.c    lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o keyboard
+cc -std=c17 -O2 -Iinclude $EX/c/profiles/mouse.c       lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o mouse
+cc -std=c17 -O2 -Iinclude $EX/c/profiles/toggle.c      lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o toggle
+cc -std=c17 -O2 -Iinclude $EX/c/profiles/gamepad.c     lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o gamepad
+cc -std=c17 -O2 -Iinclude $EX/c/profiles/touchscreen.c lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o touchscreen
+cc -std=c17 -O2 -Iinclude $EX/c/profiles/touchpad.c    lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o touchpad
+cc -std=c17 -O2 -Iinclude $EX/c/profiles/pen.c         lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o pen
+cc -std=c17 -O2 -Iinclude $EX/c/profiles/battery.c     lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o battery
+cc -std=c17 -O2 -Iinclude $EX/c/profiles/raw.c         lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o raw
 
 # The full discovery-to-teardown lifecycle example. Opens a real device if one
 # is connected.
-cc -std=c17 -O2 -Iinclude examples/c/multi_profile.c lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o multi_profile
+cc -std=c17 -O2 -Iinclude $EX/c/multi_profile.c lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o multi_profile
 
-# Human-observable real-device demos (docs/QUICKSTART.md has the full
-# walkthrough). These need -lm in addition to the above for math.h.
-cc -std=c17 -O2 -Iinclude examples/c/verify/verify_keyboard.c lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o verify_keyboard
-cc -std=c17 -O2 -Iinclude examples/c/verify/verify_touch.c    lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -lm -o verify_touch
-cc -std=c17 -O2 -Iinclude examples/c/verify/verify_mouse.c    lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -lm -o verify_mouse
-cc -std=c17 -O2 -Iinclude examples/c/verify/verify_toggle.c   lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o verify_toggle
-cc -std=c17 -O2 -Iinclude examples/c/verify/verify_battery.c  lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o verify_battery
-cc -std=c17 -O2 -Iinclude examples/c/verify/verify_all.c      lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -lm -o verify_all
-cc -std=c17 -O2 -Iinclude examples/c/verify/verify_accessory.c lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o verify_accessory
+# Programs to watch on a real phone (docs/QUICKSTART.md has the walkthrough).
+# The ones that use math.h also need -lm.
+cc -std=c17 -O2 -Iinclude $EX/c/verify/verify_keyboard.c lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o verify_keyboard
+cc -std=c17 -O2 -Iinclude $EX/c/verify/verify_touch.c    lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -lm -o verify_touch
+cc -std=c17 -O2 -Iinclude $EX/c/verify/verify_mouse.c    lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -lm -o verify_mouse
+cc -std=c17 -O2 -Iinclude $EX/c/verify/verify_toggle.c   lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o verify_toggle
+cc -std=c17 -O2 -Iinclude $EX/c/verify/verify_battery.c  lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o verify_battery
+cc -std=c17 -O2 -Iinclude $EX/c/verify/verify_all.c      lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -lm -o verify_all
+cc -std=c17 -O2 -Iinclude $EX/c/verify/verify_accessory.c lib/libaoahid.a -lstdc++ -lusb-1.0 -lpthread -o verify_accessory
 ```
 
 If you downloaded the **shared** package instead (`lib/libaoahid.so` /

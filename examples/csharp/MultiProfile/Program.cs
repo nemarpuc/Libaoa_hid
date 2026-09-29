@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 libaoahid contributors
 // Exercises explicit discovery, profile, reconnection, and shutdown policies
-// through P/Invoke. The binding supplies no option values or ownership policy.
-// Evidence for Usage and protocol choices is recorded in docs/EXAMPLES.md and
-// docs/FACT_AUDIT.md.
+// through P/Invoke. The binding provides no option values or ownership policy.
+// docs/EXAMPLES.md explains the Usage and protocol choices.
 using System.Runtime.InteropServices;
 using AoaHid;
 
@@ -16,7 +15,7 @@ internal static class Program
     private const uint PoolSlots = 8;
     private const uint ReservedSlotsPerNode = 1;
     private const uint CloseDrainTimeoutMs = 1000;
-    private const ushort KeyboardAUsage = 0x04; // HUT 1.7 section 10; see FACT_AUDIT.md.
+    private const ushort KeyboardAUsage = 0x04; // HUT 1.7 section 10.
     private const ushort KeyboardApplicationUsage = 0x65; // HUT 1.7 section 10.
     private const uint PointerButtonCount = 3;
     private const int RelativeMinimum = -127;
@@ -90,7 +89,8 @@ internal static class Program
         ValidateReports = 1,
         AoaDescriptorWirePolicyBytes = DescriptorPolicyBytes,
         LinuxDescriptorPolicyBytes = DescriptorPolicyBytes,
-        // These policies name the audited Linux revision in docs/FACT_AUDIT.md.
+        // These policies mirror Linux HID core limits
+        // (include/linux/hid.h); check them against the target kernel.
         LinuxHidFieldsPerReportPolicy = 256,
         LinuxHidGlobalStackDepthPolicy = 4,
         LinuxHidUsagesPolicy = 12288,
@@ -416,7 +416,7 @@ internal static class Program
             Azimuth = 0,
         };
         // Prepare all state first; USB submission is a separate pass so one
-        // device does not delay the next device's preparation (DESIGN.md 3.5).
+        // device does not delay the next device's preparation.
         foreach (var session in sessions.Where(value => value.Device != nint.Zero))
         {
             var status = FirstFailure(

@@ -2,8 +2,7 @@
 // Copyright (c) 2026 libaoahid contributors
 /* Exercises caller-owned discovery, multi-profile state, reconnection, and
  * teardown through the C ABI. This example chooses every option itself; the
- * library supplies no policy. Usage and protocol evidence is recorded in
- * docs/EXAMPLES.md and docs/FACT_AUDIT.md. */
+ * library picks no policy. docs/EXAMPLES.md explains each value. */
 #if !defined(_WIN32) && !defined(_POSIX_C_SOURCE)
 /* Must be defined before any system header is included in this translation
  * unit, or glibc's feature-test-macro selection will already be locked in
@@ -165,7 +164,8 @@ static aoahid_device_options device_options(void) {
     options.validate_reports = 1U;
     options.aoa_descriptor_wire_policy_bytes = k_descriptor_policy_bytes;
     options.linux_descriptor_policy_bytes = k_descriptor_policy_bytes;
-    /* These policies name the audited Linux revision in docs/FACT_AUDIT.md. */
+    /* These policies mirror Linux HID core limits
+     * (include/linux/hid.h); check them against the target kernel. */
     options.linux_hid_fields_per_report_policy = 256U;
     options.linux_hid_global_stack_depth_policy = 4U;
     options.linux_hid_usages_policy = 12288U;
@@ -426,7 +426,7 @@ static aoahid_result submit_session(session* value) {
 static aoahid_result update_then_submit(session* sessions, size_t count) {
     aoahid_result result = AOAHID_OK;
     /* Update every device first. The second-pass USB submission keeps one
-     * operation out of the next device's state preparation (DESIGN.md 3.5). */
+     * device's USB operation out of the next device's state preparation. */
     for (size_t index = 0U; index < count; ++index) {
         session* current = &sessions[index];
         current->ready_to_submit = 0;

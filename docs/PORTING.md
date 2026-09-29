@@ -1,119 +1,109 @@
 # Porting
 
 The public ABI is platform-neutral. Only `src/transport` includes libusb.
-Evidence labels and the official-source register for transport and platform
-claims are defined in `SOURCE_CONFLICTS.md`.
 
 ## Linux
 
-Build against libusb 1.0.30-or-later headers and APIs. Runtime validation is a
-separate policy: it accepts exactly the 1.0 version line with micro version 30
-or later and rejects a future major/minor line pending an official compatibility
-audit. See `SOURCE_CONFLICTS.md` T-16. Grant the invoking user explicit USB
-permissions. `udev/51-aoahid.rules` grants access by udev's `uaccess` tag,
-which is what this library actually needs: every device it opens keeps its
-OEM VID/PID (`aoahid_device_open` uses Mode A, so there is no fixed Google
-Accessory VID/PID to match), and most current distributions already grant the
-logged-in seat that same access by default. The Google-Accessory-range
-(`18d1:2d00`-`2d05`) rule covers a device that `aoahid_accessory_start`
-switched; review both against the distribution's group policy before
-installing.
+Build against libusb 1.0.30 or newer. At run time, `aoahid_context_create`
+also checks `libusb_get_version()` and accepts only the 1.0 line with micro
+version 30 or later; a future 1.1 or 2.x libusb is rejected until it has been
+checked for compatibility.
 
-A running `adb` server is a much less frequent blocker on Linux than on
-Windows (libusb can typically still claim the device even while `adb` is
-watching it), but if `aoahid_device_open` fails only while `adb devices` also
-lists the phone, run `adb kill-server` and retry before assuming a udev
-permission problem.
+The invoking user needs USB access to the phone. `aoahid_device_open` uses the
+phone in its current USB mode, so the device keeps its own OEM VID/PID and
+there is no fixed VID/PID to match. `udev/51-aoahid.rules` therefore tags USB
+devices with `uaccess`, which gives the logged-in seat access; many
+distributions already do this for phones through their MTP or ADB rules. The file also has a `plugdev` group
+rule for Google's accessory-mode IDs (`18d1:2d00`-`2d05`), which a device uses
+after `aoahid_accessory_start`. Review both rules against your distribution's
+policy before installing. See the
+[systemd udev documentation](https://www.freedesktop.org/software/systemd/man/latest/udev.html)
+for rule syntax.
 
-Do not claim a generic "Linux" binary solely because it ran on one glibc image.
-Release artifact names include architecture and build baseline. Inspect ELF
-machine type, dependencies, RPATH, and minimum glibc symbol versions during
-packaging.
+A running `adb` server rarely blocks libaoahid on Linux, but if
+`aoahid_device_open` fails only while `adb devices` also lists the phone, run
+`adb kill-server` and retry before assuming a permission problem.
 
-The current Linux release baseline is Ubuntu 22.04 with glibc 2.35. The release
-workflow runs GNU `readelf --version-info --wide` over every regular shared
-library in both package variants and over every direct `.so` asset. Empty or
-failed analysis is fatal, as is any nonnumeric `GLIBC_*` dependency (including
-private/ABI namespaces) or numeric requirement newer than `GLIBC_2.35`. Each
-Linux archive carries
-`share/doc/libaoahid/glibc-requirements.json`; its build metadata and the top
-level release manifest repeat the maximum requirement. This is an audited
-glibc baseline, not a musl or generic-Linux compatibility claim.
+### Release baseline
 
-Linux host builds with GCC 12 or newer, or with Clang, can enable ThreadSanitizer with
-`AOAHID_TSAN=ON`; the shortest supported invocation is `cmake --preset tsan`,
-`cmake --build --preset tsan`, then `ctest --preset tsan`. CMake rejects this
-option on non-Linux hosts, with other compiler families, with GNU 11 or older, with
-`AOAHID_SANITIZE=ON`, or with `AOAHID_BUILD_FUZZ=ON`. The preset uses the
-deterministic fake libusb backend, `RelWithDebInfo`, and
-`TSAN_OPTIONS=halt_on_error=1`. Configuration first requires both C and C++ to
-compile and link the TSan runtime and requires PIE link support; the library,
-tests, and examples are then instrumented. An instrumented `libaoahid` static
-archive is covered, but this does not make a fully static libc/libstdc++
-executable supported. It is a host concurrency diagnostic, not a portable
-Android qualification result and not an artifact configuration for release.
-GNU 11 is rejected because its unresolved GCC bug 101978 produces a false
-condition-variable double-lock report in this suite; CI uses GCC 12 and keeps
-all reports enabled rather than suppressing that diagnostic class.
+Linux release archives are built on Ubuntu 22.04 and require at most glibc
+2.35. The release workflow runs `readelf --version-info --wide` over every
+shared library it ships and fails if any `GLIBC_*` requirement is newer than
+`GLIBC_2.35` or not numeric. Each Linux archive carries
+`share/doc/libaoahid/glibc-requirements.json`. These archives are not musl or
+generic-Linux builds; musl is built and tested in CI only.
+
+### ThreadSanitizer
+
+Linux builds with GCC 12 or newer, or Clang, can enable ThreadSanitizer:
+
+```sh
+cmake --preset tsan
+cmake --build --preset tsan
+ctest --preset tsan
+```
+
+The preset sets `AOAHID_TSAN=ON`, uses the test-only fake libusb backend and a
+`RelWithDebInfo` build, and runs tests with `TSAN_OPTIONS=halt_on_error=1`.
+CMake rejects `AOAHID_TSAN` on non-Linux hosts, with other compilers, with GCC
+11 or older, and together with `AOAHID_SANITIZE` or `AOAHID_BUILD_FUZZ`. GCC 11
+is rejected because of a false condition-variable report
+([GCC bug 101978](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=101978)); CI
+uses GCC 12 with every report enabled. This is a host concurrency check, not
+a release configuration.
 
 ## Windows
 
-The target device/function needs a serviceable WinUSB binding. **[Windows
-requirement]** Device-recipient control transfer routing does not imply physical
-USB interface 0. The audited libusb v1.0.30 backend selects a serviceable
-interface **[implementation observation]**; the library therefore lets that
-backend select unless the caller explicitly names and claims an interface, and
-releases only that claim. **[project policy]** See `SOURCE_CONFLICTS.md` T-01.
+libusb can open a device only when Windows has bound WinUSB, libusbK, or
+libusb0 to it; any other driver makes the claim fail with
+`LIBUSB_ERROR_NOT_SUPPORTED` (libusb status `-12`). See the
+[libusb Windows wiki](https://github.com/libusb/libusb/wiki/Windows).
 
-**A running `adb` server or a manufacturer's USB driver can block this on
-Windows.** Windows binds one driver per USB function. In the audited libusb
-v1.0.30 backend, an interface is usable only when its driver is WinUSB,
-libusbK, or libusb0 (`winusbx_driver_names`); any other driver makes claiming
-it fail with `LIBUSB_ERROR_NOT_SUPPORTED` **[implementation observation]**.
-The Google USB Driver is WinUSB-based, so it does not cause this by itself,
-but while an `adb` server holds the ADB interface, opening or claiming it
-fails. Before opening the device:
+AOA control requests go to the device, not to a particular interface. Unless
+the caller names and claims an interface, libaoahid lets libusb pick a usable
+one, and it releases only a claim it made itself.
+
+**A running `adb` server or a manufacturer's driver can block this.** The
+Google USB Driver is WinUSB-based and is fine by itself, but while an `adb`
+server holds the ADB interface, opening or claiming it fails. Before opening
+the device:
 
 ```powershell
 adb kill-server
 ```
 
-and close Android Studio, Vysor, scrcpy, or anything else that keeps an ADB
-connection open, since any of them restarts the server.
+and close Android Studio, Vysor, scrcpy, or anything else that restarts the
+server.
 
-Some manufacturers bind their own driver instead of WinUSB. On a Samsung
-tablet with Samsung's `dg_ssudbus` driver, HID worked but
-`aoahid_channel_open` on the ADB interface failed with `AOAHID_ERR_UNSUPPORTED`
-and libusb status `-12`; replacing the ADB or MTP interface's driver did not
-help, and replacing the whole device's driver ("SAMSUNG Android" in
-[Zadig](https://zadig.akeo.ie/)) with WinUSB did. With the whole device on
-WinUSB, libusb reaches every interface through one WinUSB handle
-(`WinUsb_GetAssociatedInterface`) **[implementation observation]**, at the
-cost of Windows' own functions for that device, such as MTP file transfer.
-This was observed on a Samsung Galaxy Tab S11 under Windows 10 x64; the
-step-by-step fix is in the aoahid_player
-README's Troubleshooting section. None of this means the library implements
-or requires the Android Debug Bridge protocol.
+Some manufacturers bind their own driver instead of WinUSB. On a Samsung Galaxy
+Tab S11 with Samsung's `dg_ssudbus` driver under Windows 10 x64, HID worked
+but `aoahid_channel_open` on the ADB interface failed with
+`AOAHID_ERR_UNSUPPORTED` and libusb status `-12`. Replacing only the ADB or MTP
+interface's driver did not help. Replacing the whole device's driver
+("SAMSUNG Android") with WinUSB in [Zadig](https://zadig.akeo.ie/) did: with
+the whole device on WinUSB, libusb reaches every interface through one WinUSB
+handle. The cost is losing Windows' own functions for that device, such as MTP
+file transfer. To undo it, uninstall the device in Device Manager with its
+driver and reconnect.
 
-The configured Windows x64 and ARM64 builds use native GitHub-hosted runners
-**[GitHub Actions contract]** and architecture inspection. Configured release
-archives include the import library and the dynamically linked libusb DLL/license
-when applicable; `TARGET_MATRIX.md` records whether a particular run passed.
+Release archives for Windows x64 and ARM64 are built on native GitHub-hosted
+runners and include the import library and the libusb DLL with its license.
 
 ## Other libusb platforms
 
-The transport uses public libusb 1.0.30 APIs, but the project release gate covers
-only the targets in `TARGET_MATRIX.md` and the workflows. A new backend requires
-official libusb documentation/source review for control-length, claim, cancel,
-event, and device-correlation behavior plus integration tests. Do not copy the
-Windows or Linux policy by analogy.
+The transport uses only public libusb 1.0.30 APIs, and CI builds and tests on
+macOS and Linux musl. Release archives cover only the targets in
+[TARGET_MATRIX.md](TARGET_MATRIX.md#build-targets). A new backend needs a check
+of its control-transfer length, claim, cancel, event, and device-matching
+behavior against the libusb documentation and source, plus integration tests.
+Do not assume Windows or Linux behavior carries over.
 
-## Android target revisions
+## New Android targets
 
-Gadget-side and input-framework behavior is revisioned. Before adding a target:
+Accessory-side and input-framework behavior varies by kernel, Android version,
+and OEM. Before relying on a new target:
 
-1. identify the exact kernel/AOSP/OEM revision;
-2. inspect its accessory control handler and HID/input mappings;
-3. record any divergence in `FACT_AUDIT.md` or `SOURCE_CONFLICTS.md`;
-4. run the four target-matrix observation layers;
-5. keep Windows-only requirements out of Android conclusions.
+1. identify its Android version, build fingerprint, and kernel version;
+2. run the checks in [TARGET_MATRIX.md](TARGET_MATRIX.md#checking-a-new-device);
+3. record it as its own row; results from one device or Android version do
+   not carry over to another.

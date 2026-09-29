@@ -1,14 +1,19 @@
 # libaoahid
 
-[Canonical repository](https://github.com/nemarpuc/libaoahid) ·
-[first-push and release setup](GITHUB_SETUP.md)
+[Canonical repository](https://github.com/nemarpuc/libaoahid)
 
-`libaoahid` is a C++20 host library with a stable C ABI for sending HID **Input**
-reports through Android Open Accessory 2.0 control requests. It has no option
-initializers, profile presets, or inferred bit widths: callers supply every
-product/target choice such as ranges, widths, Report IDs, Usage sets, parser
-policies, and event mode. A zero in one of the documented host-transport tuning
-fields selects a bounded project-policy fallback; see [API.md](docs/API.md).
+Send keyboard, mouse, gamepad, multi-touch, and media-key input from a PC to
+an Android device over a plain USB cable. The device needs no root, no app,
+and no USB debugging: it sees an ordinary USB keyboard or touchscreen.
+Windows and Linux; usable from C, C++, Python, C#, and Rust.
+
+`libaoahid` is a C++20 library with a stable C ABI. It drives the HID feature
+of [Android Open Accessory 2.0](https://source.android.com/docs/core/interaction/accessories/aoa2)
+over libusb. You describe each input device (ranges, bit widths, Report IDs,
+Usages) explicitly; the library builds a valid HID descriptor, registers it
+with Android, and keeps the report state machines (multi-touch contacts,
+key rollover, pointer deltas) correct. It never guesses a value you did not
+set. MIT licensed.
 
 ## Demo
 
@@ -21,15 +26,23 @@ and recorder built on this library.
 For an overview of how the library works and why it was built, see
 [the introduction on DEV](https://dev.to/nemarpuc/libaoahid-a-c-abi-library-for-sending-hid-input-to-android-over-usb-1h6f).
 
-No profile in this repository has yet completed the four-level physical-device
-gate (`getevent`, `dumpsys input`, application API, and kernel device). The
-statuses below are source-backed candidates or conditional paths, not a claim
-of four-level verification. Keyboard, Mouse, Consumer Toggle, Gamepad, and
-Touchscreen input has been observed taking effect on a Samsung Galaxy Tab S11
-and a POCO F6 Pro, from Windows 10 x64 and Arch Linux. See
-[TARGET_MATRIX.md](docs/TARGET_MATRIX.md).
+## Hardware status
 
-## Support table
+Tested on a Samsung Galaxy Tab S11 and a POCO F6 Pro, from Windows 10 x64 and
+Arch Linux:
+
+| Input | Tested on hardware |
+|---|---|
+| Touchscreen (multi-touch) | yes |
+| Keyboard (full NKRO) | yes |
+| Mouse (move, buttons, wheel) | yes |
+| Gamepad (sticks, buttons, D-pad) | yes |
+| Media keys (volume, play/pause, next/previous) | yes |
+| Pen, touchpad, and other profiles | not yet |
+
+Details per device and OS are in [TARGET_MATRIX.md](docs/TARGET_MATRIX.md).
+
+## Profiles
 
 <!-- profile-table:start -->
 | Profile | Manifest status | Input | Output | Feature transport | Qualification |
@@ -49,43 +62,38 @@ and a POCO F6 Pro, from Windows 10 x64 and Arch Linux. See
 | Validated raw descriptor | unknown | yes | no | no | Explicit no-Android-support acknowledgement |
 <!-- profile-table:end -->
 
-The descriptor-export test writes a catalog from the actual runtime manifests;
-`tools/generate-support-table/generate.py` renders and checks this table from
-that catalog. Node and spec manifests expose exact report IDs, wire lengths,
-descriptor size, direction capability, and the same evidence-conscious status
-at runtime.
+"Manifest status" is the library's own classification of how portable a
+descriptor shape is across Android targets; it is reported at runtime by the
+Spec and Node manifests. The table is generated from those manifests by
+`tools/generate-support-table/generate.py`. Hardware results are listed
+separately above.
 
-### Generated state automation
+### What the library handles for you
 
-Generated profiles derive frame mechanics from the immutable Spec and accepted
-Node state; callers still choose the product and target contract. This is
-**[Guide policy]** over the evidence recorded in
-[PROFILES.md](docs/PROFILES.md), [FACT_AUDIT.md](docs/FACT_AUDIT.md), and
-[SOURCE_CONFLICTS.md](docs/SOURCE_CONFLICTS.md).
+Each profile derives the report mechanics from its immutable Spec; you still
+choose every product and target value.
 
-| Profile group | Derived by the library | Still explicit |
+| Profile | Derived by the library | You specify |
 |---|---|---|
-| Keyboard and barcode wedge | Modifier routing; a full N-Key Rollover (NKRO) Variable bitmap maps each declared Usage to its own bit, so every simultaneously pressed key is reported at once with no Array slot count and no ErrorRollOver overflow encoding. | Key Usage interval, Report ID, intended characters, layout, locale, and IME behavior. |
-| Mouse | Independent signed 64-bit pending totals and in-range report fragments for X, Y, Wheel, and AC Pan; only a submitted fragment is consumed on terminal completion. | Axis ranges and widths, button count, Wheel/Pan presence, acceleration, and Report ID. |
-| Consumer, System, Camera, and Telephony | One exact allow-listed field is asserted; accepted press/release/tap edges provide the `1` then `0` lifecycle used by Selector, OOC toggle, OOC maintained, MC, OSC, and RTC descriptors. Camera remains the fixed audited OSC subset. | Each allowed Usage and semantic, expected target event, Report ID, and whether Android exposes or intercepts it. |
-| Gamepad | Boolean directions become the eight canonical Hat values plus no-direction Null `15`; adjacent pairs become diagonals and opposite pairs are rejected. Raw D-pad mode keeps four independent bits, and no-D-pad mode invents no direction. | Axis roles/ranges/widths/neutrals, buttons, D-pad representation, target mappings, and Report ID. Only a Game Pad with the canonical Hat and a contiguous Button range from `1` with at least five fields is a portable candidate; raw/no-D-pad forms remain conditional. |
-| Touchscreen | Contact Count and continuation count, stable-ID Tip=0 Up records, pressure floor, frame Scan Time from the 100-microsecond elapsed-time contract, and packet sequencing. | Coordinate/contact/count/time domains, maximum contacts, contacts per report, optional fields, and target verification. |
-| Direct and indirect pen | Tip/pressure consistency, Away wire normalization, and an automatic departure before an in-range pen/eraser end switch. | Coordinate and optional-field domains, hover/eraser/barrel choices, display association, and target mapping. |
-| Battery Strength | A known zero remains a known value; explicit unknown emits the deterministic out-of-range Null encoding only when the Spec enables it. | Strength range and width, unknown support, Report ID, and target visibility. |
-| Raw Input | No semantic state is generated; only the caller's accepted report ID, length, padding, and immutable parsed layout are checked. | Descriptor bytes, report bytes, every Usage/range/ID, and all platform semantics. |
+| Keyboard | Modifier routing and a full N-Key Rollover bitmap: every declared key has its own bit, so any number of simultaneous keys is reported. | Key Usage range, Report ID, layout, locale, IME behavior. |
+| Mouse | Signed 64-bit pending totals for X, Y, Wheel, and AC Pan, split into in-range report fragments; a fragment is consumed only when its transfer completes. | Axis ranges and widths, button count, Wheel/Pan presence, Report ID. |
+| Consumer, System, Camera, Telephony | One allow-listed field per press; press/release/tap produce the `1` then `0` sequence each HID control type expects. | Each allowed Usage and its semantics, Report ID. |
+| Gamepad | D-pad directions become the eight Hat values plus Null (`15`); adjacent pairs become diagonals, opposite pairs are rejected. Raw four-bit D-pad and no-D-pad modes are also available. | Axes (role, range, width, neutral), buttons, D-pad form, Report ID. |
+| Touchscreen / touchpad | Contact Count, multi-report frames, Tip=0 release records with stable Contact IDs, Scan Time, packet sequencing. | Coordinate ranges, maximum contacts, contacts per report, optional fields. |
+| Pen (direct and indirect) | Tip/pressure consistency, out-of-range normalization, automatic leave-and-re-enter when switching pen/eraser. | Coordinate and optional-field ranges, hover/eraser/barrel options. |
+| Battery Strength | Known and unknown values (Null encoding only when enabled). | Range, width, unknown support, Report ID. |
+| Raw Input | Only length, Report ID, and padding are checked against your descriptor. | Descriptor and report bytes. |
 
-Lifecycle guards retain a changed edge until its first accepted report and
-return `AOAHID_ERR_BUSY` rather than coalescing an opposite edge. The library
-does not infer field widths, ranges, neutral values, Usage semantics, target
-mappings, or periodic repeat/timer policy. Passing host-side tests does not
-change any hardware-verification status.
+A state change is kept until its report is accepted; a conflicting change
+before then returns `AOAHID_ERR_BUSY` instead of being merged. See
+[PROFILES.md](docs/PROFILES.md) for the exact contract of each profile.
 
 ## Build
 
-Requirements are CMake 3.20+, a C++20 compiler, and libusb headers/API at least
-1.0.30. Runtime loading accepts the audited libusb 1.0.x line with micro version
-30 or later; other major/minor lines are rejected pending a separate audit. The
-project builds shared and static libraries by explicit switches.
+Requirements: CMake 3.20+, a C++20 compiler, and libusb 1.0.30 or later
+(1.0.x only; other major/minor versions are rejected at load time). Shared and
+static libraries are selected with explicit switches. Prebuilt archives are on
+the [Releases](https://github.com/nemarpuc/libaoahid/releases) page.
 
 ```sh
 cmake -S . -B build -DAOAHID_BUILD_SHARED=ON -DAOAHID_BUILD_STATIC=ON
@@ -100,7 +108,7 @@ test code and is never enabled in a release build.
 
 ### ThreadSanitizer and low-overhead checks
 
-On a Linux host with GNU or Clang, run the first-class ThreadSanitizer preset:
+On Linux with GCC or Clang:
 
 ```sh
 cmake --preset tsan
@@ -108,26 +116,19 @@ cmake --build --preset tsan
 ctest --preset tsan
 ```
 
-This `RelWithDebInfo` build instruments the library, tests, and examples with
-ThreadSanitizer and exercises both caller-poll and internal-event-thread paths
-against the deterministic fake backend. `AOAHID_TSAN=ON` cannot be combined
-with `AOAHID_SANITIZE=ON` or `AOAHID_BUILD_FUZZ=ON`. It is a diagnostic build,
-not a release or performance build; use an ordinary optimized build for timing
-and CPU measurements.
+This builds the library, tests, and examples with ThreadSanitizer against the
+fake libusb backend and exercises both event modes. `AOAHID_TSAN=ON` cannot be
+combined with `AOAHID_SANITIZE=ON` (ASan+UBSan) or `AOAHID_BUILD_FUZZ=ON`. Use
+a normal optimized build for timing.
 
-The deterministic suite checks a prewarmed caller-poll keyboard update/submit/
-completion cycle for zero calls to the instrumented C++ allocation operators
-and verifies that this mode selects no Context or Node mutex. The internal
-thread suite repeatedly races completion against close under ThreadSanitizer.
-Its low-load checks also verify blocking idle waits and deterministic
-cancellation/teardown wakeups instead of periodic nonblocking polling.
-These tests establish specific host-side invariants, not a physical USB/Android
-latency number or a proof that every possible execution is data-race-free. See
-[LATENCY.md](docs/LATENCY.md) for the exact claims and tuning tradeoffs.
+The test suite also checks that a prewarmed caller-poll keyboard
+update/submit/completion cycle performs no C++ heap allocation and takes no
+Context or Node mutex. These are host-side checks, not end-to-end USB latency
+numbers; see [LATENCY.md](docs/LATENCY.md).
 
 ## Use
 
-New to a real device? [docs/QUICKSTART.md](docs/QUICKSTART.md) is a practical,
+New to a real device? [QUICKSTART.md](docs/QUICKSTART.md) is a
 step-by-step walkthrough covering cables/hubs, Linux udev permissions, the
 Windows `adb`-conflict gotcha, and small programs under
 [examples/c/verify/](examples/c/verify) built specifically to be watched
@@ -144,8 +145,7 @@ outline:
 2. Discover and select a physical USB device. Discovery sends AOA request 51
    to each device and reports its AOA version; the caller checks for version 2.
    To send no request 51 at all, fill `aoahid_device_info` yourself instead.
-3. Open the device in its current USB mode (target-conditional; open sends no
-   AOA request), or
+3. Open the device in its current USB mode (open sends no AOA request), or
    first switch it with `aoahid_accessory_start`, rediscover the re-enumerated
    accessory-mode device, and open that. The library never waits for
    re-enumeration and never retries; each step is an explicit call.
@@ -164,8 +164,8 @@ zero-value transport fallbacks for every language binding.
 The device-option fallbacks are 500 ms for control and report transfers, 64
 bytes per descriptor fragment, 8 pool slots, a 1024-byte maximum report buffer,
 and a 1000 ms close-drain budget. The library never retries a transfer; a
-STALLed report stays pending for the caller's resend. These numbers are **[project policy]**, not
-USB/AOA requirements or libusb recommendations. A timeout is the failure
+STALLed report stays pending for the caller's resend. These numbers are this
+project's choices, not USB/AOA requirements. A timeout is the failure
 deadline passed to the backend; it does not add delay to a successful transfer.
 Explicit nonzero values remain unchanged. Node reservation `0/0` means no
 reservation. Exact device, descriptor, target-parser, and product-profile
@@ -176,8 +176,8 @@ firmware accepts AOA HID requests only after `ACCESSORY_START` are reached with
 `aoahid_accessory_start` instead (requests 51, 52, and 53; request 58 audio is
 never sent). There is no call that leaves accessory mode: unplug the device or
 use `svc usb setFunctions` through ADB. HID input in current USB mode and
-after `aoahid_accessory_start` is verified on hardware; leaving accessory mode
-is not yet recorded. See `SOURCE_CONFLICTS.md` T-07 and `TARGET_MATRIX.md`.
+after `aoahid_accessory_start` has been confirmed on hardware. How the AOA
+requests work is described in [PROTOCOL.md](docs/PROTOCOL.md).
 
 ### ADB on the same device
 
@@ -249,16 +249,22 @@ Neither registry package contains native libraries, so users still install a
 version-matched shared archive from the GitHub Release.
 
 Workflow failure cannot undo an already-pushed Git tag; it prevents creation of
-the GitHub Release and its assets. See [SOURCE_CONFLICTS.md](docs/SOURCE_CONFLICTS.md).
+the GitHub Release and its assets.
 
-## Evidence and limits
+## Documentation
 
-- [QUICKSTART.md](docs/QUICKSTART.md) - practical real-device setup and verification, distinct from the evidence-audit documents below.
-- [FACT_AUDIT.md](docs/FACT_AUDIT.md) - HID/HUT/Linux evidence and conflicts.
-- [SOURCE_CONFLICTS.md](docs/SOURCE_CONFLICTS.md) - AOA, libusb, Android, and CI corrections.
-- [PROFILES.md](docs/PROFILES.md) and [LIMITS.md](docs/LIMITS.md) - exact boundaries.
-- [AOA_HID_GUIDE.md](docs/AOA_HID_GUIDE.md) and [DESIGN.md](docs/DESIGN.md) - current guide and design; byte-identical supplied originals are preserved under `docs/inputs/`.
-- [INPUT_PROVENANCE.md](docs/INPUT_PROVENANCE.md) - byte-for-byte source-document checksums.
+| Document | Contents |
+|---|---|
+| [QUICKSTART.md](docs/QUICKSTART.md) | First run on a real device: cables, permissions, drivers, verification programs |
+| [API.md](docs/API.md) | C API reference: objects, options, errors, every function |
+| [PROFILES.md](docs/PROFILES.md) | Descriptor and state-machine contract of each profile |
+| [EXAMPLES.md](docs/EXAMPLES.md) | Walkthrough of the example programs in C, C++, Python, C#, and Rust |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Object model, threading, send path, source layout |
+| [PROTOCOL.md](docs/PROTOCOL.md) | How AOA 2.0 HID works and how Android handles the device |
+| [LIMITS.md](docs/LIMITS.md) | Numeric limits and validation rules |
+| [LATENCY.md](docs/LATENCY.md) | Latency behavior, tuning, and what the tests measure |
+| [PORTING.md](docs/PORTING.md) | Platform notes: Linux udev, Windows drivers, other hosts |
+| [TARGET_MATRIX.md](docs/TARGET_MATRIX.md) | Hardware test results |
 
 ## License
 
@@ -299,8 +305,7 @@ checksums.
 Most of the code, tests, and documentation in this repository were written by
 an AI coding assistant. Architecture and design decisions, hardware
 verification steps, debugging, and review of the AI's output were done by a
-human. No claim in this repository - including the descriptor/Android
-support statuses above - has been independently re-verified beyond what is
-described in [TARGET_MATRIX.md](docs/TARGET_MATRIX.md); treat it accordingly,
-especially before relying on it for anything security- or safety-relevant.
+human. Hardware results are listed in
+[TARGET_MATRIX.md](docs/TARGET_MATRIX.md); review the code before relying on
+it for anything security- or safety-relevant.
 

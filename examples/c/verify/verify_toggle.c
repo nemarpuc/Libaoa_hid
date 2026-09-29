@@ -32,9 +32,10 @@ typedef struct {
     const char* expected_code;
 } toggle_case;
 
-/* Same allow-list and semantics as examples/c/profiles/toggle.c; see
- * docs/FACT_AUDIT.md A-09/A-10 for why each Usage needs its own explicit
- * semantic instead of an inferred one. */
+/* Same allow-list and semantics as examples/c/profiles/toggle.c. HUT 1.7
+ * section 3.4 gives each control type (OSC, RTC, OOC, Sel) a different
+ * press/release encoding, so each Usage needs its own explicit semantic
+ * instead of an inferred one. */
 static const toggle_case k_cases[] = {
     {0x00CDU, AOAHID_USAGE_ONE_SHOT, "Play/Pause (Consumer 0x0C/0x00CD, OSC)", "EV_KEY",
      "KEY_PLAYPAUSE"},

@@ -1,7 +1,7 @@
-# Latency design
+# Latency
 
-The send path is optimized for bounded work without making unmeasured timing
-claims.
+The send path is built for bounded, allocation-free work per report. This file
+makes no timing claims that were not measured.
 
 ## What the implementation minimizes
 
@@ -14,8 +14,8 @@ claims.
   buffer. Raw reports are copied once because the asynchronous transfer cannot
   depend on the caller retaining its input buffer.
 - The optional `validate_reports` pass is a second linear scan of the generated
-  wire image; disable it only after the same immutable specs have passed the
-  test and target qualification gates.
+  wire image; disable it only after the same immutable specs have been tested
+  against the target.
 - One Input report maps to one control transfer; reports are never fragmented.
 - Caller-poll mode creates no **libaoahid** event thread and selects null
   libaoahid Context/Node mutex pointers. It does not remove libusb's own locks
@@ -24,22 +24,20 @@ claims.
   between the caller and libaoahid's event thread.
 - The event loop is reaped after async submission so an immediately completed
   request can be observed without a pre-submit delay.
-- The transport has no deferred work. Since 2.0.0 the library never retries a
-  report, so `poll` is exactly one libusb event-handling call: no device
+- The transport has no deferred work. The library never retries a report, so `poll` is exactly one libusb event-handling call: no device
   registry, retry scan, or clock read runs on the submit path. This matters on
   the submit path and not only in the poll loop, because caller-poll mode polls
   with a zero timeout immediately after accepting a report.
 - The Context graveyard is checked the same way: an atomic size is read without
   the Context mutex, so a poll with nothing awaiting reclamation takes no lock.
 - The internal thread uses a bounded 60-second libusb event wait while idle.
-  Context
-  teardown explicitly interrupts the active libusb event handler, so it does
+  Context teardown explicitly interrupts the active libusb event handler, so it does
   not wait for the idle bound to expire. This is a blocking maximum, not a
   60-second polling interval: an available USB event wakes the handler.
 - Relative axes retain 64-bit pending totals and emit bounded field-sized
   fragments; completion consumes exactly the submitted fragment.
 - No callback sleeps, and the library never sleeps to retry. A STALLed report
-  stays pending for the caller's own resend (`API.md`, Submission semantics).
+  stays pending for the caller's own resend ([API.md](API.md#submission-semantics)).
 - An internal event-pump failure is followed by an interruptible 10 ms
   condition-variable wait, preventing an immediately failing backend from
   turning that error path into a busy loop.
@@ -50,8 +48,8 @@ claims.
 The native API normalizes a local copy of zero-valued Device tuning fields to
 500 ms control/send timeouts, 64-byte descriptor fragments, 8 pool slots, a
 1024-byte maximum report buffer, and a 1000 ms close-drain budget. Node
-reservation zero/zero means no reservation. These values are **[project
-policy]**, not libusb recommendations or measured optima.
+reservation zero/zero means no reservation. These are project choices, not
+libusb recommendations or measured optima.
 
 A timeout is a backend failure deadline, not an intentional delay. A successful
 control transfer or report completes when the backend reports completion; it
@@ -70,23 +68,22 @@ the pool does not parallelize EP0.
 
 The 64-byte descriptor fragment setting affects registration request 56 only;
 Input reports remain one request 57 each and are never fragmented. A Node with
-no reservation consumes
-no dedicated slot; this saves no Device-pool allocation because the pool is
+no reservation consumes no dedicated slot; this saves no Device-pool allocation because the pool is
 already allocated, but it leaves all slots shared and changes fairness under
 contention.
 
-The official sources do not support different fixed latency predictions for
-Linux versus Windows, x86-64 versus ARM64, or one libusb backend versus another.
-Report OS-specific numbers only from a reproducible benchmark on that exact
+There is no basis for fixed latency predictions that differ between Linux and
+Windows, x86-64 and ARM64, or one libusb backend and another. OS-specific
+numbers are only meaningful from a reproducible benchmark on that exact
 host/controller/cable/phone/kernel/Android combination.
 
 ## Real libusb backend boundary
 
 The deterministic hot-path probe uses the fake backend. It does not instrument
 libusb's C allocator, its mutexes, an operating-system API, or a USB host
-controller. The following source-level facts come from the exact libusb v1.0.30
-commit `87a55632db62c9bdc58cd31d3ccfa673f1bb017f`; they are
-**[implementation observations]**, not latency measurements.
+controller. The following facts come from reading libusb v1.0.30 (commit
+`87a55632db62c9bdc58cd31d3ccfa673f1bb017f`); they describe code structure, not
+measured latency.
 
 | Boundary | Linux usbfs | Windows WinUSB-like path | What cannot be inferred |
 |---|---|---|---|
@@ -102,10 +99,9 @@ Primary symbols and immutable source: [`io.c`](https://github.com/libusb/libusb/
 [`linux_netlink.c`](https://github.com/libusb/libusb/blob/87a55632db62c9bdc58cd31d3ccfa673f1bb017f/libusb/os/linux_netlink.c),
 [`windows_common.c`](https://github.com/libusb/libusb/blob/87a55632db62c9bdc58cd31d3ccfa673f1bb017f/libusb/os/windows_common.c),
 [`windows_common.h`](https://github.com/libusb/libusb/blob/87a55632db62c9bdc58cd31d3ccfa673f1bb017f/libusb/os/windows_common.h),
-and [`windows_winusb.c`](https://github.com/libusb/libusb/blob/87a55632db62c9bdc58cd31d3ccfa673f1bb017f/libusb/os/windows_winusb.c),
-retrieved 2026-08-27.
+and [`windows_winusb.c`](https://github.com/libusb/libusb/blob/87a55632db62c9bdc58cd31d3ccfa673f1bb017f/libusb/os/windows_winusb.c).
 
-## Measurement model and the only source-justified bound
+## Measurement model
 
 Instrument these boundaries on a release build instead of assigning guessed
 constants:
@@ -140,13 +136,11 @@ unbounded caller stall, or a definition of `G` based only on average cadence
 invalidates the upper bound.
 
 Internal-thread mode removes the caller-controlled `G` term but substitutes
-operating-system scheduling of libaoahid's event thread; the audited sources
-provide no finite dispatch-time bound for that scheduler. Likewise, the
-control/send timeout and close-drain values are failure budgets rather than
-success-latency estimates. No defensible numeric Linux, Windows, x86-64, or
-ARM64 prediction follows from these sources.
+operating-system scheduling of libaoahid's event thread, which has no finite
+dispatch-time bound. Likewise, the control/send timeout and close-drain values
+are failure budgets rather than success-latency estimates.
 
-## Deterministic verification boundaries
+## What the tests show
 
 | Check | What a passing test establishes | What it does not establish |
 |---|---|---|
@@ -186,17 +180,15 @@ Use internal-thread mode when independent event progress is more important
 than avoiding one thread and its synchronization. Blocking waits use condition
 variables or libusb's blocking event handler rather than repeatedly checking
 completion state. The idle event wait is bounded at 60 seconds and explicitly
-interrupted during teardown. This mode is tested
-under ThreadSanitizer, but it necessarily has more scheduling and lock work
+interrupted during teardown. This mode is tested under ThreadSanitizer, but it necessarily has more scheduling and lock work
 than caller-poll mode.
 
 Keep specs and Nodes alive instead of rebuilding them per report. Choose the
 smallest transfer-pool and maximum-report policies that cover the application,
 because larger limits reserve more memory but do not make EP0 parallel. Leave
 logging disabled on latency-sensitive deployments. `validate_reports=1` adds a
-second linear validation scan; disabling it removes that scan but is appropriate
-only after the immutable specs and reports have passed the same tests and the
-target qualification gate.
+second linear validation scan; disable it only after the same immutable specs
+and reports have been tested against the target.
 
 ## Bulk Channels next to HID
 
@@ -207,10 +199,10 @@ wakes a waiting thread; it takes that waiter's mutex only while a reader or
 writer is actually blocked, the pattern Node completion already uses. Bulk
 transfers use their own pool, so a full Bulk pool never consumes a HID slot, and
 Channel read/write allocate nothing. Whether heavy Bulk traffic, such as a large
-`adb push`, raises HID latency on real hardware is **[unverified on hardware]**
-(`TARGET_MATRIX.md`).
+`adb push`, raises HID latency on real hardware has not been measured yet
+([TARGET_MATRIX.md](TARGET_MATRIX.md)).
 
-## Measurements still required on the target
+## Measuring on the target
 
 No nanosecond cost, jitter bound, or throughput number is stated without a
 reproducible benchmark, compiler, CPU, libusb backend, and percentile report.

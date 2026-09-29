@@ -111,7 +111,6 @@ def validate_repository_identity(root: Path) -> None:
     readme = (root / "README.md").read_text(encoding="utf-8")
     security = (root / "SECURITY.md").read_text(encoding="utf-8")
     contributing = (root / "CONTRIBUTING.md").read_text(encoding="utf-8")
-    setup = (root / "GITHUB_SETUP.md").read_text(encoding="utf-8")
     expected_cmake = f'HOMEPAGE_URL "{REPOSITORY_URL}"'
     if expected_cmake not in cmake:
         raise ValidationError("CMake project homepage is not the canonical repository")
@@ -132,8 +131,6 @@ def validate_repository_identity(root: Path) -> None:
         or f"{REPOSITORY_URL}/pulls" not in contributing
     ):
         raise ValidationError("CONTRIBUTING does not link canonical issues and pulls")
-    if f"git remote add origin {REPOSITORY_URL}.git" not in setup:
-        raise ValidationError("GitHub setup does not configure the canonical remote")
 
 
 def release_notes(root: Path, version: str) -> str:

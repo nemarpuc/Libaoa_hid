@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 libaoahid contributors
-# Capture the kernel, Android-classification, and event-stream evidence required
-# by docs/TARGET_MATRIX.md. Application-API evidence remains a separate test-app run.
+# Capture the kernel, Android input classification, and event stream for a
+# docs/TARGET_MATRIX.md entry. The application-API check is a separate test-app run.
 
 set -euo pipefail
 

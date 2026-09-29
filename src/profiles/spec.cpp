@@ -866,12 +866,10 @@ static aoahid_result create_controller_spec(const aoahid_gamepad_options* option
                         static_cast<std::uint16_t>(index), false, &axis.value.physical)) {
                     return false;
                 }
-                // Every axis shares one caller-declared width (LIMITS.md
-                // "Generated scalar field width", 1-32 bits). A width that is
-                // not a multiple of eight leaves the next axis at a nonzero
-                // bit offset; realigning after each axis keeps that drift
-                // from ever compounding into a fifth-byte span two or more
-                // axes in, regardless of the declared width.
+                // Each axis has its own caller-declared width (1-32 bits, see LIMITS.md). A
+                // width that is not a multiple of eight leaves the next axis at a nonzero bit
+                // offset; realigning after each axis keeps that drift from ever compounding into
+                // a fifth-byte span two or more axes in, regardless of the declared width.
                 pad_report(builder);
             }
             pad_report(builder);
@@ -1072,10 +1070,10 @@ create_touch_spec_from_fields(const aoa::detail::TouchFields& fields, const char
                                       &fields.y.physical)) {
                     return false;
                 }
-                // Contact Identifier is a fixed 4 bits, and X, Y, Pressure,
-                // Width, Height, and Azimuth are each an independently
-                // caller-declared 1-32 bit field (see LIMITS.md); realigning
-                // between them keeps any one of them from starting at a
+                // Contact Identifier, X, Y, Pressure, Width, Height, and
+                // Azimuth are each an independently caller-declared field
+                // (see LIMITS.md); realigning after Y and between the
+                // optional fields keeps any one of them from starting at a
                 // nonzero bit offset and crossing a fifth byte (HID 1.11 8.4).
                 pad_report(builder);
                 if (fields.enable_pressure == 1U &&

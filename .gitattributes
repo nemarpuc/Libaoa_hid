@@ -6,4 +6,3 @@
 *.a binary
 *.zip binary
 *.gz binary
-docs/inputs/*.md whitespace=-trailing-space

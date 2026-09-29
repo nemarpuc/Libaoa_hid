@@ -1,30 +1,29 @@
-# Physical Android evidence capture
+# Device check
 
-`capture.sh` records three of the four evidence layers defined in
-`docs/TARGET_MATRIX.md`: the kernel device/capabilities, Android input
-classification, and a bounded event stream. It does not infer the event node,
-capture duration, target, or pass/fail result.
+`capture.sh` records the checks listed in
+[`docs/TARGET_MATRIX.md`](../../docs/TARGET_MATRIX.md#checking-a-new-device)
+that need `adb`: kernel device capabilities, Android input classification
+(`dumpsys input`), and a bounded `getevent` stream. You choose the event node,
+duration, and output directory; it does not decide pass or fail.
 
 ```sh
 tools/device-check/capture.sh \
   <adb-serial> /dev/input/eventN <seconds> <output-directory>
 ```
 
-Run the application-API test separately and record its exact commit and log in
-the same evidence record. A source review, successful USB request, or this
-capture alone is not a hardware-verification result.
+Run the app below separately to see what a foreground application receives,
+and keep its log with the capture.
 
-## Application-API evidence APK
+## Input test app
 
-`app/` is a standalone Android application. It enumerates the `InputDevice`
-objects visible to the framework and records key and motion events delivered to
-its foreground `Activity`. The display is bounded to 256 KiB; the same records
-are also written to logcat under the tag `AoaHidDeviceCheck`. The program does
-not convert observations into a support verdict.
+`app/` is a standalone Android application. It lists the `InputDevice`
+objects visible to the framework and logs key and motion events delivered to
+its foreground `Activity`. The on-screen log keeps at most 262,144 characters;
+the same records also go to logcat under the tag `AoaHidDeviceCheck`.
 
-The CI workflow builds a debug APK as the `aoahid-device-check-debug-apk`
-artifact. To build the same project directly, use the AGP-documented Gradle and
-JDK versions:
+CI builds a debug APK as the `aoahid-device-check-debug-apk` artifact. To
+build it yourself, use Gradle 9.5.0 and JDK 17, as CI does (Android Gradle
+plugin 9.3.0):
 
 ```sh
 gradle --no-daemon -p tools/device-check/app :app:assembleDebug
@@ -35,24 +34,19 @@ adb -s <adb-serial> shell am start -n \
 adb -s <adb-serial> logcat -s 'AoaHidDeviceCheck:I' '*:S'
 ```
 
-Exercise the exact keys, axes, contacts, buttons, hover states, and lift states
-listed for the profile in `docs/TARGET_MATRIX.md`. Preserve the APK source
-commit, app log, device/build identity, `capture.sh` output, and the human
-pass/fail decision together. Events intercepted by Android before they reach
-the foreground activity are not application-API successes.
+Exercise the keys, axes, contacts, buttons, hover states, and lift states
+suggested for the profile in `docs/TARGET_MATRIX.md`. Keep the app log,
+device/build identity, `capture.sh` output, and your pass/fail decision
+together. Events that Android intercepts before they reach the foreground
+activity (for example system or media keys) do not appear in the app.
 
-## Primary sources used by the application
+## Android APIs used by the app
 
-| Official source | Section or symbol | Revision | Retrieved |
-| --- | --- | --- | --- |
-| [Android Gradle plugin 9.3.0](https://developer.android.com/build/releases/gradle-plugin) | Compatibility: Gradle 9.5.0, JDK 17, maximum API 37 | 9.3.0 (July 2026) | 2026-08-27 |
-| [InputManager API reference](https://developer.android.com/reference/android/hardware/input/InputManager) | `getInputDeviceIds`, `getInputDevice`, `registerInputDeviceListener`, `InputDeviceListener` | Versionless platform API page | 2026-08-27 |
-| [InputDevice API reference](https://developer.android.com/reference/android/view/InputDevice) | Identity/source accessors, `getMotionRanges`, `MotionRange` accessors | Versionless platform API page | 2026-08-27 |
-| [KeyEvent API reference](https://developer.android.com/reference/android/view/KeyEvent) | Device/source, action, key code, scan code, meta state, repeat count | Versionless platform API page | 2026-08-27 |
-| [MotionEvent API reference](https://developer.android.com/reference/android/view/MotionEvent) | Action, pointer ID/count, tool type, coordinates, pressure, orientation, axis values | Versionless platform API page | 2026-08-27 |
-| [Activity API reference](https://developer.android.com/reference/android/app/Activity) | `dispatchKeyEvent`, `dispatchGenericMotionEvent`, `dispatchTouchEvent` | Versionless platform API page | 2026-08-27 |
-
-The commands mirror `AOA_HID_GUIDE.md` §§36–40 and the official Android input
-documentation registered in `docs/FACT_AUDIT.md`; evidence status remains
-**[Unverified on hardware]** until all four layers pass on one identified
-device/build combination.
+| Official source | Section or symbol | Revision |
+| --- | --- | --- |
+| [Android Gradle plugin 9.3.0](https://developer.android.com/build/releases/gradle-plugin) | Compatibility: Gradle 9.5.0, JDK 17, maximum API 37 | 9.3.0 (July 2026) |
+| [InputManager API reference](https://developer.android.com/reference/android/hardware/input/InputManager) | `getInputDeviceIds`, `getInputDevice`, `registerInputDeviceListener`, `InputDeviceListener` | Versionless platform API page |
+| [InputDevice API reference](https://developer.android.com/reference/android/view/InputDevice) | Identity/source accessors, `getMotionRanges`, `MotionRange` accessors | Versionless platform API page |
+| [KeyEvent API reference](https://developer.android.com/reference/android/view/KeyEvent) | Device/source, action, key code, scan code, meta state, repeat count | Versionless platform API page |
+| [MotionEvent API reference](https://developer.android.com/reference/android/view/MotionEvent) | Action, pointer ID/count, tool type, coordinates, pressure, orientation, axis values | Versionless platform API page |
+| [Activity API reference](https://developer.android.com/reference/android/app/Activity) | `dispatchKeyEvent`, `dispatchGenericMotionEvent`, `dispatchTouchEvent` | Versionless platform API page |

@@ -4,9 +4,8 @@
 """Exercise explicit multi-device lifecycle policies through the ctypes ABI.
 
 This caller example owns discovery identity, threading, retry, and failure
-policy.  The binding only mirrors ``aoahid.h`` and supplies no option values.
-Protocol and Usage evidence for the selected profile values is recorded in
-``docs/EXAMPLES.md`` and ``docs/FACT_AUDIT.md``.
+policy.  The binding only mirrors ``aoahid.h`` and provides no option values.
+``docs/EXAMPLES.md`` explains the selected profile values.
 """
 
 from __future__ import annotations
@@ -21,14 +20,14 @@ from aoahid.native import *  # noqa: F403 - the example deliberately mirrors the
 
 
 # Every value in this block is this caller's reviewed example policy or input.
-# None is supplied by libaoahid.  See docs/EXAMPLES.md, "Example value ledger".
+# None comes from libaoahid.  See docs/EXAMPLES.md, "Example values".
 DESCRIPTOR_POLICY_BYTES = 4096
 HOST_REPORT_POLICY_BYTES = 4088
 POOL_SLOTS = 8
 RESERVED_SLOTS_PER_NODE = 1
 CLOSE_DRAIN_TIMEOUT_MS = 1000
-KEYBOARD_A_USAGE = 0x04  # HUT 1.7 section 10, recorded in FACT_AUDIT.md.
-KEYBOARD_APPLICATION_USAGE = 0x65  # HUT 1.7 section 10, recorded in FACT_AUDIT.md.
+KEYBOARD_A_USAGE = 0x04  # HUT 1.7 section 10.
+KEYBOARD_APPLICATION_USAGE = 0x65  # HUT 1.7 section 10.
 POINTER_BUTTON_COUNT = 3
 RELATIVE_MINIMUM = -127
 RELATIVE_MAXIMUM = 127
@@ -120,7 +119,8 @@ def device_options(control_timeout_ms: int) -> DeviceOptions:  # noqa: F405
     options.validate_reports = 1
     options.aoa_descriptor_wire_policy_bytes = DESCRIPTOR_POLICY_BYTES
     options.linux_descriptor_policy_bytes = DESCRIPTOR_POLICY_BYTES
-    # These policies name the exact audited Linux revision in docs/FACT_AUDIT.md.
+    # These policies mirror Linux HID core limits
+    # (include/linux/hid.h); check them against the target kernel.
     options.linux_hid_fields_per_report_policy = 256
     options.linux_hid_global_stack_depth_policy = 4
     options.linux_hid_usages_policy = 12288
@@ -376,7 +376,7 @@ def update_then_submit(
         TOUCH_CONTACT_ID, EXAMPLE_TOUCH_X, EXAMPLE_TOUCH_Y, 0, 0, 0, 0
     )
     # Update every device first.  Submitting in a second pass keeps one USB
-    # operation out of the next device's state preparation (DESIGN.md section 3.5).
+    # operation out of the next device's state preparation.
     ready: list[Session] = []
     for session in sessions:
         if not session.device:

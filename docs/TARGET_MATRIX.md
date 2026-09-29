@@ -1,225 +1,118 @@
-# Target and Verification Matrix
+# Target Matrix
 
-## Current release status
+This file records which combinations of host, Android device, and profile have
+been confirmed on real hardware, and which have not.
 
-As of **2026-08-27**, the HID descriptor and specified-Linux source audit is complete for the facts recorded in `FACT_AUDIT.md`. **No physical Android device, USB host/backend combination, or release archive is recorded as verified in this file.**
+## Summary
 
-The matrix begins from "not run" on purpose. A successful compile is not an Android compatibility result; a Linux source review is not a kernel runtime result; and a `getevent` result is not an application-API result.
+- Confirmed working on real hardware (2026-09): **touchscreen, keyboard,
+  mouse, gamepad, and media keys (Consumer Control toggle)**.
+- Devices: Samsung Galaxy Tab S11 and POCO F6 Pro (HyperOS).
+- Hosts: Windows 10 x64 (WinUSB and libusbK) and Arch Linux x86_64 (usbfs).
+- Not yet tested on hardware: pen, touchpad, battery, raw, and the System
+  Control, Camera, and Telephony toggle forms.
 
-## Status vocabulary
+"Confirmed" means the profile was driven through
+[aoahid_player](https://github.com/nemarpuc/aoahid_player) and the input took
+effect on the device. Kernel `getevent` traces and `dumpsys input` output were
+not captured separately.
 
-| Status | Meaning |
-|---|---|
-| `Source-reviewed` | The named official specification or exact source revision was read. No binary or device was exercised. |
-| `CI-passed` | The named workflow run built and tested the exact commit; link to the run and artifact is required. |
-| `Hardware-verified` | The four Android evidence layers below were recorded on one identified physical target. |
-| `Conditional` | Evidence exists only under the recorded configuration, release, or OEM condition. |
-| `Not run` | No evidence has been recorded. This is the current default. |
-| `Failed` | A reproducible result did not satisfy the stated gate; link to logs and the exact target is required. |
+## Hardware-tested combinations
 
-## Specification and source targets
-
-| Target | Revision/version | Evidence level | What was established | What was not established |
-|---|---|---|---|---|
-| USB HID | HID 1.11, 2001-05-27 | `Source-reviewed` | Item encoding, signedness, short/extended Usage ranges, Report IDs, reports, field span, Null State | Acceptance by any target parser |
-| HID Usage Tables | HUT 1.7, 2026-01-26 | `Source-reviewed` | Audited Usage IDs, Usage types, and semantics listed in `FACT_AUDIT.md` | Linux or Android support for a Usage |
-| Linux HID core/input/multitouch | Commit `35556bed836f8dc07ac55f69c8d17dce3e7f0e25`, 2020-09-01 | `Source-reviewed` | Behavior of the exact symbols listed in `FACT_AUDIT.md` | Behavior of a different kernel or an OEM-modified tree |
-| Android 17 ACK controller/pen-priority cross-check | `android17-6.18` commit `f67745b7d96806e622db56f4be97af16d6e99850` | `Source-reviewed` | `hid_hat_to_axis`, Generic Desktop Hat/raw-D-pad configuration and dispatch, and the explicit Eraser/Invert/Tip/Pressure/In-Range priority path in `hid-input.c` and `hid-core.c` | Multitouch, battery, pen behavior beyond that ordering, OEM changes, runtime acceptance, or behavior of a later revision |
-| Android 17 game-controller contract | [Android 17 CDD §7.2.6.1](https://source.android.com/docs/compatibility/17/android-17-cdd), retrieved 2026-08-27, and the [Android game-controller input page](https://developer.android.com/games/sdk/game-controller/controller-input), page updated 2026-02-26 | `Source-reviewed` | Game Pad Application Collection; Button Page A=`1`, B=`2`, X=`4`, Y=`5`; canonical Hat logical/physical/unit/size contract; the recorded clockwise/value-1 source conflict; axis signs and deadzone guidance | Physical device classification, event delivery, framework mapping, or application-visible results |
-| Android touch documentation | Page revision 2026-07-13 | `Source-reviewed` | Documented pressure/hover contract | Behavior of a specific phone or application |
-| AOA current-mode request routing | AOA 2.0 page plus kernel/common commits `0e3db17d01c94263b629b089c51c7d0988308232` and `9b03ed2feb9c4cc3f15d44eda080caabb3a6b843` | `Source-reviewed` | AOA HID uses EP0, and the named implementations route requests 54-57 without testing `ACCESSORY_START` state | That every Android or OEM kernel accepts Mode A before `START` |
-
-Retrieval date for every row: 2026-08-27. Official URLs and exact symbols are
-in `FACT_AUDIT.md` and, for AOA transport, `SOURCE_CONFLICTS.md`.
-
-## Published release build targets
-
-Under the current C-17 scope in `SOURCE_CONFLICTS.md`, only these four native
-targets are intended for GitHub Release publication. A row changes to
-`CI-passed` only when the release commit, workflow URL, toolchain, linked libusb
-form, archive checksum, and exported-symbol check are recorded.
-
-| Host target | Architecture / C runtime | Required shared artifact | Required static artifact | Current status | Evidence |
-|---|---|---|---|---|---|
-| Linux | x86_64 / glibc | `libaoahid.so` | `libaoahid.a` | `Not run` | None recorded |
-| Linux | aarch64 (ARM64) / glibc | `libaoahid.so` | `libaoahid.a` | `Not run` | None recorded |
-| Windows | x86_64 | `aoahid.dll` plus import library | `aoahid_static.lib` | `Not run` | None recorded |
-| Windows | aarch64 (ARM64) | `aoahid.dll` plus import library | `aoahid_static.lib` | `Not run` | None recorded |
-
-The filenames above identify the required artifact kind, not proof that an artifact exists. GitHub Actions emulation or cross-compilation does not replace a native load/link smoke test for the release archive.
-
-### CI portability targets
-
-These configurations are intended to compile and test portability. They are not
-0.2.0 GitHub Release artifacts under the current C-17 publication scope.
-
-| Host target | Architecture / C runtime | Current status | Evidence |
+| Device | Android build | Host OS / libusb backend | Date |
 |---|---|---|---|
-| Linux | x86_64 / musl | `Not run` | None recorded |
-| Linux | aarch64 (ARM64) / musl | `Not run` | None recorded |
-| macOS | x86_64 | `Not run` | None recorded |
-| macOS | arm64 | `Not run` | None recorded |
+| Samsung Galaxy Tab S11 | OEM release | Windows 10 x64 / WinUSB, libusbK | 2026-09 |
+| Samsung Galaxy Tab S11 | OEM release | Arch Linux x86_64 / usbfs | 2026-09 |
+| POCO F6 Pro | HyperOS release | Windows 10 x64 / WinUSB, libusbK | 2026-09 |
+| POCO F6 Pro | HyperOS release | Arch Linux x86_64 / usbfs | 2026-09 |
 
-## Android physical-target matrix
+On Windows the Samsung tablet needed its whole-device driver replaced with
+WinUSB before a Bulk Channel could open; see [PORTING.md](PORTING.md#windows).
 
-Each row represents one exact combination. Do not combine results from two devices into one "Android version" result.
+## Per-profile status
 
-| Android/API target | Device/OEM | Build fingerprint | Kernel revision | USB mode | Host/backend | Kernel input | `dumpsys input` | `getevent` | App API | Overall |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Android 8 | Not assigned | Not recorded | Not recorded | Not recorded | Not recorded | `Not run` | `Not run` | `Not run` | `Not run` | `Not run` |
-| Android 10 | Not assigned | Not recorded | Not recorded | Not recorded | Not recorded | `Not run` | `Not run` | `Not run` | `Not run` | `Not run` |
-| Android 12 | Not assigned | Not recorded | Not recorded | Not recorded | Not recorded | `Not run` | `Not run` | `Not run` | `Not run` | `Not run` |
-| Android 13 | Not assigned | Not recorded | Not recorded | Not recorded | Not recorded | `Not run` | `Not run` | `Not run` | `Not run` | `Not run` |
-| Android 14 | Not assigned | Not recorded | Not recorded | Not recorded | Not recorded | `Not run` | `Not run` | `Not run` | `Not run` | `Not run` |
-| Android 15 | Not assigned | Not recorded | Not recorded | Not recorded | Not recorded | `Not run` | `Not run` | `Not run` | `Not run` | `Not run` |
-| Android 16 / API 36 | Not assigned | Not recorded | Not recorded | Not recorded | Not recorded | `Not run` | `Not run` | `Not run` | `Not run` | `Not run` |
-| Android 16 MR1 / platform version 36.1 | Not assigned | Not recorded | Not recorded | Not recorded | Not recorded | `Not run` | `Not run` | `Not run` | `Not run` | `Not run` |
-| Android 17 / API 37 | Not assigned | Not recorded | Not recorded | Not recorded | Not recorded | `Not run` | `Not run` | `Not run` | `Not run` | `Not run` |
-| Android 17 MR1 / platform version 37.1 | Not assigned | Not recorded | Not recorded | Not recorded | Not recorded | `Not run` | `Not run` | `Not run` | `Not run` | `Not run` |
-| Android 17 MR2 preview / platform version 37.2 (preview API 10000) | Not assigned | Not recorded | Not recorded | Not recorded | Not recorded | `Not run` | `Not run` | `Not run` | `Not run` | `Not run` |
+Unit, descriptor, and golden-byte tests run in CI for every profile. The
+column below is about real devices only.
 
-Add a separate row for each current USB configuration and ADB state, each host
-OS/backend, and each kernel/vendor build that materially changes the path. A
-target that accepts requests 54-57 only after `ACCESSORY_START` is a separate
-row reached through `aoahid_accessory_start`. Do not overwrite a failing row with a later success;
-add the new build as another row.
-
-Mode A remains **target-conditional** and **unverified on hardware** for every
-row above. Source inspection is not device evidence.
-
-The Android 16-and-later labels follow the exact `BAKLAVA`, `BAKLAVA_1`,
-`CINNAMON_BUN`, `CINNAMON_BUN_1`, and `CINNAMON_BUN_2` symbols recorded in the
-`SOURCE_CONFLICTS.md` primary-source register. Each release remains a separate
-target; no later-version row inherits evidence from an earlier one.
-
-## Per-profile hardware status
-
-| Profile | Descriptor/static tests | Audited Linux source path | Physical kernel parse | Android classification | Event stream | Application API | Release wording allowed now |
-|---|---|---|---|---|---|---|---|
-| Keyboard, full-NKRO bitmap (also reached via the former Barcode/MSR wedge factory) | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Verified` (input observed on Galaxy Tab S11 and POCO F6 Pro) | "Conditional; took effect on Galaxy Tab S11 and POCO F6 Pro" |
-| Mouse | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Verified` (input observed on Galaxy Tab S11 and POCO F6 Pro) | "Implemented; took effect on Galaxy Tab S11 and POCO F6 Pro" |
-| Toggle: Consumer control | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Verified` (input observed on Galaxy Tab S11 and POCO F6 Pro) | "Conditional; took effect on Galaxy Tab S11 and POCO F6 Pro" |
-| Toggle: System control | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; target mapping unverified" |
-| Toggle: Camera keys (`field_page = 0x90`) | Not recorded | Camera Usage/OSC form `Source-reviewed`; collection placement is guide policy | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; target mapping and interception unverified" |
-| Toggle: Telephony keys | Not recorded | Telephony Usage form `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; target mapping and call-policy behavior unverified" |
-| Gamepad, canonical Hat | Not recorded | Specified Linux revision, Android 17 ACK, and CDD §7.2.6.1 `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Verified` (input observed on Galaxy Tab S11 and POCO F6 Pro) | "Portable candidate only for Game Pad + canonical Hat + contiguous Button range from 1 with count at least 5; took effect on Galaxy Tab S11 and POCO F6 Pro" |
-| Gamepad, raw D-pad OOC fields | Not recorded | HUT form plus Android 17 ACK individual-field dispatch `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Verified` (input observed on Galaxy Tab S11 and POCO F6 Pro) | "Conditional; took effect on Galaxy Tab S11 and POCO F6 Pro" |
-| Gamepad, no D-pad | Not recorded | Gamepad collection and declared axis/button paths `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Verified` (input observed on Galaxy Tab S11 and POCO F6 Pro) | "Conditional; canonical CDD Hat absent; took effect on Galaxy Tab S11 and POCO F6 Pro" |
-| Touchscreen, fixed MT (the only Multi-Touch form) | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Verified` (input observed on Galaxy Tab S11 and POCO F6 Pro) | "Portable candidate; took effect on Galaxy Tab S11 and POCO F6 Pro" |
-| Touchpad | Not recorded | `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; Android surfaces contacts as mouse-source motion; hardware unverified" |
-| Direct pen | Not recorded | Legacy descriptor-order path and Android 17 ACK priority order `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Portable candidate; hardware unverified" |
-| Indirect pen/tablet | Not recorded | Legacy descriptor-order path and Android 17 ACK priority order `Source-reviewed` | `Not run` | `Not run` | `Not run` | `Not run` | "Conditional; classification unverified" |
-| Battery Strength metadata | Not recorded | `Source-reviewed`; kernel option dependent | `Not run` | `Not run` | Not an ordinary input event | `Not run` | "Conditional metadata; hardware unverified" |
-| Raw Input report | Not recorded | Parser rules source-reviewed | `Not run` | Not claimed | Not claimed | Not claimed | "No Android semantic support claimed" |
-
-`Verified` in the Application API column means the maintainer drove the
-profile through aoahid_player on a Samsung Galaxy Tab S11 and a POCO F6 Pro
-(HyperOS), on Windows 10 x64 and Arch Linux, and the input took effect on the
-device; the kernel-parse, classification and event-stream columns were not
-captured separately.
-
-`Source-reviewed` in the third column means only that the corresponding branch in the specified Linux revision was inspected. It does not mean that `libaoahid` generated bytes have executed through that branch.
-
-## Accessory mode and Bulk Channel hardware status
-
-`aoahid_accessory_start` and `aoahid_channel_*` (2.0.0) pass only the
-deterministic fake-libusb tests, including ThreadSanitizer runs. Rows marked `Verified` were run by
-the maintainer on a Samsung Galaxy Tab S11 and a POCO F6 Pro (HyperOS), on
-Windows 10 x64 (WinUSB and libusbK) and Arch Linux (usbfs); every other row is
-**[unverified on hardware]**. Record the target, OS/backend, and result before
-any release wording relies on a row.
-
-| # | Hypothesis | Status |
-|---|---|---|
-| 1 | In current USB mode (before request 53) the target accepts requests 54-57 and the events reach input (T-07). | `Verified` (Galaxy Tab S11, POCO F6 Pro; Windows 10 x64, Arch Linux; 2026-09) |
-| 2 | After `aoahid_accessory_start`, the target re-enumerates as `18d1:2d00`, or `18d1:2d01` with USB debugging enabled, at the same bus and port path. | `Verified` (Galaxy Tab S11, POCO F6 Pro; Windows 10 x64, Arch Linux; 2026-09) |
-| 3 | In accessory mode, requests 54-57 register the HID and deliver input exactly as in current USB mode. | `Verified` (Galaxy Tab S11, POCO F6 Pro; Windows 10 x64, Arch Linux; 2026-09) |
-| 4 | Request 51 from `aoahid_discover`/`aoahid_device_open` on an accessory-mode device does not disturb the accessory session (T-12). | `Not run` [unverified on hardware] |
-| 5 | With `2d01`, an ADB Channel (`0xFF/0x42/0x01`) and an AOA HID Node work at the same time on one handle, on Linux (usbfs) and Windows (WinUSB). | `Not run` [unverified on hardware] |
-| 6 | On Windows, `2d00`/`2d01` binds a WinUSB-compatible driver so libusb can open it. | `Verified` (Galaxy Tab S11, POCO F6 Pro; Windows 10 x64, WinUSB and libusbK; 2026-09) |
-| 7 | An explicit zero-length Bulk OUT transfer terminates a write identically on Linux and Windows. | `Not run` [unverified on hardware] |
-| 8 | A first report that races registration STALLs (rather than being dropped silently), so the caller's resend delivers it (T-03). | `Not run` [unverified on hardware] |
-| 9 | HID latency (p50/p99) during a large ADB transfer on the same handle stays within an acceptable margin of the idle case. | `Not run` [unverified on hardware] |
-| 10 | Unplugging, or `svc usb setFunctions` through ADB, returns the target from accessory mode to its default USB functions. | `Not run` [unverified on hardware] |
-
-## Four required Android evidence layers
-
-### 1. Kernel device and descriptor
-
-Record:
-
-- full `adb shell uname -a` and build fingerprint;
-- HID descriptor bytes and a decoded form;
-- `/proc/bus/input/devices` entry and exact `/dev/input/eventN` node;
-- `adb shell getevent -lp /dev/input/eventN` capabilities, event types, codes, ranges, resolutions, and input properties; and
-- kernel log for parser or registration errors.
-
-### 2. Android classification
-
-Record the relevant `adb shell dumpsys input` block, including device sources, keyboard type, touch mode, motion ranges, associated display, and selected IDC/KL/KCM files. A kernel event node without this layer is not an Android classification success.
-
-### 3. Event sequence
-
-Record timestamped `adb shell getevent -lt /dev/input/eventN` output for the profile cases below. If the production build denies access, record the exact denial and use an approved framework event-logging build; do not label missing evidence as passed.
-
-### 4. Application API
-
-Record from an identified test-application commit:
-
-- `InputDevice.getSources()` and every relevant motion range;
-- `KeyEvent` scan code, keycode, action, repeat, meta state, device ID, and source;
-- `MotionEvent` source, masked action/index, pointer count/IDs, tool types, X/Y, pressure, size, orientation, tilt, axes, and buttons; and
-- focus, IME, MediaSession, lock-screen, and system-policy differences where relevant.
-
-## Minimum per-profile cases
-
-| Profile | Cases required before `Hardware-verified` |
+| Profile | Real hardware |
 |---|---|
-| Keyboard | Modifier chords; all-up; a nonmodifier count well beyond six held simultaneously (full-NKRO, no Array slot limit to hit); repeat; layout and IME differences |
-| Mouse | Positive and negative X/Y; split delta; all buttons; release; wheel; AC Pan; high-rate stream; pointer capture |
-| Toggle: Consumer/System/Camera/Telephony | Every allowed Usage; `down=1` and `down=0`; a guaranteed-observed single click (`down=1`, wait for completion, `down=0`) assertion and zero re-arm where exposed; foreground/background; screen off; system, media, camera, and call-policy interception |
-| Gamepad, canonical Hat | Game Pad collection; contiguous Button range beginning at `1` with at least `5` entries and explicit A/B/X/Y checks; every button and axis; explicit neutral; minimum/maximum; all eight Hat directions including value `1` as Up-right; no-direction Null value `15`; Logical `0..7`; Physical `0..315`; Unit Degrees `0x14`; opposite-direction rejection; simultaneous controls |
-| Gamepad, raw D-pad | Each independent Up/Down/Right/Left bit; adjacent and opposite simultaneous bits; release to all-zero; target event order and final Android axes/keys |
-| Gamepad, no D-pad | Every declared button and axis; explicit neutral; minimum/maximum; absence of Hat and raw D-pad fields; source and Android classification |
-| Touchscreen | One through configured maximum contacts; stable Contact IDs; crossing; explicit Up; multi-packet continuation count zero; edges/corners; pressure, azimuth/rotation, and palm fields when enabled; Scan Time first-frame zero, elapsed 100-microsecond progress, one value across continuation packets, declared-period wrap, and inactivity reset when enabled |
-| Touchpad | Every Touchscreen contact case above (shared `TouchFields` state machine); every declared button 1 through `button_count` pressed/released independently; button edges busy during an in-flight/multi-packet contact frame; buttonless (`button_count = 0`) Spec accepted and never emits a button field; close clears every button alongside contact neutralization; observed `INPUT_PROP_POINTER` classification and resulting Android motion source |
-| Pen | Descriptor Variable order Invert, Tip Switch, In Range when eraser selection is enabled; Away wire normalization of In Range, Tip, pressure, Invert, and barrel buttons to zero; remembered-tool re-entry; hover; tip; pen-to-eraser departure/re-entry; four corners; simultaneous touch; pressure, barrel controls, tilt, and Twist when enabled |
-| Battery Strength | Kernel `CONFIG_HID_BATTERY_STRENGTH`; declared minimum/midpoint/maximum; raw zero; unknown Null when enabled; `power_supply` metadata; Android association; application battery API |
-| Teardown | Neutral report; unregister; in-flight unplug; cancel; reopen; fresh HID ID; Android reboot |
+| Touchscreen (multi-touch) | Confirmed on both devices and both hosts |
+| Keyboard (full-NKRO bitmap) | Confirmed on both devices and both hosts |
+| Mouse | Confirmed on both devices and both hosts |
+| Gamepad, Hat switch | Confirmed on both devices and both hosts |
+| Gamepad, raw D-pad fields | Confirmed on both devices and both hosts |
+| Gamepad, no D-pad | Confirmed on both devices and both hosts |
+| Toggle: Consumer Control (media keys) | Confirmed on both devices and both hosts |
+| Toggle: System Control | Not tested |
+| Toggle: Camera | Not tested |
+| Toggle: Telephony | Not tested |
+| Pen (direct and indirect) | Not tested |
+| Touchpad | Not tested |
+| Battery Strength | Not tested |
+| Raw report | Not tested; the library makes no claim about how Android interprets a raw descriptor |
 
-## Evidence record template
+## Transport and accessory mode
 
-Add one record per target/profile combination:
+| Behavior | Status |
+|---|---|
+| In the current USB mode (no `ACCESSORY_START`), the device accepts AOA HID requests 54-57 and the input takes effect | Confirmed (both devices, both hosts) |
+| After `aoahid_accessory_start`, the device re-enumerates as `18d1:2d00`, or `18d1:2d01` with USB debugging on, at the same bus and port path | Confirmed (both devices, both hosts) |
+| In accessory mode, requests 54-57 register the HID and deliver input as in the current USB mode | Confirmed (both devices, both hosts) |
+| On Windows, `2d00`/`2d01` binds a libusb-usable driver (WinUSB or libusbK) | Confirmed (both devices) |
+| `GET_PROTOCOL` (request 51) sent by discovery to an accessory-mode device does not disturb the accessory session | Not tested |
+| With `2d01`, an ADB Bulk Channel and an AOA HID Node work at the same time on one handle | Not tested |
+| A zero-length Bulk OUT transfer terminates a write the same way on Linux and Windows | Not tested |
+| A first report that races HID registration STALLs rather than being dropped, so the caller's resend delivers it | Not tested |
+| HID latency during a large ADB transfer on the same handle stays close to the idle case | Not tested |
+| Unplugging, or `svc usb setFunctions`, returns the device from accessory mode to its normal USB functions | Not tested |
 
-```markdown
-### <device> / <build fingerprint> / <profile>
+Other Android versions, OEMs, and kernels have not been tested. AOA HID support
+in the current USB mode depends on the device kernel; if a device STALLs the
+first `aoahid_node_open`, try `aoahid_accessory_start` (see
+[PROTOCOL.md](PROTOCOL.md)).
 
-- Date:
-- libaoahid commit:
-- GitHub Actions run and artifact SHA-256:
-- Host OS, architecture, libusb version, and backend:
-- Android version/API and build fingerprint:
-- Kernel `uname -a` and source revision if available:
-- Current physical USB configuration and ADB state:
-- Descriptor SHA-256 and decoded descriptor attachment:
-- Kernel capabilities attachment:
-- `dumpsys input` attachment:
-- `getevent -lt` attachment:
-- Test-application commit and log attachment:
-- Result: Hardware-verified / Conditional / Failed
-- Known deviations:
-```
+## Build targets
 
-## Release gate
+Release archives are built by `.github/workflows/release.yml` for:
 
-The phrase "Android supported" is blocked for a profile/target pair until all four evidence layers are present on the same identified physical target. The following do not remove that block:
+| Host | Runner | Artifacts |
+|---|---|---|
+| Linux x86_64, glibc | `ubuntu-22.04` | `libaoahid.so`, `libaoahid.a` |
+| Linux aarch64, glibc | `ubuntu-22.04-arm` | `libaoahid.so`, `libaoahid.a` |
+| Windows x86_64 | `windows-2025-vs2026` | `aoahid.dll` + import library, `aoahid_static.lib` |
+| Windows ARM64 | `windows-11-vs2026-arm` | `aoahid.dll` + import library, `aoahid_static.lib` |
 
-- a passing CMake build;
-- a passing unit or mock-transport test;
-- a descriptor parser or `hid-tools` result;
-- inspection of Linux or AOSP source;
-- a successful result on an emulator;
-- a successful result on another Android version or OEM; or
-- a generated DLL, shared object, package, or GitHub Release.
+`.github/workflows/ci.yml` also builds and tests Linux musl (x86_64 and
+aarch64) and macOS (`macos-15`, `macos-15-intel`). These are portability
+checks only; no release archive is published for them, and they have not been
+tested with a real device.
 
-Until evidence is added, release notes use the exact qualified wording in the per-profile table and state that hardware validation has not been performed.
+## Checking a new device
+
+To add a device or profile, record at least:
+
+- device model, Android version, and build fingerprint (`adb shell getprop ro.build.fingerprint`);
+- host OS, architecture, libusb version, and backend;
+- the libaoahid version or commit;
+- `adb shell getevent -lp` for the new input node and `adb shell getevent -lt`
+  while sending input;
+- the relevant `adb shell dumpsys input` block; and
+- whether the input took effect in a foreground app.
+
+`tools/device-check/` has a capture script and a small Android app for the
+last three items. Keep one row per exact device/build/host combination; do not
+merge results from different devices or Android versions.
+
+Suggested cases per profile:
+
+| Profile | Cases |
+|---|---|
+| Keyboard | Modifier chords; release all; more than six non-modifier keys held at once; key repeat; layout and IME differences |
+| Mouse | Positive and negative X/Y; every button; wheel; AC Pan; high-rate motion; pointer capture |
+| Toggle | Every allowed Usage; press and release; screen off; foreground and background media/camera/call handling |
+| Gamepad | Every button and axis; neutral; minimum and maximum; all eight Hat directions and the null (centered) value, or each raw D-pad bit |
+| Touchscreen | One to the configured maximum contacts; stable Contact IDs; explicit lift; edges and corners; optional pressure/azimuth fields; Scan Time when enabled |
+| Touchpad | Touchscreen cases plus each button; observe the Android motion source |
+| Pen | Hover; tip; eraser in and out; barrel buttons; pressure, tilt, and twist when enabled; four corners; pen with touch |
+| Battery | Kernel `CONFIG_HID_BATTERY_STRENGTH`; minimum, midpoint, maximum; zero; unknown (Null); `/sys/class/power_supply` and `dumpsys battery` |
+| Teardown | Neutral report; close; unplug with a report in flight; reopen; Android reboot |

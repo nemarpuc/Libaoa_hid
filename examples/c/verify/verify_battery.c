@@ -5,7 +5,7 @@
  * as battery metadata for the accessory.
  *
  * Unlike every other profile in this directory, Battery Strength is NOT an
- * ordinary input event: per docs/FACT_AUDIT.md A-21, the audited Linux kernel
+ * ordinary input event: with CONFIG_HID_BATTERY_STRENGTH, the Linux kernel
  * assigns it EV_PWR and excludes it from the normal input-event path via
  * hidinput_setup_battery/hidinput_update_battery, associating it with a
  * `power_supply` device instead. That means:

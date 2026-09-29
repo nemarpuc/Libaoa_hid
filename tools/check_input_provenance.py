@@ -1,20 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 libaoahid contributors
-"""Fail when a preserved user-supplied source document changes."""
+"""Fail when the documentation misspells the CMake option prefix."""
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 from pathlib import Path
-
-
-EXPECTED = {
-    "docs/inputs/AOA_HID_GUIDE_ORIGINAL.md": "53b684de965f49f2cf2536dc9d2e66346ba92df06bd8af42b91db77e19591a49",
-    "docs/inputs/DESIGN_ORIGINAL.md": "89475b0b6c539febbc5e51de76f4baaccb7657a09a7a708c58b3836eb48b4c4d",
-    "docs/IMPLEMENTATION_PROMPTS.md": "8300f59379a4ff13e3503634d0f32f8da87330746f98125754cf4aa7d693cf78",
-}
 
 
 def main() -> int:
@@ -23,16 +15,6 @@ def main() -> int:
     args = parser.parse_args()
 
     failures: list[str] = []
-    for relative, expected in EXPECTED.items():
-        path = args.source_root / relative
-        try:
-            actual = hashlib.sha256(path.read_bytes()).hexdigest()
-        except OSError as error:
-            failures.append(f"{relative}: cannot read: {error}")
-            continue
-        if actual != expected:
-            failures.append(f"{relative}: expected {expected}, got {actual}")
-
     # A missing `A` in `AOAHID` is accepted by CMake as an unused cache
     # variable and silently leaves the real option at its default.  Keep the
     # command examples mechanically tied to the actual public option prefix.
