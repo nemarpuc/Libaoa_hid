@@ -5,6 +5,14 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+### Documentation
+
+- `docs/TARGET_MATRIX.md`: rows 1, 2, 3 and 6 of the accessory mode and Bulk
+  Channel table are verified on hardware (Samsung Galaxy Tab S11 and POCO F6
+  Pro, on Windows 10 x64 and Arch Linux).
+- `docs/PORTING.md`: the Samsung-on-Windows driver note is a hardware
+  observation, not a user report.
+
 ## [4.0.0] - 2026-09-28
 
 ### Changed (breaking)
