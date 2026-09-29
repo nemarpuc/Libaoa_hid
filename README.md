@@ -13,7 +13,10 @@ fields selects a bounded project-policy fallback; see [API.md](docs/API.md).
 No profile in this repository has yet completed the four-level physical-device
 gate (`getevent`, `dumpsys input`, application API, and kernel device). The
 statuses below are source-backed candidates or conditional paths, not a claim
-of hardware verification. See [TARGET_MATRIX.md](docs/TARGET_MATRIX.md).
+of four-level verification. Keyboard, Mouse, Consumer Toggle, Gamepad, and
+Touchscreen input has been observed taking effect on a Samsung Galaxy Tab S11
+and a POCO F6 Pro, from Windows 10 x64 and Arch Linux. See
+[TARGET_MATRIX.md](docs/TARGET_MATRIX.md).
 
 ## Support table
 
@@ -161,8 +164,9 @@ policies remain mandatory and are never guessed.
 firmware accepts AOA HID requests only after `ACCESSORY_START` are reached with
 `aoahid_accessory_start` instead (requests 51, 52, and 53; request 58 audio is
 never sent). There is no call that leaves accessory mode: unplug the device or
-use `svc usb setFunctions` through ADB. Hardware behavior of either path is not
-yet recorded; see `SOURCE_CONFLICTS.md` T-07 and `TARGET_MATRIX.md`.
+use `svc usb setFunctions` through ADB. HID input in current USB mode and
+after `aoahid_accessory_start` is verified on hardware; leaving accessory mode
+is not yet recorded. See `SOURCE_CONFLICTS.md` T-07 and `TARGET_MATRIX.md`.
 
 ### ADB on the same device
 
