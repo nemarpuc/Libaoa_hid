@@ -12,7 +12,11 @@ fields selects a bounded project-policy fallback; see [API.md](docs/API.md).
 
 ## Demo
 
-<!-- demo video -->
+
+
+https://github.com/user-attachments/assets/880c5a81-bc1e-406b-9286-1a0f3dbf9899
+
+
 
 The app in the video is
 [aoahid_player](https://github.com/nemarpuc/aoahid_player), a script player
