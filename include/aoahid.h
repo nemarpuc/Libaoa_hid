@@ -214,7 +214,9 @@ typedef struct aoahid_device_options {
      * project policies, not USB/AOA requirements or libusb recommendations. */
     /* zero -> 500 ms */
     uint32_t control_timeout_ms;
-    /* zero -> 500 ms */
+    /* zero -> 500 ms. After a touch report times out, the lifted contacts in it
+     * stay occupied; close and reopen that Node. Keep this well above normal
+     * EP0 latency. */
     uint32_t send_timeout_ms;
     /* zero -> 64 bytes */
     uint32_t descriptor_fragment_bytes;

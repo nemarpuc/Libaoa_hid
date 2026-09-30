@@ -223,7 +223,7 @@ completes earlier returns immediately.
 | Field | Zero selects | Scope |
 |---|---:|---|
 | `aoahid_device_options.control_timeout_ms` | 500 ms | Each synchronous AOA control request (54, 55, 56). |
-| `aoahid_device_options.send_timeout_ms` | 500 ms | Each asynchronous request-57 transfer. |
+| `aoahid_device_options.send_timeout_ms` | 500 ms | Each asynchronous request-57 transfer. A timed-out touch report leaves the contacts it lifted occupied; close and reopen that Node. Keep it well above normal EP0 latency. |
 | `aoahid_device_options.descriptor_fragment_bytes` | 64 bytes | Payload of one request-56 fragment. |
 | `aoahid_device_options.transfer_pool_slots` | 8 | Asynchronous transfers per Device. |
 | `aoahid_device_options.maximum_report_bytes` | 1024 bytes | Largest report per pool slot. |
