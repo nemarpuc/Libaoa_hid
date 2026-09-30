@@ -161,9 +161,6 @@ class raw_node_ref final : public node_ref {
     [[nodiscard]] aoahid_result report(std::span<const std::uint8_t> bytes) const noexcept {
         return aoahid_raw_submit(value_, bytes.data(), bytes.size());
     }
-    // Raw state has no bytes to resend; aoahid_node_submit always rejects a
-    // Raw Node, so send with report() instead.
-    aoahid_result submit() const noexcept = delete;
 
   private:
     explicit constexpr raw_node_ref(aoahid_node* value) noexcept : node_ref(value) {}

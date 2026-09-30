@@ -5,9 +5,51 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [4.0.2] - 2026-09-30
+
+No public API or ABI change. Hardware-verified on a Samsung Galaxy Tab S11 and a
+POCO F6 Pro (Windows 10 x64 and Arch Linux): the profiles and paths marked
+`Verified` in `docs/TARGET_MATRIX.md`; every other row is still unverified.
+
+### Fixed
+
+- `aoahid_node_submit_blocking` in internal-thread mode no longer spins when
+  every transfer pool slot belongs to other Nodes. It waits for a Device-level
+  signal that each report completion raises, sends as soon as a slot is free,
+  and uses no CPU while waiting. A regression test covers it.
+- The STALL completion message no longer claims first-report attempts. It says
+  the state stays pending for a resend and names the usual cause right after
+  `aoahid_node_open` (Android has not finished registering the HID). The
+  NO_DEVICE message now covers the case before the request was sent.
+
 ### Documentation
 
+- Added `docs/ARCHITECTURE.md` and `docs/PROTOCOL.md`, verified against the code
+  and official sources.
+- Rewrote README, `docs/API.md`, `docs/PROFILES.md`, `docs/LIMITS.md`,
+  `docs/LATENCY.md`, `docs/PORTING.md`, `docs/QUICKSTART.md`,
+  `docs/EXAMPLES.md`, `docs/TARGET_MATRIX.md`, `examples/README.md`, and
+  `tools/device-check/README.md`, and removed references to internal working
+  notes from them and from source comments. Hardware results for the
+  touchscreen, keyboard, mouse, gamepad, and media-key profiles are recorded.
+- `docs/API.md`: exact STALL resend behavior for `aoahid_node_submit`,
+  `aoahid_node_submit_blocking`, and Raw Nodes; `aoahid_node_close` may return
+  an earlier report's error. `docs/TARGET_MATRIX.md`: the registration-race
+  STALL is confirmed on hardware.
+- `aoahid_node_open` notes that Android registers the HID asynchronously, so
+  the first input needs a short wait. `aoahid_device_options.send_timeout_ms`
+  notes that contacts lifted in a timed-out touch report stay occupied until
+  the Node is reopened. The `AOAHID_ERR_BUSY` text of the profile calls also
+  covers an unsent opposite edge.
+- State that accessory mode is not required for HID, and fix a Doxygen link to
+  the README in `docs/PROTOCOL.md`.
 - README: link to the introduction article on DEV.
+
+### Examples and tooling
+
+- `verify_mouse` and `verify_touch` wait 100 ms after `aoahid_node_open`.
+- The release, license-header, and provenance checks and the Doxygen
+  configuration no longer refer to the removed working notes.
 
 ## [4.0.1] - 2026-09-29
 
