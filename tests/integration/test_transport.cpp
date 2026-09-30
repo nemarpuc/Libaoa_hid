@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <ctime>
 #include <functional>
 #include <limits>
 #include <new>
@@ -2763,6 +2764,80 @@ void test_blocking_destroy_timeout_retains_context() {
     aoahid_fake_libusb_reset();
 }
 
+// With every pool slot taken by another Node, submit_blocking in
+// internal-thread mode sleeps until a slot is released instead of spinning,
+// and sends as soon as one is.
+void test_submit_blocking_waits_for_a_free_slot_without_spinning() {
+    aoahid_fake_libusb_reset();
+    const Candidate candidate = add_candidate(12U, {5U, 2U});
+    aoahid_context_options context_options = public_context_options();
+    context_options.event_mode = AOAHID_EVENT_INTERNAL_THREAD;
+    aoahid_context* context = nullptr;
+    AOAHID_CHECK(aoahid_context_create(&context_options, &context) == AOAHID_OK);
+    const aoahid_device_info selected = public_info(candidate);
+    aoahid_device_options device_options = public_device_options();
+    device_options.send_timeout_ms = 5000U;
+    aoahid_device* device = nullptr;
+    AOAHID_CHECK(aoahid_device_open(context, &selected, &device_options, &device) == AOAHID_OK);
+
+    aoahid_keyboard_options keyboard{};
+    keyboard.struct_size = sizeof(keyboard);
+    keyboard.usage_minimum = 0x04U;
+    keyboard.usage_maximum = 0x65U;
+    aoahid_spec* spec = nullptr;
+    AOAHID_CHECK(aoahid_spec_create_keyboard(&keyboard, &spec) == AOAHID_OK);
+    aoahid_node_options node_options{};
+    node_options.struct_size = sizeof(node_options);
+    aoahid_node* holder = nullptr;
+    aoahid_node* waiter = nullptr;
+    AOAHID_CHECK(aoahid_node_open(device, spec, &node_options, &holder) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_node_open(device, spec, &node_options, &waiter) == AOAHID_OK);
+    aoahid_spec_release(spec);
+
+    // The holder's report takes the only slot and stays in flight.
+    aoahid_fake_libusb_queue_async_completion(LIBUSB_TRANSFER_COMPLETED, -1,
+                                              std::numeric_limits<std::uint32_t>::max());
+    AOAHID_CHECK(aoahid_kbd(holder, 0x04U, 1U) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_node_submit(holder) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_kbd(waiter, 0x05U, 1U) == AOAHID_OK);
+
+    std::atomic<bool> done{false};
+    aoahid_result result = AOAHID_ERR_INTERNAL;
+    std::int64_t cpu_ns = -1;
+    std::thread thread([&]() {
+#if defined(__linux__)
+        timespec start{};
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &start);
+#endif
+        result = aoahid_node_submit_blocking(waiter, 3000U);
+#if defined(__linux__)
+        timespec end{};
+        clock_gettime(CLOCK_THREAD_CPUTIME_ID, &end);
+        cpu_ns = (end.tv_sec - start.tv_sec) * 1000000000LL + (end.tv_nsec - start.tv_nsec);
+#endif
+        done.store(true);
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    AOAHID_CHECK(!done.load());
+    const auto released = std::chrono::steady_clock::now();
+    aoahid_fake_libusb_make_pending_transfers_ready();
+    while (!done.load() && std::chrono::steady_clock::now() - released < std::chrono::seconds(3))
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    const auto waited = std::chrono::steady_clock::now() - released;
+    thread.join();
+    AOAHID_CHECK(result == AOAHID_OK);
+    AOAHID_CHECK(waited < std::chrono::milliseconds(100));
+#if defined(__linux__)
+    // A spinning wait would burn roughly the whole 200 ms.
+    AOAHID_CHECK(cpu_ns >= 0 && cpu_ns < 50000000LL);
+#endif
+    AOAHID_CHECK(aoahid_kbd(holder, 0x04U, 0U) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_kbd(waiter, 0x05U, 0U) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_device_close(device) == AOAHID_OK);
+    AOAHID_CHECK(aoahid_context_destroy(context) == AOAHID_OK);
+    aoahid_fake_libusb_reset();
+}
+
 } // namespace
 
 void test_transport() {
@@ -2793,6 +2868,7 @@ void test_transport() {
     test_close_drains_touch_frame_before_neutral();
     test_public_error_contract_and_raw_padding();
     test_first_report_stall_is_returned_without_retry();
+    test_submit_blocking_waits_for_a_free_slot_without_spinning();
     test_submit_rejection_retains_state_and_close_releases();
     test_node_open_host_policy_failure_precedes_request54();
     test_node_close_timeout_distinction_and_loss_freeze();

@@ -650,6 +650,18 @@ void transfer_complete(void* user, const aoahid_result result,
     node->submitted_report_length = 0U;
     node->submitted_report_id = 0U;
     node->completion_result.store(result, std::memory_order_release);
+    // The transport freed this report's pool slot before calling back.
+    if (aoahid_device* device = node->device; device != nullptr) {
+        device->slot_generation.fetch_add(1U);
+        if (device->slot_waiters.load() != 0U) {
+            // A waiter checks the generation under this mutex; taking it here
+            // means the notify cannot land between its check and its wait.
+            {
+                const std::lock_guard<std::mutex> lock(device->slot_mutex);
+            }
+            device->slot_cv.notify_all();
+        }
+    }
     // Internal-thread mode publishes while holding the same mutex every
     // Node-destruction path uses as a callback-exit barrier. Caller-poll mode
     // stores a null active mutex: its callback runs synchronously inside the

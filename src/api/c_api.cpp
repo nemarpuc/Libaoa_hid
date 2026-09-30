@@ -609,15 +609,16 @@ aoahid_result poll_until_idle(aoahid_node* node, const std::uint32_t deadline_ms
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(deadline_ms);
     do {
         // Set when every pool slot is taken by other Nodes: this Node has no
-        // transfer of its own to wait for, so the wait below must not return
-        // at once or the loop spins until the deadline.
+        // transfer of its own to wait for, so it waits for any slot instead.
         bool pool_busy = false;
+        std::uint64_t slot_generation = 0U;
         if (!node->transfer_inflight.load(std::memory_order_acquire)) {
             const aoahid_result completion = consume_completion(node, "node.completion");
             if (completion != AOAHID_OK)
                 return completion;
             if (!node->dirty)
                 return AOAHID_OK;
+            slot_generation = node->device->slot_generation.load();
             const aoahid_result submit = aoahid_node_submit(node);
             if (submit != AOAHID_OK && submit != AOAHID_ERR_BUSY)
                 return submit;
@@ -630,14 +631,31 @@ aoahid_result poll_until_idle(aoahid_node* node, const std::uint32_t deadline_ms
                 return finish_transport_result(poll, "context.poll",
                                                "libusb event handling failed.", node);
             }
+        } else if (pool_busy) {
+            // Woken by the next completion on this Device (see
+            // transfer_complete()); a bump before this wait makes it return
+            // at once, so no release is missed. The quantum only rechecks
+            // Context errors.
+            aoahid_device* device = node->device;
+            std::unique_lock<std::mutex> lock(device->slot_mutex);
+            device->slot_waiters.fetch_add(1U);
+            const auto quantum = std::chrono::steady_clock::now() + std::chrono::milliseconds(10U);
+            static_cast<void>(device->slot_cv.wait_until(
+                lock, std::min(deadline, quantum), [device, slot_generation]() noexcept {
+                    return device->slot_generation.load() != slot_generation;
+                }));
+            device->slot_waiters.fetch_sub(1U);
+            lock.unlock();
+            const aoahid_result event_error = preflight_context(node->device->context);
+            if (event_error != AOAHID_OK)
+                return event_error;
         } else {
             std::unique_lock<std::mutex> lock(node->completion_mutex);
             node->completion_waiters.fetch_add(1U, std::memory_order_acq_rel);
-            const auto quantum =
-                std::chrono::steady_clock::now() + std::chrono::milliseconds(pool_busy ? 1U : 10U);
+            const auto quantum = std::chrono::steady_clock::now() + std::chrono::milliseconds(10U);
             static_cast<void>(node->completion_cv.wait_until(
-                lock, std::min(deadline, quantum), [node, pool_busy]() noexcept {
-                    return !pool_busy && !node->transfer_inflight.load(std::memory_order_acquire);
+                lock, std::min(deadline, quantum), [node]() noexcept {
+                    return !node->transfer_inflight.load(std::memory_order_acquire);
                 }));
             node->completion_waiters.fetch_sub(1U, std::memory_order_acq_rel);
             // Do not nest the Context mutex below the per-Node completion

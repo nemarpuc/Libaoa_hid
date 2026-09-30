@@ -323,6 +323,13 @@ struct aoahid_device {
     std::atomic<bool> closing{false};
     aoahid_result close_result{AOAHID_OK};
     aoa::detail::DeferredError close_error;
+    // Pool-slot release signal. Every report completion bumps the generation
+    // (its slot is already free by then); a submit_blocking caller that found
+    // every slot taken waits for the next bump instead of polling.
+    std::mutex slot_mutex;
+    std::condition_variable slot_cv;
+    std::atomic<std::uint32_t> slot_waiters{0U};
+    std::atomic<std::uint64_t> slot_generation{0U};
 };
 
 struct aoahid_channel {
