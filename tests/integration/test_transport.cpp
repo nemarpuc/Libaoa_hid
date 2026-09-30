@@ -2803,7 +2803,7 @@ void test_submit_blocking_waits_for_a_free_slot_without_spinning() {
 
     std::atomic<bool> done{false};
     aoahid_result result = AOAHID_ERR_INTERNAL;
-    std::int64_t cpu_ns = -1;
+    [[maybe_unused]] std::int64_t cpu_ns = -1;
     std::thread thread([&]() {
 #if defined(__linux__)
         timespec start{};

@@ -656,9 +656,7 @@ void transfer_complete(void* user, const aoahid_result result,
         if (device->slot_waiters.load() != 0U) {
             // A waiter checks the generation under this mutex; taking it here
             // means the notify cannot land between its check and its wait.
-            {
-                const std::lock_guard<std::mutex> lock(device->slot_mutex);
-            }
+            const std::lock_guard<std::mutex> lock(device->slot_mutex);
             device->slot_cv.notify_all();
         }
     }
