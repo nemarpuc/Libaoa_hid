@@ -332,8 +332,18 @@ The library never retries a transfer:
 
 - `AOAHID_ERR_STALL` on request 57 means the device refused the report, so
   nothing was applied. A common cause is a first report sent before Android
-  finished registering the HID device. The refused state stays pending and the
-  next submit resends it after whatever delay you choose;
+  finished registering the HID device (see step 5 above). The refused state
+  stays pending; nothing is resent until you call again, after whatever delay
+  you choose:
+  - `aoahid_node_submit_blocking` returns the STALL itself; the next submit
+    call sends the pending state again.
+  - `aoahid_node_submit` returns `AOAHID_OK` once the report is queued. The
+    STALL is returned by the next submit call, which sends nothing; the call
+    after that sends the pending state again.
+  - A Raw Node keeps no copy of its bytes: resend by calling
+    `aoahid_raw_submit` again. Until one succeeds, `aoahid_node_submit_blocking`
+    on it returns `AOAHID_ERR_UNSUPPORTED`.
+
   `examples/c/verify/verify_common.h` shows a bounded resend.
 - Timeout, cancellation, short transfer, and I/O errors consume the submitted
   state, because the report may have been delivered and resending could repeat
@@ -425,7 +435,7 @@ Ownership after close differs by handle:
 
 | Call | Consumes the handle when |
 |---|---|
-| `aoahid_node_close` | Only on `AOAHID_OK`. Any error, including `AOAHID_CLOSE_PENDING` (drain budget expired), leaves the Node valid for a retry or for Device close. |
+| `aoahid_node_close` | Only on `AOAHID_OK`. Any error, including `AOAHID_CLOSE_PENDING` (drain budget expired), leaves the Node valid for a retry or for Device close. The error can be one an earlier report ended with (reported once), so call close again. |
 | `aoahid_channel_close` | Only on `AOAHID_OK`. `AOAHID_CLOSE_PENDING` leaves it valid. |
 | `aoahid_device_close` | Always, on the first valid call, together with every child Node and Channel. On `AOAHID_CLOSE_PENDING` the objects move to the Context graveyard and are freed once their transfers complete. |
 | `aoahid_context_destroy` | On every result except `AOAHID_CLOSE_PENDING` and `AOAHID_ERR_PARAM`. |

@@ -47,14 +47,16 @@ std::uint16_t report_id(const aoahid_node* node) noexcept {
 const char* completion_reason(const aoahid_result result) noexcept {
     switch (result) {
     case AOAHID_ERR_STALL:
-        return "AOA request 57 stalled after its permitted first-report attempts.";
+        return "The device refused AOA request 57 (STALL); nothing was applied and the state "
+               "stays pending for a resend. Right after aoahid_node_open this usually means "
+               "Android has not finished registering the HID.";
     case AOAHID_ERR_TIMEOUT:
         return "AOA request 57 timed out; delivery to the accessory cannot be established.";
     case AOAHID_ERR_SHORT_TRANSFER:
         return "AOA request 57 completed with an actual payload length different from the "
                "requested length.";
     case AOAHID_ERR_NO_DEVICE:
-        return "The device disappeared while AOA request 57 was in flight.";
+        return "The device disappeared before or while AOA request 57 was sent.";
     case AOAHID_ERR_OVERFLOW:
         return "libusb completed AOA request 57 with a transfer-overflow status.";
     case AOAHID_ERR_IO:
@@ -606,6 +608,10 @@ aoahid_result poll_until_idle(aoahid_node* node, const std::uint32_t deadline_ms
         return preflight;
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(deadline_ms);
     do {
+        // Set when every pool slot is taken by other Nodes: this Node has no
+        // transfer of its own to wait for, so the wait below must not return
+        // at once or the loop spins until the deadline.
+        bool pool_busy = false;
         if (!node->transfer_inflight.load(std::memory_order_acquire)) {
             const aoahid_result completion = consume_completion(node, "node.completion");
             if (completion != AOAHID_OK)
@@ -615,6 +621,8 @@ aoahid_result poll_until_idle(aoahid_node* node, const std::uint32_t deadline_ms
             const aoahid_result submit = aoahid_node_submit(node);
             if (submit != AOAHID_OK && submit != AOAHID_ERR_BUSY)
                 return submit;
+            pool_busy = submit == AOAHID_ERR_BUSY &&
+                        !node->transfer_inflight.load(std::memory_order_acquire);
         }
         if (node->device->context->options.event_mode == AOAHID_EVENT_CALLER_POLL) {
             const aoahid_result poll = node->device->context->runtime->poll(1U);
@@ -625,10 +633,11 @@ aoahid_result poll_until_idle(aoahid_node* node, const std::uint32_t deadline_ms
         } else {
             std::unique_lock<std::mutex> lock(node->completion_mutex);
             node->completion_waiters.fetch_add(1U, std::memory_order_acq_rel);
-            const auto quantum = std::chrono::steady_clock::now() + std::chrono::milliseconds(10U);
+            const auto quantum =
+                std::chrono::steady_clock::now() + std::chrono::milliseconds(pool_busy ? 1U : 10U);
             static_cast<void>(node->completion_cv.wait_until(
-                lock, std::min(deadline, quantum), [node]() noexcept {
-                    return !node->transfer_inflight.load(std::memory_order_acquire);
+                lock, std::min(deadline, quantum), [node, pool_busy]() noexcept {
+                    return !pool_busy && !node->transfer_inflight.load(std::memory_order_acquire);
                 }));
             node->completion_waiters.fetch_sub(1U, std::memory_order_acq_rel);
             // Do not nest the Context mutex below the per-Node completion

@@ -49,6 +49,9 @@ int main(void) {
         aoahid_context_destroy(context);
         return verify_fail("mouse node open", result);
     }
+    /* Android registers the HID asynchronously; input sent at once may be
+     * refused or lost (docs/API.md). */
+    verify_sleep_ms(100);
 
     printf("moving the cursor in circles for a few seconds. If nothing is visibly\n");
     printf("moving, that alone does not mean it failed -- see the note above.\n");

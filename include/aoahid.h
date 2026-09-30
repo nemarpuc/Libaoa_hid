@@ -1194,8 +1194,9 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_node_submit_blocking(aoahid_node* no
  * release-all call; release every usage the caller pressed before closing the
  * Node, or the target may see it as stuck.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM for an invalid profile/Usage/Node/down;
- * AOAHID_ERR_BUSY for an in-flight report; AOAHID_ERR_NO_DEVICE for sticky
- * device loss; AOAHID_ERR_INTERNAL for an unexpected ABI-boundary failure. */
+ * AOAHID_ERR_BUSY for an in-flight report or an unsent opposite edge;
+ * AOAHID_ERR_NO_DEVICE for sticky device loss; AOAHID_ERR_INTERNAL for an
+ * unexpected ABI-boundary failure. */
 AOAHID_API aoahid_result AOAHID_CALL aoahid_kbd(aoahid_node* node, uint16_t usage, uint32_t down);
 
 /* aoahid_mouse_move
@@ -1228,7 +1229,7 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_mouse_scroll(aoahid_node* node, int3
  * Synchronization: Belongs to the parent Context domain; serialize mutation and
  * submission calls. It is rejected while one report is in flight.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid Node/profile, one-based button,
- * or pressed flag; AOAHID_ERR_BUSY for an in-flight report;
+ * or pressed flag; AOAHID_ERR_BUSY for an in-flight report or an unsent opposite edge;
  * AOAHID_ERR_NO_DEVICE for sticky loss; AOAHID_ERR_INTERNAL for an unexpected
  * ABI-boundary failure. */
 AOAHID_API aoahid_result AOAHID_CALL aoahid_mouse_button(aoahid_node* node, uint32_t button,
@@ -1247,7 +1248,7 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_mouse_button(aoahid_node* node, uint
  * wrong one.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid Node/profile/down, a
  * Usage outside the Spec allow-list, or a release Usage that is neither 0 nor
- * the one currently pressed; AOAHID_ERR_BUSY for an in-flight report;
+ * the one currently pressed; AOAHID_ERR_BUSY for an in-flight report or an unsent opposite edge;
  * AOAHID_ERR_NO_DEVICE for sticky loss; AOAHID_ERR_INTERNAL for an unexpected
  * ABI-boundary failure. */
 AOAHID_API aoahid_result AOAHID_CALL aoahid_toggle(aoahid_node* node, uint16_t usage,
@@ -1259,7 +1260,7 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_toggle(aoahid_node* node, uint16_t u
  * Synchronization: Belongs to the parent Context domain; serialize mutation and
  * submission calls. It is rejected while one report is in flight.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid Node/profile, one-based button,
- * or pressed flag; AOAHID_ERR_BUSY for an in-flight report;
+ * or pressed flag; AOAHID_ERR_BUSY for an in-flight report or an unsent opposite edge;
  * AOAHID_ERR_NO_DEVICE for sticky loss; AOAHID_ERR_INTERNAL for an unexpected
  * ABI-boundary failure. */
 AOAHID_API aoahid_result AOAHID_CALL aoahid_gamepad_button(aoahid_node* node, uint32_t button,
@@ -1285,9 +1286,9 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_gamepad_set_axis(aoahid_node* node, 
  * Hat value, matching whichever aoahid_dpad_representation the Spec selected.
  * Hat mode rejects opposite pairs and no direction emits Null State.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM unless the Spec selects a D-pad and all
- * four values form a valid boolean direction; AOAHID_ERR_BUSY for an in-flight report;
- * AOAHID_ERR_NO_DEVICE for sticky loss; AOAHID_ERR_INTERNAL for an unexpected
- * ABI-boundary failure. */
+ * four values form a valid boolean direction; AOAHID_ERR_BUSY for an in-flight
+ * report or an unsent opposite edge; AOAHID_ERR_NO_DEVICE for sticky loss;
+ * AOAHID_ERR_INTERNAL for an unexpected ABI-boundary failure. */
 AOAHID_API aoahid_result AOAHID_CALL aoahid_dpad(aoahid_node* node, uint32_t up, uint32_t down,
                                                  uint32_t right, uint32_t left);
 
@@ -1305,9 +1306,10 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_dpad(aoahid_node* node, uint32_t up,
  * Spec did not enable; a non-null field the Spec left disabled is rejected.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid Node/profile/down/contact
  * values, or an inactive contact_id on lift/move; AOAHID_ERR_BUSY for an
- * in-flight frame or a duplicate active ID on placement; AOAHID_ERR_NO_DEVICE
- * for sticky loss; AOAHID_ERR_OVERFLOW when no declared contact slot remains;
- * AOAHID_ERR_INTERNAL for unexpected ABI-boundary failure. */
+ * in-flight frame, an unsent opposite edge, or a duplicate active ID on
+ * placement; AOAHID_ERR_NO_DEVICE for sticky loss; AOAHID_ERR_OVERFLOW when no
+ * declared contact slot remains; AOAHID_ERR_INTERNAL for unexpected ABI-boundary
+ * failure. */
 AOAHID_API aoahid_result AOAHID_CALL aoahid_touch(aoahid_node* node, uint32_t contact_id,
                                                   uint32_t down, int32_t x, int32_t y,
                                                   const aoahid_touch_extra* extra);
@@ -1318,7 +1320,7 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_touch(aoahid_node* node, uint32_t co
  * Synchronization: Belongs to the parent Context domain; serialize mutation and
  * submission calls. It is rejected during an in-flight/multi-packet frame.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid Node/profile, one-based button,
- * or pressed flag; AOAHID_ERR_BUSY for an in-flight frame;
+ * or pressed flag; AOAHID_ERR_BUSY for an in-flight frame or an unsent opposite edge;
  * AOAHID_ERR_NO_DEVICE for sticky loss; AOAHID_ERR_INTERNAL for unexpected
  * ABI-boundary failure. */
 AOAHID_API aoahid_result AOAHID_CALL aoahid_touchpad_button(aoahid_node* node, uint32_t button,
@@ -1331,7 +1333,7 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_touchpad_button(aoahid_node* node, u
  * Synchronization: Belongs to the parent Context domain; serialize mutation and
  * submission calls. It is rejected while one report is in flight.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid Node/profile/sample flags,
- * buttons, or values; AOAHID_ERR_BUSY for an in-flight report;
+ * buttons, or values; AOAHID_ERR_BUSY for an in-flight report or an unsent opposite edge;
  * AOAHID_ERR_NO_DEVICE for sticky loss; AOAHID_ERR_INTERNAL for unexpected
  * ABI-boundary failure. */
 AOAHID_API aoahid_result AOAHID_CALL aoahid_pen_update(aoahid_node* node,
@@ -1343,8 +1345,9 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_pen_update(aoahid_node* node,
  * Synchronization: Belongs to the parent Context domain; serialize mutation and
  * submission calls. It is rejected while one report is in flight.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM for an invalid Node/profile;
- * AOAHID_ERR_BUSY for an in-flight report; AOAHID_ERR_NO_DEVICE for sticky loss;
- * AOAHID_ERR_INTERNAL for an unexpected ABI-boundary failure. */
+ * AOAHID_ERR_BUSY for an in-flight report or an unsent opposite edge;
+ * AOAHID_ERR_NO_DEVICE for sticky loss; AOAHID_ERR_INTERNAL for an unexpected
+ * ABI-boundary failure. */
 AOAHID_API aoahid_result AOAHID_CALL aoahid_pen_depart(aoahid_node* node);
 
 /* aoahid_battery_update

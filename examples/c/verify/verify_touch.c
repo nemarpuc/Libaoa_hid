@@ -51,6 +51,9 @@ int main(void) {
         aoahid_context_destroy(context);
         return verify_fail("touchscreen node open", result);
     }
+    /* Android registers the HID asynchronously; input sent at once may be
+     * refused or lost (docs/API.md). */
+    verify_sleep_ms(100);
 
     printf("dragging across the screen 5 times over about 6 seconds. Watch the phone.\n");
 

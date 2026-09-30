@@ -551,8 +551,9 @@ void transfer_complete(void* user, const aoahid_result result,
     const bool accepted_by_libusb = native_status >= 0;
     // A STALL is the target refusing request 57 (f_accessory stalls when the
     // HID ID is not registered yet), so nothing was applied. Like a submit
-    // rejection it keeps the state pending: the caller's next submit resends
-    // it. Timeouts and cancellations stay consumed because delivery is unknown.
+    // rejection it keeps the state pending for the caller to send again; the
+    // submit call that reports the STALL sends nothing itself. Timeouts and
+    // cancellations stay consumed because delivery is unknown.
     const bool may_have_applied = accepted_by_libusb && result != AOAHID_ERR_STALL;
     bool lifecycle_report_complete = true;
     if (!may_have_applied) {
