@@ -122,10 +122,12 @@ also defines `AOAHID_VERSION_MAJOR`, `_MINOR`, and `_PATCH`.
 
 ### Switching a device to accessory mode
 
-HID requests 54-57 can be sent to a device in its normal USB mode, but whether
-the device accepts them before accessory mode depends on the device. The
-standard AOA flow switches to accessory mode first; the library exposes the
-switch as one call and leaves the rest to the application:
+Switching is not required for HID: `aoahid_device_open` works in the device's
+current USB mode, and HID requests 54-57 have been confirmed there on the
+devices in [TARGET_MATRIX.md](TARGET_MATRIX.md). The official AOA 2.0 page does
+not say whether HID needs `ACCESSORY_START`, so a device that STALLs HID
+registration in its current mode can be switched first. The library exposes
+the switch as one call and leaves the rest to the application:
 
 1. `aoahid_accessory_start(context, info, &options)` sends request 51, request
    52 for each non-null string in `options.strings` (string IDs 0-5), and
