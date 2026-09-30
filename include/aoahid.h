@@ -1095,6 +1095,9 @@ AOAHID_API aoahid_result AOAHID_CALL aoahid_spec_manifest(const aoahid_spec* spe
  * Node owned by the caller and Device. out_node is null on every failure.
  * Blocking: Allocates immutable state/pool reservation and synchronously sends
  * register request 54 plus descriptor fragments in request 56.
+ * Note: Android registers the HID asynchronously after the last fragment, so a
+ * report sent right after this returns may STALL or be lost unseen; wait
+ * briefly before the first input (see docs/API.md).
  * Synchronization: Belongs to the parent Context domain and must be serialized
  * with all Device, Node, and Context application calls.
  * Returns: AOAHID_OK; AOAHID_ERR_PARAM for invalid handles/options/reservation;

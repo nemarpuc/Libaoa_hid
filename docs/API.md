@@ -115,6 +115,16 @@ also defines `AOAHID_VERSION_MAJOR`, `_MINOR`, and `_PATCH`.
    pool slot, then synchronously sends request 54 (register) and the
    descriptor in request-56 fragments. A failure unwinds everything it
    allocated.
+
+   **Wait briefly before the first input.** Android's `f_accessory.c` only
+   schedules the HID's registration when the last descriptor fragment
+   arrives (`schedule_work`), and request 57 is refused until that work has
+   added the device. Right after `aoahid_node_open` returns, a report
+   therefore STALLs, or is accepted before anything on the phone has opened
+   the new input device and is silently lost. On a Galaxy Tab S11, reports
+   were refused for 6-16 ms and accepted-but-unseen reports lasted up to
+   about 60 ms. Leave a short gap (for example 100 ms) between opening the
+   Nodes and sending input.
 6. Change state with the profile calls and send it with `aoahid_node_submit`
    or `aoahid_node_submit_blocking`.
 7. Optionally `aoahid_channel_open` for Bulk data on the same USB handle, for
