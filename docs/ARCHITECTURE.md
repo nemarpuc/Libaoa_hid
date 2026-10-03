@@ -191,6 +191,7 @@ Device the consumed graph moves to the Context graveyard and is reaped later.
 ```sh
 cmake --preset dev && cmake --build --preset dev && ctest --preset dev
 cmake --preset tsan && cmake --build --preset tsan && ctest --preset tsan
+./build/dev/aoahid_tests profiles   # only the named suites: item_writer, profiles, transport, identity
 ```
 
 Tests require `AOAHID_USE_FAKE_LIBUSB=ON`; the fake backend is never used in

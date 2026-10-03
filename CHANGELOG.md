@@ -5,6 +5,29 @@ All notable changes to libaoahid are recorded here. This project follows
 
 ## [Unreleased]
 
+## [4.0.3] - 2026-10-03
+
+No public API, ABI, or behavior change. A maintenance release. It was not
+hardware-verified again: it was checked with the host test suite only, so the
+`Verified` rows in `docs/TARGET_MATRIX.md` are still the 4.0.2 results.
+
+### Changed
+
+- The raw descriptor validator is split by HID item type (Global, Local, Main,
+  Input) and names the item tags instead of using bare numbers. The old and
+  new validators returned identical results, messages, and offsets for three
+  million generated descriptors.
+- Touchscreen and touchpad diagnostics take their field names from string
+  literals. They were formatted into one thread-local buffer, so an
+  `aoahid_error_detail` copied before a later touch Spec call on the same
+  thread could read a different name.
+
+### Tests
+
+- `aoahid_tests` runs only the suites named on its command line
+  (`item_writer`, `profiles`, `transport`, `identity`); with no argument it
+  runs them all, as before.
+
 ## [4.0.2] - 2026-09-30
 
 No public API or ABI change. Hardware-verified on a Samsung Galaxy Tab S11 and a
